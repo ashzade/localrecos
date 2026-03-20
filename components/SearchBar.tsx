@@ -27,7 +27,11 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
-    router.push(`/search?q=${encodeURIComponent(q)}`);
+    const hasCity = / in | near /i.test(q);
+    const cityParam = !hasCity && detectedCity
+      ? `&city=${encodeURIComponent(detectedCity)}`
+      : '';
+    router.push(`/search?q=${encodeURIComponent(q)}${cityParam}`);
   }
 
   function fillCityExample(city: string) {

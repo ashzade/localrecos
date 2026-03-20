@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
               source: item.source,
               post_url: item.postUrl,
               summary: item.summary,
+              source_upvotes: item.redditScore,
             },
           });
           created++;
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
           source: item.source,
           post_url: item.postUrl,
           summary: item.summary,
+          source_upvotes: item.redditScore,
         },
       });
 

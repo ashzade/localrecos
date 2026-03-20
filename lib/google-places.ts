@@ -17,6 +17,9 @@ export async function lookupRestaurant(
   name: string,
   city: string
 ): Promise<PlaceDetails | null> {
+  // RULE_04: city context is required
+  if (!city || !city.trim()) return null;
+
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
   if (!apiKey) {

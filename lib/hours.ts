@@ -11,6 +11,14 @@ export function isOpenNow(hours: string): boolean | null {
     const jsDay = now.getDay();
     const placesDay = jsDay === 0 ? 6 : jsDay - 1;
 
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    // Compact format: "Mon-Sun 11am–10pm" or "Mon-Fri 7am–4pm, Sat-Sun 8am–3pm"
+    // Check this first — these strings have no pipe separators
+    if (/[a-z]{3}/i.test(hours) && !hours.includes(' | ')) {
+      return isOpenNowCompact(hours, placesDay, nowMin);
+    }
+
     const segments = hours.split(' | ');
     const todaySegment = segments[placesDay];
     if (!todaySegment) return null;
@@ -20,8 +28,6 @@ export function isOpenNow(hours: string): boolean | null {
     if (!timesPart) return null;
     if (timesPart.toLowerCase() === 'closed') return false;
     if (timesPart.toLowerCase().includes('24 hours')) return true;
-
-    const nowMin = now.getHours() * 60 + now.getMinutes();
 
     // Match any dash-like separator (hyphen, en-dash, em-dash, figure dash)
     const dash = '[-\u002D\u2013\u2014\u2012\u2010]';
@@ -50,11 +56,6 @@ export function isOpenNow(hours: string): boolean | null {
       const closeMin = closeH * 60 + closeM;
       if (closeMin < openMin) return nowMin >= openMin || nowMin < closeMin;
       return nowMin >= openMin && nowMin < closeMin;
-    }
-
-    // Compact format: "Mon-Sun 11am–10pm" or "Mon-Fri 7am–4pm, Sat-Sun 8am–3pm"
-    if (/[a-z]{3}/i.test(hours)) {
-      return isOpenNowCompact(hours, placesDay, nowMin);
     }
 
     return null;

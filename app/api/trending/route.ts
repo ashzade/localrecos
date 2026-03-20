@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       city: r.city,
       address: r.address,
       price_range: r.price_range,
+      hours: r.hours,
       status: r.status,
       details_verified: r.details_verified,
       recommendation_count: r.recommendations.length,

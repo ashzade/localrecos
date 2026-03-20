@@ -8,9 +8,43 @@ interface TrendingRestaurant {
   city: string;
   address: string | null;
   price_range: string | null;
+  hours: string | null;
   status: string;
   recommendation_count: number;
   total_net_votes: number;
+}
+
+function isOpenNow(hours: string): boolean | null {
+  try {
+    const now = new Date();
+    const jsDay = now.getDay();
+    const placesDay = jsDay === 0 ? 6 : jsDay - 1;
+    const segments = hours.split(' | ');
+    const todaySegment = segments[placesDay];
+    if (!todaySegment) return null;
+    const timesPart = todaySegment.replace(/^[^:]+:\s*/, '').trim();
+    if (timesPart.toLowerCase() === 'closed') return false;
+    if (timesPart.toLowerCase().includes('24 hours')) return true;
+    const rangeMatch = timesPart.match(/(\d{1,2}:\d{2}\s*[AP]M)\s*[–\-]\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
+    if (!rangeMatch) return null;
+    function parseTime(t: string): number {
+      const m = t.trim().match(/(\d{1,2}):(\d{2})\s*([AP]M)/i);
+      if (!m) return 0;
+      let h = parseInt(m[1]);
+      const min = parseInt(m[2]);
+      const ampm = m[3].toUpperCase();
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return h * 60 + min;
+    }
+    const openMin = parseTime(rangeMatch[1]);
+    const closeMin = parseTime(rangeMatch[2]);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (closeMin < openMin) return nowMin >= openMin || nowMin < closeMin;
+    return nowMin >= openMin && nowMin < closeMin;
+  } catch {
+    return null;
+  }
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -67,7 +101,9 @@ export default function TrendingSection() {
         Trending in {displayCity}
       </h2>
       <div className="space-y-2">
-        {results.map((r, i) => (
+        {results.map((r, i) => {
+          const openNow = r.hours ? isOpenNow(r.hours) : null;
+          return (
           <a
             key={r.id}
             href={`/restaurant/${r.id}`}
@@ -75,7 +111,7 @@ export default function TrendingSection() {
           >
             <span className="text-sm font-bold text-gray-300 w-5 text-right flex-shrink-0">{i + 1}</span>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                 <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 truncate">
                   {r.name}
                 </span>
@@ -87,6 +123,11 @@ export default function TrendingSection() {
                     </span>
                   );
                 })()}
+                {openNow !== null && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${openNow ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    {openNow ? 'Open' : 'Closed'}
+                  </span>
+                )}
               </div>
               {r.address && (
                 <span className="text-xs text-gray-400 truncate block">{r.address}</span>
@@ -102,7 +143,8 @@ export default function TrendingSection() {
               )}
             </div>
           </a>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

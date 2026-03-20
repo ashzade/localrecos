@@ -4,6 +4,7 @@ interface Recommendation {
   post_url: string;
   summary: string;
   mention_count: number;
+  source_upvotes: number;
   scraped_at: string | Date;
 }
 
@@ -20,6 +21,9 @@ export default function RecommendationCard({ recommendation: rec }: Recommendati
       <p className="text-sm text-gray-700 leading-relaxed line-clamp-3">{rec.summary}</p>
       <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
         <span className="font-medium text-gray-500">{rec.source}</span>
+        {rec.source_upvotes > 0 && (
+          <span>↑ {rec.source_upvotes}</span>
+        )}
         {rec.mention_count > 1 && (
           <span>{rec.mention_count} mentions</span>
         )}

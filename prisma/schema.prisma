@@ -63,9 +63,10 @@ model CommunityRecommendation {
   source        String
   post_url      String
   summary       String
-  mention_count Int        @default(1)
-  upvotes       Int        @default(0)
-  downvotes     Int        @default(0)
+  mention_count   Int        @default(1)
+  source_upvotes  Int        @default(0)
+  upvotes         Int        @default(0)
+  downvotes       Int        @default(0)
   scraped_at    DateTime   @default(now())
 
   restaurant    Restaurant @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)

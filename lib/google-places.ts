@@ -17,6 +17,9 @@ export async function lookupRestaurant(
   name: string,
   city: string
 ): Promise<PlaceDetails | null> {
+  // RULE_04: city is required
+  if (!city || !city.trim()) return null;
+
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
   if (!apiKey) {
@@ -26,7 +29,7 @@ export async function lookupRestaurant(
 
   try {
     const query = encodeURIComponent(`${name} restaurant ${city}`);
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${apiKey}&type=restaurant`;
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${apiKey}`;
 
     const response = await fetch(url, {
       next: { revalidate: 86400 }, // Cache for 24 hours

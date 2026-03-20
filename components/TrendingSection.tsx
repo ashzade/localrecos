@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isOpenNow } from '@/lib/hours';
 
 interface TrendingRestaurant {
   id: string;
@@ -14,38 +15,6 @@ interface TrendingRestaurant {
   total_net_votes: number;
 }
 
-function isOpenNow(hours: string): boolean | null {
-  try {
-    const now = new Date();
-    const jsDay = now.getDay();
-    const placesDay = jsDay === 0 ? 6 : jsDay - 1;
-    const segments = hours.split(' | ');
-    const todaySegment = segments[placesDay];
-    if (!todaySegment) return null;
-    const timesPart = todaySegment.replace(/^[^:]+:\s*/, '').trim();
-    if (timesPart.toLowerCase() === 'closed') return false;
-    if (timesPart.toLowerCase().includes('24 hours')) return true;
-    const rangeMatch = timesPart.match(/(\d{1,2}:\d{2}\s*[AP]M)\s*[–\-]\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
-    if (!rangeMatch) return null;
-    function parseTime(t: string): number {
-      const m = t.trim().match(/(\d{1,2}):(\d{2})\s*([AP]M)/i);
-      if (!m) return 0;
-      let h = parseInt(m[1]);
-      const min = parseInt(m[2]);
-      const ampm = m[3].toUpperCase();
-      if (ampm === 'PM' && h !== 12) h += 12;
-      if (ampm === 'AM' && h === 12) h = 0;
-      return h * 60 + min;
-    }
-    const openMin = parseTime(rangeMatch[1]);
-    const closeMin = parseTime(rangeMatch[2]);
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    if (closeMin < openMin) return nowMin >= openMin || nowMin < closeMin;
-    return nowMin >= openMin && nowMin < closeMin;
-  } catch {
-    return null;
-  }
-}
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   VERIFIED: { label: 'Verified', className: 'bg-green-100 text-green-700' },

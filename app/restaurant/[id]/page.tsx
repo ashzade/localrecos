@@ -3,6 +3,7 @@ import Image from 'next/image';
 import prisma from '@/lib/db';
 import RecommendationCard from '@/components/RecommendationCard';
 import RestaurantFeedbackButton from '@/components/RestaurantFeedbackButton';
+import { isOpenNow } from '@/lib/hours';
 
 interface RestaurantPageProps {
   params: { id: string };
@@ -26,56 +27,6 @@ const STATUS_INFO: Record<string, { label: string; className: string; descriptio
   },
 };
 
-/**
- * Parses the stored hours string (e.g. "Monday: 9:00 AM – 10:00 PM | Tuesday: Closed | ...")
- * and returns true if the restaurant is currently open.
- */
-function isOpenNow(hours: string): boolean | null {
-  try {
-    const now = new Date();
-    // getDay(): 0=Sun, 1=Mon, ..., 6=Sat
-    // weekday_text order: 0=Mon, ..., 5=Sat, 6=Sun
-    const jsDay = now.getDay();
-    const placesDay = jsDay === 0 ? 6 : jsDay - 1;
-
-    const segments = hours.split(' | ');
-    const todaySegment = segments[placesDay];
-    if (!todaySegment) return null;
-
-    const timesPart = todaySegment.replace(/^[^:]+:\s*/, '').trim();
-    if (timesPart.toLowerCase() === 'closed') return false;
-
-    // Handle "Open 24 hours"
-    if (timesPart.toLowerCase().includes('24 hours')) return true;
-
-    // Parse "9:00 AM – 10:00 PM" (note: en-dash)
-    const rangeMatch = timesPart.match(/(\d{1,2}:\d{2}\s*[AP]M)\s*[–\-]\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
-    if (!rangeMatch) return null;
-
-    function parseTime(t: string): number {
-      const m = t.trim().match(/(\d{1,2}):(\d{2})\s*([AP]M)/i);
-      if (!m) return 0;
-      let h = parseInt(m[1]);
-      const min = parseInt(m[2]);
-      const ampm = m[3].toUpperCase();
-      if (ampm === 'PM' && h !== 12) h += 12;
-      if (ampm === 'AM' && h === 12) h = 0;
-      return h * 60 + min;
-    }
-
-    const openMin = parseTime(rangeMatch[1]);
-    const closeMin = parseTime(rangeMatch[2]);
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-
-    // Handle overnight hours (e.g. 10 PM – 2 AM)
-    if (closeMin < openMin) {
-      return nowMin >= openMin || nowMin < closeMin;
-    }
-    return nowMin >= openMin && nowMin < closeMin;
-  } catch {
-    return null;
-  }
-}
 
 export async function generateMetadata({ params }: RestaurantPageProps) {
   const restaurant = await prisma.restaurant.findUnique({ where: { id: params.id } });

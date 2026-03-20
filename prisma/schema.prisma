@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RestaurantStatus {
+  UNREVIEWED
+  VERIFIED
+  INCOMPLETE
+}
+
+enum VoteDirection {
+  up
+  down
+}
+
+model Restaurant {
+  id               String                    @id @default(uuid())
+  name             String
+  city             String
+  address          String?
+  phone            String?
+  website          String?
+  hours            String?
+  price_range      String?
+  service_options  String[]
+  status           RestaurantStatus          @default(UNREVIEWED)
+  details_verified Boolean                   @default(true)
+  photo_url        String?
+  upvotes          Int                       @default(0)
+  downvotes        Int                       @default(0)
+  created_at       DateTime                  @default(now())
+  updated_at       DateTime                  @updatedAt
+
+  recommendations  CommunityRecommendation[]
+  votes            RestaurantVote[]
+
+  @@index([name])
+  @@index([city])
+}
+
+model RestaurantVote {
+  id            String        @id @default(uuid())
+  restaurant_id String
+  fingerprint   String
+  direction     VoteDirection
+  created_at    DateTime      @default(now())
+
+  restaurant    Restaurant    @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+
+  @@unique([restaurant_id, fingerprint])
+  @@index([restaurant_id])
+  @@index([fingerprint])
+}
+
+model CommunityRecommendation {
+  id            String     @id @default(uuid())
+  restaurant_id String
+  source        String
+  post_url      String
+  summary       String
+  mention_count Int        @default(1)
+  upvotes       Int        @default(0)
+  downvotes     Int        @default(0)
+  scraped_at    DateTime   @default(now())
+
+  restaurant    Restaurant @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+  votes         Vote[]
+
+  @@index([restaurant_id])
+}
+
+model Vote {
+  id                String                  @id @default(uuid())
+  recommendation_id String
+  fingerprint       String
+  direction         VoteDirection
+  created_at        DateTime                @default(now())
+
+  recommendation    CommunityRecommendation @relation(fields: [recommendation_id], references: [id], onDelete: Cascade)
+
+  @@unique([recommendation_id, fingerprint])
+  @@index([recommendation_id])
+  @@index([fingerprint])
+}

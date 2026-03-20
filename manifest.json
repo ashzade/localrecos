@@ -1,0 +1,587 @@
+{
+  "meta": {
+    "featureId": "localrecos",
+    "version": "1.0.0",
+    "status": "draft",
+    "owner": "ashzade",
+    "dependsOn": [],
+    "tags": [
+      "restaurants",
+      "recommendations",
+      "community",
+      "search"
+    ]
+  },
+  "feature": {
+    "name": "LocalRecos",
+    "intent": "A site where anonymous users search for restaurant recommendations using natural language (e.g. \"most authentic Indian in Ottawa\"). Results are sourced from community sites like Reddit subreddits (r/ottawa, r/ottawafoodies, and city-specific equivalents). Users can see trending restaurants in their detected city, filter results, vote on recommendations, and share individual restaurant links."
+  },
+  "externalProviders": {
+    "GooglePlaces": {
+      "methods": [
+        {
+          "name": "lookup",
+          "params": [
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "type": "string"
+            }
+          ],
+          "returns": "RestaurantDetails"
+        },
+        {
+          "name": "verified",
+          "params": [
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "type": "string"
+            }
+          ],
+          "returns": "boolean"
+        }
+      ],
+      "source": "google-maps-api",
+      "provides": "restaurant details including address, phone, hours, website, and photo",
+      "lookupKey": "restaurant_name + city"
+    },
+    "RedditScraper": {
+      "methods": [
+        {
+          "name": "fetch_mentions",
+          "params": [
+            {
+              "name": "city",
+              "type": "string"
+            },
+            {
+              "name": "subreddits",
+              "type": "string[]"
+            }
+          ],
+          "returns": "Post[]"
+        }
+      ],
+      "source": "reddit-api",
+      "provides": "community posts mentioning restaurants from city-specific subreddits",
+      "lookupKey": "city"
+    },
+    "GeoDetector": {
+      "methods": [
+        {
+          "name": "detect_city",
+          "params": [
+            {
+              "name": "context",
+              "type": "RequestContext"
+            }
+          ],
+          "returns": "string | null"
+        }
+      ],
+      "source": "browser-geolocation + ip-geolocation",
+      "provides": "the user's current city",
+      "lookupKey": "request_context"
+    }
+  },
+  "stateMachine": {
+    "states": {
+      "UNREVIEWED": "restaurant scraped, no community votes recorded yet",
+      "VERIFIED": "restaurant has received at least one community vote",
+      "INCOMPLETE": "restaurant details could not be confirmed via Google Maps"
+    },
+    "transitions": [
+      {
+        "from": "UNREVIEWED",
+        "to": "VERIFIED",
+        "actions": [
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'VERIFIED'"
+            ]
+          }
+        ],
+        "trigger": "A vote is cast on any of the restaurant's community recommendations",
+        "guard": "RULE_01"
+      },
+      {
+        "from": "UNREVIEWED",
+        "to": "INCOMPLETE",
+        "actions": [
+          {
+            "type": "set_field",
+            "args": [
+              "entity.details_verified",
+              "false"
+            ]
+          }
+        ],
+        "trigger": "Google Maps lookup returns no result for the restaurant",
+        "guard": "RULE_02"
+      },
+      {
+        "from": "INCOMPLETE",
+        "to": "VERIFIED",
+        "actions": [],
+        "trigger": "A vote is cast on any of the restaurant's community recommendations",
+        "guard": "RULE_01"
+      }
+    ]
+  },
+  "actors": {
+    "Visitor": {
+      "read": [
+        "Restaurant.*",
+        "CommunityRecommendation.*"
+      ],
+      "write": [
+        "Vote.direction"
+      ]
+    }
+  },
+  "enforcement": [
+    {
+      "ruleId": "RULE_03",
+      "severity": "MEDIUM",
+      "responses": [
+        {
+          "action": "reject"
+        }
+      ]
+    },
+    {
+      "ruleId": "RULE_04",
+      "severity": "MEDIUM",
+      "responses": [
+        {
+          "action": "reject"
+        }
+      ]
+    }
+  ],
+  "dataModel": {
+    "Restaurant": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "name": {
+          "name": "name",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            }
+          ]
+        },
+        "city": {
+          "name": "city",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            }
+          ]
+        },
+        "address": {
+          "name": "address",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "phone": {
+          "name": "phone",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "website": {
+          "name": "website",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "hours": {
+          "name": "hours",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "price_range": {
+          "name": "price_range",
+          "type": "enum('$', '$$', '$$$', '$$$$')",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "service_options": {
+          "name": "service_options",
+          "type": "string[]",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('UNREVIEWED', 'VERIFIED', 'INCOMPLETE')",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "UNREVIEWED"
+              ]
+            }
+          ]
+        },
+        "details_verified": {
+          "name": "details_verified",
+          "type": "boolean",
+          "modifiers": [
+            {
+              "name": "default",
+              "args": [
+                "true"
+              ]
+            }
+          ]
+        },
+        "photo_url": {
+          "name": "photo_url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "CommunityRecommendation": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "restaurant_id": {
+          "name": "restaurant_id",
+          "type": "uuid",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "Restaurant.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "source": {
+          "name": "source",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "post_url": {
+          "name": "post_url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "summary": {
+          "name": "summary",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "mention_count": {
+          "name": "mention_count",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "default",
+              "args": [
+                "1"
+              ]
+            }
+          ]
+        },
+        "upvotes": {
+          "name": "upvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "downvotes": {
+          "name": "downvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "scraped_at": {
+          "name": "scraped_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "Vote": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "recommendation_id": {
+          "name": "recommendation_id",
+          "type": "uuid",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "CommunityRecommendation.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "sensitive",
+              "args": []
+            }
+          ]
+        },
+        "direction": {
+          "name": "direction",
+          "type": "enum('up', 'down')",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    }
+  },
+  "computedProperties": {
+    "net_votes": {
+      "aggregate": "SUM",
+      "entity": "Vote",
+      "filter": "entity.recommendation_id == CommunityRecommendation.id",
+      "window": null
+    },
+    "has_community_recommendations": {
+      "aggregate": "EXISTS",
+      "entity": "CommunityRecommendation",
+      "filter": "entity.restaurant_id == Restaurant.id",
+      "window": null
+    },
+    "existing_vote": {
+      "aggregate": "EXISTS",
+      "entity": "Vote",
+      "filter": "entity.recommendation_id == Vote.recommendation_id AND entity.fingerprint == actor.fingerprint",
+      "window": null
+    }
+  },
+  "rules": {
+    "RULE_01": {
+      "id": "RULE_01",
+      "title": "Restaurant Must Have Recommendations to Be Verified",
+      "references": [],
+      "type": "Validation",
+      "entity": "Restaurant",
+      "condition": "has_community_recommendations == true",
+      "message": "A restaurant must have at least one community recommendation before it can be verified."
+    },
+    "RULE_02": {
+      "id": "RULE_02",
+      "title": "Restaurant Details Not Found",
+      "references": [],
+      "type": "Validation",
+      "entity": "Restaurant",
+      "condition": "GooglePlaces.verified(entity.name, entity.city) == false",
+      "message": "Restaurant details could not be confirmed via Google Maps and will be shown as incomplete."
+    },
+    "RULE_03": {
+      "id": "RULE_03",
+      "title": "No Duplicate Votes",
+      "references": [],
+      "type": "Business",
+      "entity": "Vote",
+      "condition": "existing_vote == false",
+      "message": "You have already voted on this recommendation."
+    },
+    "RULE_04": {
+      "id": "RULE_04",
+      "title": "Search Requires City Context",
+      "references": [],
+      "type": "Business",
+      "entity": "Restaurant",
+      "condition": "actor.type == 'Visitor' AND GeoDetector.detect_city(actor.context) != null",
+      "message": "We couldn't detect your location. Please confirm your city to see results."
+    }
+  }
+}

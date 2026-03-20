@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "uptocode": {
+      "command": "node",
+      "args": [
+        "/Users/ashzade/claude/technical-founder/parser/node_modules/.bin/ts-node",
+        "--transpile-only",
+        "/Users/ashzade/claude/technical-founder/parser/mcp-server.ts"
+      ]
+    }
+  }
+}

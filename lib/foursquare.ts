@@ -114,7 +114,7 @@ function buildPlaceDetails(place: Record<string, unknown>): PlaceDetails {
 export async function searchFoursquare(
   city: string,
   query: string,
-  limit = 10
+  limit = 5
 ): Promise<PlaceDetails[]> {
   const apiKey = process.env.FOURSQUARE_API_KEY;
   if (!apiKey || !city.trim()) return [];
@@ -128,13 +128,22 @@ export async function searchFoursquare(
       fields: 'fsq_place_id,name,location,tel,website,hours,price,photos,attributes',
     });
 
-    const response = await fetch(
-      `${FSQ_BASE}/places/search?${params}`,
-      {
-        headers: fsqHeaders(apiKey),
-        cache: 'no-store',
-      }
-    );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${FSQ_BASE}/places/search?${params}`,
+        {
+          headers: fsqHeaders(apiKey),
+          cache: 'no-store',
+          signal: controller.signal,
+        }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       console.error(`[foursquare] search failed status=${response.status}`, await response.text());

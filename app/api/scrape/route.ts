@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeRedditForRestaurants } from '@/lib/reddit';
-import { lookupRestaurant, isRestaurantVerified } from '@/lib/google-places';
+import { lookupRestaurant, isRestaurantVerified } from '@/lib/foursquare';
 import { applyRule02 } from '@/lib/rules';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';

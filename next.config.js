@@ -7,7 +7,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'maps.googleapis.com',
+        hostname: 'fastly.4sqi.net',
       },
     ],
   },

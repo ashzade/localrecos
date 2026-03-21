@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { scrapeRedditForRestaurants } from '@/lib/reddit';
-import { lookupRestaurant, searchFoursquare } from '@/lib/foursquare';
-import { tryTransitionToVerified } from '@/lib/rules';
+import { searchFoursquare } from '@/lib/foursquare';
 import { parseQuery } from '@/lib/search';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';
@@ -34,84 +32,14 @@ export async function POST(request: NextRequest) {
 
   try {
     console.log(`[scrape] city=${city} query=${query}`);
-    const extracted = await scrapeRedditForRestaurants(city, query);
-    console.log(`[scrape] reddit extracted=${extracted.length}`);
 
     let created = 0;
     let skipped = 0;
 
-    for (const item of extracted) {
-      // Check if we already have a restaurant with this name in this city
-      const existing = await prisma.restaurant.findFirst({
-        where: {
-          name: { equals: item.name, mode: 'insensitive' },
-          city: { equals: city, mode: 'insensitive' },
-        },
-      });
-
-      if (existing) {
-        // Add a new recommendation if the post URL isn't already stored
-        const existingRec = await prisma.communityRecommendation.findFirst({
-          where: {
-            restaurant_id: existing.id,
-            post_url: item.postUrl,
-          },
-        });
-
-        if (!existingRec) {
-          await prisma.communityRecommendation.create({
-            data: {
-              restaurant_id: existing.id,
-              source: item.source,
-              post_url: item.postUrl,
-              summary: item.summary,
-              source_upvotes: item.redditScore,
-            },
-          });
-          created++;
-        } else {
-          skipped++;
-        }
-        continue;
-      }
-
-      // Look up place details
-      const placeDetails = await lookupRestaurant(item.name, city);
-
-      // Create restaurant
-      const restaurant = await prisma.restaurant.create({
-        data: {
-          name: placeDetails?.name ?? item.name,
-          city,
-          address: placeDetails?.address ?? null,
-          phone: placeDetails?.phone ?? null,
-          website: placeDetails?.website ?? null,
-          hours: placeDetails?.hours ?? null,
-          price_range: placeDetails?.price_range ?? null,
-          service_options: placeDetails?.service_options ?? [],
-          photo_url: placeDetails?.photo_url ?? null,
-          status: RestaurantStatus.UNREVIEWED,
-        },
-      });
-
-      // Create the community recommendation
-      await prisma.communityRecommendation.create({
-        data: {
-          restaurant_id: restaurant.id,
-          source: item.source,
-          post_url: item.postUrl,
-          summary: item.summary,
-          source_upvotes: item.redditScore,
-        },
-      });
-
-      created++;
-    }
-
-    // Foursquare fallback: if Reddit found nothing, search Foursquare directly
-    if (extracted.length === 0) {
+    // Foursquare search
+    {
       const terms = parseQuery(query).terms;
-      console.log(`[scrape] foursquare fallback terms=${terms}`);
+      console.log(`[scrape] foursquare terms=${terms}`);
       const foursquareResults = await searchFoursquare(city, terms);
       console.log(`[scrape] foursquare results=${foursquareResults.length}`, foursquareResults.map(p => p.name));
       for (const place of foursquareResults) {
@@ -151,7 +79,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      scraped: extracted.length,
       created,
       skipped,
     });

@@ -11,7 +11,6 @@ datasource db {
 enum RestaurantStatus {
   UNREVIEWED
   VERIFIED
-  INCOMPLETE
 }
 
 enum VoteDirection {
@@ -30,7 +29,6 @@ model Restaurant {
   price_range      String?
   service_options  String[]
   status           RestaurantStatus          @default(UNREVIEWED)
-  details_verified Boolean                   @default(true)
   photo_url        String?
   upvotes          Int                       @default(0)
   downvotes        Int                       @default(0)

@@ -11,10 +11,20 @@ interface SearchBarProps {
 export default function SearchBar({ initialValue = '', autoDetectCity = false }: SearchBarProps) {
   const [query, setQuery] = useState(initialValue);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
+  const [detectingCity, setDetectingCity] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (!autoDetectCity) return;
+
+    setDetectingCity(true);
+
+    const fetchIpFallback = () =>
+      fetch('/api/geo')
+        .then((r) => r.json())
+        .then((d) => { setDetectedCity(d.city ?? null); })
+        .catch(() => undefined)
+        .finally(() => setDetectingCity(false));
 
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -22,23 +32,15 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
           const { latitude, longitude } = pos.coords;
           fetch(`/api/geo?lat=${latitude}&lon=${longitude}`)
             .then((r) => r.json())
-            .then((d) => { if (d.city) setDetectedCity(d.city); })
-            .catch(() => undefined);
+            .then((d) => { setDetectedCity(d.city ?? null); })
+            .catch(() => undefined)
+            .finally(() => setDetectingCity(false));
         },
-        () => {
-          // User denied or error — fall back to IP
-          fetch('/api/geo')
-            .then((r) => r.json())
-            .then((d) => { if (d.city) setDetectedCity(d.city); })
-            .catch(() => undefined);
-        },
+        () => fetchIpFallback(),
         { timeout: 5000 }
       );
     } else {
-      fetch('/api/geo')
-        .then((r) => r.json())
-        .then((d) => { if (d.city) setDetectedCity(d.city); })
-        .catch(() => undefined);
+      fetchIpFallback();
     }
   }, [autoDetectCity]);
 
@@ -80,16 +82,24 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
         </button>
       </div>
 
-      {detectedCity && (
+      {autoDetectCity && (
         <p className="mt-2 text-sm text-gray-500">
-          Detected city:{' '}
-          <button
-            type="button"
-            onClick={() => fillCityExample(detectedCity)}
-            className="text-blue-600 hover:underline font-medium"
-          >
-            {detectedCity}
-          </button>
+          {detectingCity ? (
+            <span className="text-gray-400">Detecting your city...</span>
+          ) : detectedCity ? (
+            <>
+              Detected city:{' '}
+              <button
+                type="button"
+                onClick={() => fillCityExample(detectedCity)}
+                className="text-blue-600 hover:underline font-medium"
+              >
+                {detectedCity}
+              </button>
+            </>
+          ) : (
+            <span className="text-gray-400">Could not detect city — include &quot;in [city]&quot; in your search</span>
+          )}
         </p>
       )}
     </form>

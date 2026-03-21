@@ -6,7 +6,6 @@
     "owner": "platform-team",
     "dependsOn": [
       "foursquare_api",
-      "google_places_api",
       "reddit_api"
     ],
     "tags": [
@@ -50,37 +49,6 @@
       "source": "foursquare-api",
       "provides": "venue details and ratings for restaurants",
       "lookupKey": "place_name"
-    },
-    "GooglePlacesAPI": {
-      "methods": [
-        {
-          "name": "findPlace",
-          "params": [
-            {
-              "name": "name",
-              "type": "string"
-            },
-            {
-              "name": "city",
-              "type": "string"
-            }
-          ],
-          "returns": "json"
-        },
-        {
-          "name": "getDetails",
-          "params": [
-            {
-              "name": "place_id",
-              "type": "string"
-            }
-          ],
-          "returns": "json"
-        }
-      ],
-      "source": "google-places-api",
-      "provides": "place details, hours, and photos for restaurants",
-      "lookupKey": "place_id"
     },
     "RedditAPI": {
       "methods": [
@@ -1141,8 +1109,9 @@
       "references": [],
       "type": "Business",
       "entity": "ExtractedRestaurant",
-      "condition": "env(FOURSQUARE_API_KEY) != '' OR env(GOOGLE_PLACES_API_KEY) != ''",
-      "message": "At least one place enrichment API key must be configured; cannot enrich restaurant details."
+      "condition": "env(FOURSQUARE_API_KEY) != ''",
+      "scope": ["File(scrape)"],
+      "message": "Foursquare API key must be configured; cannot enrich restaurant details."
     },
     "RULE_06": {
       "id": "RULE_06",
@@ -1151,6 +1120,7 @@
       "type": "Business",
       "entity": "ParsedQuery",
       "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",
+      "scope": ["File(scrape)"],
       "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location."
     }
   }

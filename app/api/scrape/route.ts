@@ -24,6 +24,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!process.env.FOURSQUARE_API_KEY) {
+    return NextResponse.json(
+      { error: 'RULE_05', message: 'Enrichment API key is not configured' },
+      { status: 503 }
+    );
+  }
+
   try {
     const extracted = await scrapeRedditForRestaurants(city, query);
 

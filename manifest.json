@@ -17,41 +17,6 @@
     "intent": "A site where anonymous users search for restaurant recommendations using natural language (e.g. \"most authentic Indian in Ottawa\"). Results are sourced from community sites like Reddit subreddits (r/ottawa, r/ottawafoodies, and city-specific equivalents). Users can see trending restaurants in their detected city, filter results, vote on recommendations, and share individual restaurant links."
   },
   "externalProviders": {
-    "GooglePlaces": {
-      "methods": [
-        {
-          "name": "lookup",
-          "params": [
-            {
-              "name": "name",
-              "type": "string"
-            },
-            {
-              "name": "city",
-              "type": "string"
-            }
-          ],
-          "returns": "RestaurantDetails"
-        },
-        {
-          "name": "verified",
-          "params": [
-            {
-              "name": "name",
-              "type": "string"
-            },
-            {
-              "name": "city",
-              "type": "string"
-            }
-          ],
-          "returns": "boolean"
-        }
-      ],
-      "source": "google-maps-api",
-      "provides": "restaurant details including address, phone, hours, website, and photo",
-      "lookupKey": "restaurant_name + city"
-    },
     "RedditScraper": {
       "methods": [
         {
@@ -94,8 +59,7 @@
   "stateMachine": {
     "states": {
       "UNREVIEWED": "restaurant scraped, no community votes recorded yet",
-      "VERIFIED": "restaurant has received at least one community vote",
-      "INCOMPLETE": "restaurant details could not be confirmed via Google Maps"
+      "VERIFIED": "restaurant has received at least one community vote"
     },
     "transitions": [
       {
@@ -110,28 +74,6 @@
             ]
           }
         ],
-        "trigger": "A vote is cast on any of the restaurant's community recommendations",
-        "guard": "RULE_01"
-      },
-      {
-        "from": "UNREVIEWED",
-        "to": "INCOMPLETE",
-        "actions": [
-          {
-            "type": "set_field",
-            "args": [
-              "entity.details_verified",
-              "false"
-            ]
-          }
-        ],
-        "trigger": "Google Maps lookup returns no result for the restaurant",
-        "guard": "RULE_02"
-      },
-      {
-        "from": "INCOMPLETE",
-        "to": "VERIFIED",
-        "actions": [],
         "trigger": "A vote is cast on any of the restaurant's community recommendations",
         "guard": "RULE_01"
       }
@@ -275,7 +217,7 @@
         },
         "status": {
           "name": "status",
-          "type": "enum('UNREVIEWED', 'VERIFIED', 'INCOMPLETE')",
+          "type": "enum('UNREVIEWED', 'VERIFIED')",
           "modifiers": [
             {
               "name": "required",
@@ -285,18 +227,6 @@
               "name": "default",
               "args": [
                 "UNREVIEWED"
-              ]
-            }
-          ]
-        },
-        "details_verified": {
-          "name": "details_verified",
-          "type": "boolean",
-          "modifiers": [
-            {
-              "name": "default",
-              "args": [
-                "true"
               ]
             }
           ]
@@ -555,15 +485,6 @@
       "entity": "Restaurant",
       "condition": "has_community_recommendations == true",
       "message": "A restaurant must have at least one community recommendation before it can be verified."
-    },
-    "RULE_02": {
-      "id": "RULE_02",
-      "title": "Restaurant Details Not Found",
-      "references": [],
-      "type": "Validation",
-      "entity": "Restaurant",
-      "condition": "GooglePlaces.verified(entity.name, entity.city) == false",
-      "message": "Restaurant details could not be confirmed via Google Maps and will be shown as incomplete."
     },
     "RULE_03": {
       "id": "RULE_03",

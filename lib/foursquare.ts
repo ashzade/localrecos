@@ -13,6 +13,7 @@ function fsqGet(path: string, apiKey: string): Promise<{ status: number; body: s
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'X-Places-Api-Version': FSQ_VERSION,
+          Accept: 'application/json',
         },
         timeout: 8000,
       },

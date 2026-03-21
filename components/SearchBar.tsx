@@ -15,12 +15,31 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
 
   useEffect(() => {
     if (!autoDetectCity) return;
-    fetch('/api/geo')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.city) setDetectedCity(d.city);
-      })
-      .catch(() => undefined);
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          fetch(`/api/geo?lat=${latitude}&lon=${longitude}`)
+            .then((r) => r.json())
+            .then((d) => { if (d.city) setDetectedCity(d.city); })
+            .catch(() => undefined);
+        },
+        () => {
+          // User denied or error — fall back to IP
+          fetch('/api/geo')
+            .then((r) => r.json())
+            .then((d) => { if (d.city) setDetectedCity(d.city); })
+            .catch(() => undefined);
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      fetch('/api/geo')
+        .then((r) => r.json())
+        .then((d) => { if (d.city) setDetectedCity(d.city); })
+        .catch(() => undefined);
+    }
   }, [autoDetectCity]);
 
   function handleSubmit(e: React.FormEvent) {

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   // Fallback: IP geolocation
   const ip = extractIp(request.headers);
-  const city = (await detectCityFromIp(ip)) ?? null;
+  const city = (await detectCityFromIp(ip)) ?? process.env.DEFAULT_CITY ?? null;
 
   return NextResponse.json({ city, debug: { source: 'ip', ip } });
 }

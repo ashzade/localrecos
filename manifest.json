@@ -286,28 +286,22 @@
   "actors": {
     "SystemPipeline": {
       "read": [
-        "parsed_queries",
-        "reddit_posts",
-        "extracted_restaurants",
-        "place_details",
-        "place_details_raw"
+        "restaurants",
+        "community_recommendations"
       ],
       "write": [
-        "parsed_queries",
-        "reddit_posts",
-        "extracted_restaurants",
-        "place_details",
-        "place_details_raw",
-        "restaurants_with_recommendations"
+        "restaurants",
+        "community_recommendations"
       ]
     },
     "PublicAPI": {
       "read": [
-        "restaurants_with_recommendations",
-        "parsed_queries"
+        "restaurants",
+        "community_recommendations"
       ],
       "write": [
-        "parsed_queries"
+        "restaurant_votes",
+        "votes"
       ]
     }
   },
@@ -368,50 +362,10 @@
     }
   ],
   "dataModel": {
-    "ParsedQuery": {
+    "ParsedQuery (in-memory)": {
       "fields": {
-        "id": {
-          "name": "id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "primary",
-              "args": []
-            },
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        },
-        "raw_query": {
-          "name": "raw_query",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            }
-          ]
-        },
         "city": {
           "name": "city",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "env(DEFAULT_CITY)"
-              ]
-            }
-          ]
-        },
-        "cuisine_type": {
-          "name": "cuisine_type",
           "type": "string",
           "modifiers": [
             {
@@ -420,111 +374,36 @@
             }
           ]
         },
-        "keywords": {
-          "name": "keywords",
+        "terms": {
+          "name": "terms",
           "type": "string",
           "modifiers": [
             {
               "name": "required",
               "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "[]"
-              ]
             }
           ]
         },
-        "status": {
-          "name": "status",
-          "type": "enum('pending', 'fetching', 'extracting', 'enriching', 'complete', 'failed')",
+        "raw": {
+          "name": "raw",
+          "type": "string",
           "modifiers": [
             {
               "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "pending"
-              ]
-            }
-          ]
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "modifiers": [
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "modifiers": [
-            {
-              "name": "auto-gen",
               "args": []
             }
           ]
         }
       }
     },
-    "RedditPost": {
+    "RedditPost (in-memory)": {
       "fields": {
         "id": {
           "name": "id",
           "type": "string",
           "modifiers": [
             {
-              "name": "primary",
-              "args": []
-            },
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        },
-        "query_id": {
-          "name": "query_id",
-          "type": "string",
-          "modifiers": [
-            {
               "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "fk",
-              "args": [
-                "ParsedQuery.id",
-                "many-to-one"
-              ]
-            }
-          ]
-        },
-        "post_id": {
-          "name": "post_id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "unique",
-              "args": []
-            },
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
               "args": []
             }
           ]
@@ -539,12 +418,32 @@
             }
           ]
         },
-        "body": {
-          "name": "body",
+        "selftext": {
+          "name": "selftext",
           "type": "string",
           "modifiers": [
             {
-              "name": "nullable",
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "url": {
+          "name": "url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "permalink": {
+          "name": "permalink",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
               "args": []
             }
           ]
@@ -559,16 +458,6 @@
             }
           ]
         },
-        "author": {
-          "name": "author",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "nullable",
-              "args": []
-            }
-          ]
-        },
         "score": {
           "name": "score",
           "type": "integer",
@@ -576,111 +465,23 @@
             {
               "name": "required",
               "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
             }
           ]
         },
-        "comment_count": {
-          "name": "comment_count",
+        "created_utc": {
+          "name": "created_utc",
           "type": "integer",
           "modifiers": [
             {
               "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
-            }
-          ]
-        },
-        "url": {
-          "name": "url",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            }
-          ]
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp",
-          "modifiers": [
-            {
-              "name": "auto-gen",
               "args": []
             }
           ]
         }
       }
     },
-    "ExtractedRestaurant": {
+    "ExtractedRestaurant (in-memory)": {
       "fields": {
-        "id": {
-          "name": "id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "primary",
-              "args": []
-            },
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        },
-        "post_id": {
-          "name": "post_id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "fk",
-              "args": [
-                "RedditPost.id",
-                "many-to-one"
-              ]
-            }
-          ]
-        },
-        "query_id": {
-          "name": "query_id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "fk",
-              "args": [
-                "ParsedQuery.id",
-                "many-to-one"
-              ]
-            }
-          ]
-        },
         "name": {
           "name": "name",
           "type": "string",
@@ -691,34 +492,8 @@
             }
           ]
         },
-        "mention_count": {
-          "name": "mention_count",
-          "type": "integer",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "1"
-              ]
-            }
-          ]
-        },
-        "context_snippet": {
-          "name": "context_snippet",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "nullable",
-              "args": []
-            }
-          ]
-        },
-        "city": {
-          "name": "city",
+        "summary": {
+          "name": "summary",
           "type": "string",
           "modifiers": [
             {
@@ -727,128 +502,20 @@
             }
           ]
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
+        "source": {
+          "name": "source",
+          "type": "string",
           "modifiers": [
             {
-              "name": "auto-gen",
+              "name": "required",
               "args": []
             }
           ]
         }
       }
     },
-    "PlaceDetailsRaw": {
+    "PlaceDetails (in-memory)": {
       "fields": {
-        "id": {
-          "name": "id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "primary",
-              "args": []
-            },
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        },
-        "extracted_restaurant_id": {
-          "name": "extracted_restaurant_id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "fk",
-              "args": [
-                "ExtractedRestaurant.id",
-                "one-to-one"
-              ]
-            }
-          ]
-        },
-        "foursquare_raw": {
-          "name": "foursquare_raw",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "nullable",
-              "args": []
-            }
-          ]
-        },
-        "google_raw": {
-          "name": "google_raw",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "nullable",
-              "args": []
-            }
-          ]
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp",
-          "modifiers": [
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        }
-      }
-    },
-    "PlaceDetails": {
-      "fields": {
-        "id": {
-          "name": "id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "primary",
-              "args": []
-            },
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        },
-        "extracted_restaurant_id": {
-          "name": "extracted_restaurant_id",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "unique",
-              "args": []
-            },
-            {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "fk",
-              "args": [
-                "ExtractedRestaurant.id",
-                "one-to-one"
-              ]
-            }
-          ]
-        },
         "name": {
           "name": "name",
           "type": "string",
@@ -865,16 +532,6 @@
           "modifiers": [
             {
               "name": "nullable",
-              "args": []
-            }
-          ]
-        },
-        "city": {
-          "name": "city",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "required",
               "args": []
             }
           ]
@@ -909,9 +566,9 @@
             }
           ]
         },
-        "price_level": {
-          "name": "price_level",
-          "type": "integer",
+        "price_range": {
+          "name": "price_range",
+          "type": "string",
           "modifiers": [
             {
               "name": "nullable",
@@ -919,22 +576,12 @@
             }
           ]
         },
-        "rating": {
-          "name": "rating",
-          "type": "decimal",
+        "service_options": {
+          "name": "service_options",
+          "type": "string[]",
           "modifiers": [
             {
-              "name": "nullable",
-              "args": []
-            }
-          ]
-        },
-        "review_count": {
-          "name": "review_count",
-          "type": "integer",
-          "modifiers": [
-            {
-              "name": "nullable",
+              "name": "required",
               "args": []
             }
           ]
@@ -948,9 +595,55 @@
               "args": []
             }
           ]
+        }
+      }
+    },
+    "Restaurant": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
         },
-        "foursquare_id": {
-          "name": "foursquare_id",
+        "name": {
+          "name": "name",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            }
+          ]
+        },
+        "city": {
+          "name": "city",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            }
+          ]
+        },
+        "address": {
+          "name": "address",
           "type": "string",
           "modifiers": [
             {
@@ -959,12 +652,342 @@
             }
           ]
         },
-        "google_place_id": {
-          "name": "google_place_id",
+        "phone": {
+          "name": "phone",
           "type": "string",
           "modifiers": [
             {
               "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "website": {
+          "name": "website",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "hours": {
+          "name": "hours",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "price_range": {
+          "name": "price_range",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "service_options": {
+          "name": "service_options",
+          "type": "string[]",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "[]"
+              ]
+            }
+          ]
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('UNREVIEWED', 'VERIFIED')",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "UNREVIEWED"
+              ]
+            }
+          ]
+        },
+        "photo_url": {
+          "name": "photo_url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "upvotes": {
+          "name": "upvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "downvotes": {
+          "name": "downvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "CommunityRecommendation": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "restaurant_id": {
+          "name": "restaurant_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "Restaurant.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "source": {
+          "name": "source",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "post_url": {
+          "name": "post_url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "summary": {
+          "name": "summary",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "mention_count": {
+          "name": "mention_count",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "1"
+              ]
+            }
+          ]
+        },
+        "source_upvotes": {
+          "name": "source_upvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "upvotes": {
+          "name": "upvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "downvotes": {
+          "name": "downvotes",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "scraped_at": {
+          "name": "scraped_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "RestaurantVote": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "restaurant_id": {
+          "name": "restaurant_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "Restaurant.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            }
+          ]
+        },
+        "direction": {
+          "name": "direction",
+          "type": "enum('up', 'down')",
+          "modifiers": [
+            {
+              "name": "required",
               "args": []
             }
           ]
@@ -981,7 +1004,7 @@
         }
       }
     },
-    "RestaurantWithRecommendations": {
+    "Vote": {
       "fields": {
         "id": {
           "name": "id",
@@ -997,8 +1020,8 @@
             }
           ]
         },
-        "query_id": {
-          "name": "query_id",
+        "recommendation_id": {
+          "name": "recommendation_id",
           "type": "string",
           "modifiers": [
             {
@@ -1012,14 +1035,14 @@
             {
               "name": "fk",
               "args": [
-                "ParsedQuery.id",
+                "CommunityRecommendation.id",
                 "many-to-one"
               ]
             }
           ]
         },
-        "place_details_id": {
-          "name": "place_details_id",
+        "fingerprint": {
+          "name": "fingerprint",
           "type": "string",
           "modifiers": [
             {
@@ -1029,70 +1052,15 @@
             {
               "name": "indexed",
               "args": []
-            },
-            {
-              "name": "fk",
-              "args": [
-                "PlaceDetails.id",
-                "many-to-one"
-              ]
             }
           ]
         },
-        "recommendation_score": {
-          "name": "recommendation_score",
-          "type": "decimal",
+        "direction": {
+          "name": "direction",
+          "type": "enum('up', 'down')",
           "modifiers": [
             {
               "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
-            }
-          ]
-        },
-        "mention_count": {
-          "name": "mention_count",
-          "type": "integer",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
-            }
-          ]
-        },
-        "reddit_score": {
-          "name": "reddit_score",
-          "type": "integer",
-          "modifiers": [
-            {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
-            }
-          ]
-        },
-        "summary": {
-          "name": "summary",
-          "type": "string",
-          "modifiers": [
-            {
-              "name": "nullable",
               "args": []
             }
           ]
@@ -1113,19 +1081,19 @@
   "computedProperties": {
     "has_place_data": {
       "aggregate": "EXISTS",
-      "entity": "PlaceDetails",
-      "filter": "entity.foursquare_id != '' OR entity.google_place_id != ''",
+      "entity": "Restaurant",
+      "filter": "entity.address != '' OR entity.phone != '' OR entity.website != ''",
       "window": null
     },
-    "high_confidence_recommendations": {
+    "high_net_vote_restaurants": {
       "aggregate": "COUNT",
-      "entity": "RestaurantWithRecommendations",
-      "filter": "entity.recommendation_score > 0.7 AND entity.mention_count > 1",
+      "entity": "Restaurant",
+      "filter": "entity.upvotes - entity.downvotes > 2",
       "window": null
     },
     "top_mentioned_restaurants": {
       "aggregate": "COUNT",
-      "entity": "ExtractedRestaurant",
+      "entity": "CommunityRecommendation",
       "filter": "entity.mention_count > 2",
       "window": null
     }

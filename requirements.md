@@ -94,12 +94,12 @@ Action: set_field(entity.status, 'pending')
 ## Actors & Access
 
 ### SystemPipeline
-Read: parsed_queries, reddit_posts, extracted_restaurants, place_details, place_details_raw
-Write: parsed_queries, reddit_posts, extracted_restaurants, place_details, place_details_raw, restaurants_with_recommendations
+Read: restaurants, community_recommendations
+Write: restaurants, community_recommendations
 
 ### PublicAPI
-Read: restaurants_with_recommendations, parsed_queries
-Write: parsed_queries
+Read: restaurants, community_recommendations
+Write: restaurant_votes, votes
 
 ### Logic Enforcement
 
@@ -112,96 +112,108 @@ RULE_06: LOW → audit_log
 
 ## Data Model
 
-### ParsedQuery
+Note: ParsedQuery, RedditPost, ExtractedRestaurant, and PlaceDetails are in-memory TypeScript interfaces used during the scraping pipeline. Restaurant, CommunityRecommendation, RestaurantVote, and Vote are persisted to the database.
 
-id:             string | primary | auto-gen
-raw_query:      string | required
-city:           string | required | default(env(DEFAULT_CITY))
-cuisine_type:   string | nullable
-keywords:       string | required | default([])
-status:         enum('pending', 'fetching', 'extracting', 'enriching', 'complete', 'failed') | required | default(pending)
-created_at:     timestamp | auto-gen
-updated_at:     timestamp | auto-gen
+### ParsedQuery (in-memory)
 
-### RedditPost
+city:           string | nullable
+terms:          string | required
+raw:            string | required
 
-id:             string | primary | auto-gen
-query_id:       string | required | indexed | fk(ParsedQuery.id, many-to-one)
-post_id:        string | unique | required | indexed
+### RedditPost (in-memory)
+
+id:             string | required
 title:          string | required
-body:           string | nullable
-subreddit:      string | required
-author:         string | nullable
-score:          integer | required | default(0)
-comment_count:  integer | required | default(0)
+selftext:       string | required
 url:            string | required
-fetched_at:     timestamp | auto-gen
+permalink:      string | required
+subreddit:      string | required
+score:          integer | required
+created_utc:    integer | required
 
-### ExtractedRestaurant
+### ExtractedRestaurant (in-memory)
 
-id:             string | primary | auto-gen
-post_id:        string | required | indexed | fk(RedditPost.id, many-to-one)
-query_id:       string | required | indexed | fk(ParsedQuery.id, many-to-one)
 name:           string | required
-mention_count:  integer | required | default(1)
-context_snippet: string | nullable
-city:           string | required
-created_at:     timestamp | auto-gen
+postUrl:        string | required
+summary:        string | required
+source:         string | required
+redditScore:    integer | required
 
-### PlaceDetailsRaw
+### PlaceDetails (in-memory)
 
-id:             string | primary | auto-gen
-extracted_restaurant_id: string | required | indexed | fk(ExtractedRestaurant.id, one-to-one)
-foursquare_raw: string | nullable
-google_raw:     string | nullable
-fetched_at:     timestamp | auto-gen
-
-### PlaceDetails
-
-id:             string | primary | auto-gen
-extracted_restaurant_id: string | required | unique | indexed | fk(ExtractedRestaurant.id, one-to-one)
 name:           string | required
 address:        string | nullable
-city:           string | required
 phone:          string | nullable
 website:        string | nullable
 hours:          string | nullable
-price_level:    integer | nullable
-rating:         decimal | nullable
-review_count:   integer | nullable
+price_range:    string | nullable
+service_options: string[] | required
 photo_url:      string | nullable
-foursquare_id:  string | nullable
-google_place_id: string | nullable
-created_at:     timestamp | auto-gen
 
-### RestaurantWithRecommendations
+### Restaurant
 
 id:             string | primary | auto-gen
-query_id:       string | required | indexed | fk(ParsedQuery.id, many-to-one)
-place_details_id: string | required | indexed | fk(PlaceDetails.id, many-to-one)
-recommendation_score: decimal | required | default(0)
-mention_count:  integer | required | default(0)
-reddit_score:   integer | required | default(0)
-summary:        string | nullable
+name:           string | required | indexed
+city:           string | required | indexed
+address:        string | nullable
+phone:          string | nullable
+website:        string | nullable
+hours:          string | nullable
+price_range:    string | nullable
+service_options: string[] | required | default([])
+status:         enum('UNREVIEWED', 'VERIFIED') | required | default(UNREVIEWED)
+photo_url:      string | nullable
+upvotes:        integer | required | default(0)
+downvotes:      integer | required | default(0)
+created_at:     timestamp | auto-gen
+updated_at:     timestamp | auto-gen
+
+### CommunityRecommendation
+
+id:             string | primary | auto-gen
+restaurant_id:  string | required | indexed | fk(Restaurant.id, many-to-one)
+source:         string | required
+post_url:       string | required
+summary:        string | required
+mention_count:  integer | required | default(1)
+source_upvotes: integer | required | default(0)
+upvotes:        integer | required | default(0)
+downvotes:      integer | required | default(0)
+scraped_at:     timestamp | auto-gen
+
+### RestaurantVote
+
+id:             string | primary | auto-gen
+restaurant_id:  string | required | indexed | fk(Restaurant.id, many-to-one)
+fingerprint:    string | required | indexed
+direction:      enum('up', 'down') | required
+created_at:     timestamp | auto-gen
+
+### Vote
+
+id:             string | primary | auto-gen
+recommendation_id: string | required | indexed | fk(CommunityRecommendation.id, many-to-one)
+fingerprint:    string | required | indexed
+direction:      enum('up', 'down') | required
 created_at:     timestamp | auto-gen
 
 ## Computed Properties
 
 ### has_place_data
 Aggregate: EXISTS
-Entity: PlaceDetails
-Filter: entity.foursquare_id != '' OR entity.google_place_id != ''
+Entity: Restaurant
+Filter: entity.address != '' OR entity.phone != '' OR entity.website != ''
 Window: none
 
-### high_confidence_recommendations
+### high_net_vote_restaurants
 Aggregate: COUNT
-Entity: RestaurantWithRecommendations
-Filter: entity.recommendation_score > 0.7 AND entity.mention_count > 1
+Entity: Restaurant
+Filter: entity.upvotes - entity.downvotes > 2
 Window: none
 
 ### top_mentioned_restaurants
 Aggregate: COUNT
-Entity: ExtractedRestaurant
+Entity: CommunityRecommendation
 Filter: entity.mention_count > 2
 Window: none
 

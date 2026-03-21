@@ -1,3 +1,5 @@
+const FSQ_BASE = 'https://places.foursquare.com/v1';
+
 export interface PlaceDetails {
   name: string;
   address: string | null;
@@ -32,7 +34,7 @@ export async function lookupRestaurant(
     });
 
     const response = await fetch(
-      `https://api.foursquare.com/v3/places/search?${params}`,
+      `${FSQ_BASE}/places/search?${params}`,
       {
         headers: { Authorization: apiKey },
         next: { revalidate: 86400 },
@@ -121,7 +123,7 @@ export async function searchFoursquare(
     });
 
     const response = await fetch(
-      `https://api.foursquare.com/v3/places/search?${params}`,
+      `${FSQ_BASE}/places/search?${params}`,
       {
         headers: { Authorization: apiKey },
         cache: 'no-store',

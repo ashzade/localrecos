@@ -3,6 +3,7 @@ import { searchRestaurants, parseQuery } from '@/lib/search';
 import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
+import { headers } from 'next/headers';
 
 const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 
@@ -24,6 +25,18 @@ async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCit
   }
 
   const rawResults = await searchRestaurants(city, parsed.terms);
+
+  if (rawResults.length < 3) {
+    const headersList = headers();
+    const host = headersList.get('host') ?? 'localhost:3000';
+    const protocol = host.startsWith('localhost') ? 'http' : 'https';
+    const origin = `${protocol}://${host}`;
+    fetch(`${origin}/api/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city, query: q }),
+    }).catch(() => undefined);
+  }
 
   const results = sort === 'price'
     ? [...rawResults].sort((a, b) => {

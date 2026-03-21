@@ -1,11 +1,32 @@
-const FSQ_BASE = 'https://places-api.foursquare.com';
+import * as https from 'https';
+
+const FSQ_BASE = 'places-api.foursquare.com';
 const FSQ_VERSION = '2025-06-17';
 
-function fsqHeaders(apiKey: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${apiKey}`,
-    'X-Places-Api-Version': FSQ_VERSION,
-  };
+function fsqGet(path: string, apiKey: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: FSQ_BASE,
+        path,
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'X-Places-Api-Version': FSQ_VERSION,
+        },
+        timeout: 8000,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }));
+        res.on('error', reject);
+      }
+    );
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 export interface PlaceDetails {
@@ -41,17 +62,10 @@ export async function lookupRestaurant(
       fields: 'fsq_place_id,name,location,tel,website,hours,price,photos,attributes',
     });
 
-    const response = await fetch(
-      `${FSQ_BASE}/places/search?${params}`,
-      {
-        headers: fsqHeaders(apiKey),
-        next: { revalidate: 86400 },
-      }
-    );
+    const { status, body } = await fsqGet(`/places/search?${params}`, apiKey);
+    if (status < 200 || status >= 300) return null;
 
-    if (!response.ok) return null;
-
-    const data = await response.json();
+    const data = JSON.parse(body);
     const results = data.results;
     if (!results || results.length === 0) return null;
 
@@ -128,32 +142,16 @@ export async function searchFoursquare(
       fields: 'fsq_place_id,name,location,tel,website,hours,price,photos,attributes',
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `${FSQ_BASE}/places/search?${params}`,
-        {
-          headers: fsqHeaders(apiKey),
-          cache: 'no-store',
-          signal: controller.signal,
-        }
-      );
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      console.error(`[foursquare] search failed status=${response.status}`, await response.text());
+    const { status, body } = await fsqGet(`/places/search?${params}`, apiKey);
+    if (status < 200 || status >= 300) {
+      console.error(`[foursquare] search failed status=${status}`, body.slice(0, 300));
       return [];
     }
 
-    const data = await response.json();
+    const data = JSON.parse(body);
     const results = data.results;
     if (!Array.isArray(results)) {
-      console.error('[foursquare] unexpected response shape', JSON.stringify(data).slice(0, 200));
+      console.error('[foursquare] unexpected response shape', body.slice(0, 200));
       return [];
     }
 

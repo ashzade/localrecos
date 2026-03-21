@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         });
         if (existing) { skipped++; continue; }
 
-        await prisma.restaurant.create({
+        const restaurant = await prisma.restaurant.create({
           data: {
             name: place.name,
             city,
@@ -129,6 +129,14 @@ export async function POST(request: NextRequest) {
             service_options: place.service_options,
             photo_url: place.photo_url,
             status: RestaurantStatus.UNREVIEWED,
+          },
+        });
+        await prisma.communityRecommendation.create({
+          data: {
+            restaurant_id: restaurant.id,
+            source: 'foursquare',
+            post_url: `foursquare://places/${restaurant.id}`,
+            summary: query,
           },
         });
         created++;

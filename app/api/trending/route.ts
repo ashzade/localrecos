@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { detect_city, extractIp } from '@/lib/geo';
+import { searchFoursquare } from '@/lib/foursquare';
+import { RestaurantStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   if (!city) city = 'Ottawa';
 
-  const restaurants = await prisma.restaurant.findMany({
+  let restaurants = await prisma.restaurant.findMany({
     where: { city: { equals: city, mode: 'insensitive' } },
     include: {
       recommendations: {
@@ -23,6 +25,30 @@ export async function GET(request: NextRequest) {
       },
     },
   });
+
+  // Foursquare fallback: seed the city with popular restaurants if the DB has none
+  if (restaurants.length === 0) {
+    const places = await searchFoursquare(city, 'restaurants', 10);
+    for (const place of places) {
+      try {
+        const created = await prisma.restaurant.create({
+          data: {
+            name: place.name,
+            city,
+            address: place.address,
+            phone: place.phone,
+            website: place.website,
+            hours: place.hours,
+            price_range: place.price_range,
+            service_options: place.service_options,
+            photo_url: place.photo_url,
+            status: RestaurantStatus.UNREVIEWED,
+          },
+        });
+        restaurants.push({ ...created, recommendations: [] });
+      } catch { /* skip duplicates */ }
+    }
+  }
 
   const ranked = restaurants
     .map((r) => ({

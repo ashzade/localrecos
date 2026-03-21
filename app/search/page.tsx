@@ -4,7 +4,6 @@ import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
 import SearchPoller from '@/components/SearchPoller';
-import { headers } from 'next/headers';
 
 const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 
@@ -27,18 +26,6 @@ async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCit
 
   const rawResults = await searchRestaurants(city, parsed.terms);
 
-  if (rawResults.length < 3) {
-    const headersList = headers();
-    const host = headersList.get('host') ?? 'localhost:3000';
-    const protocol = host.startsWith('localhost') ? 'http' : 'https';
-    const origin = `${protocol}://${host}`;
-    fetch(`${origin}/api/scrape`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ city, query: q }),
-    }).catch(() => undefined);
-  }
-
   const results = sort === 'price'
     ? [...rawResults].sort((a, b) => {
         const pa = a.price_range ? (PRICE_ORDER[a.price_range] ?? 99) : 99;
@@ -48,7 +35,7 @@ async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCit
     : rawResults; // 'votes' is already the default sort from searchRestaurants
 
   if (results.length === 0) {
-    return <SearchPoller />;
+    return <SearchPoller city={city} query={q} />;
   }
 
   return (

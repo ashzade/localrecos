@@ -6,9 +6,23 @@ import { useRouter } from 'next/navigation';
 const INTERVAL_MS = 3000;
 const MAX_ATTEMPTS = 10;
 
-export default function SearchPoller() {
+interface SearchPollerProps {
+  city: string;
+  query: string;
+}
+
+export default function SearchPoller({ city, query }: SearchPollerProps) {
   const router = useRouter();
   const [attempts, setAttempts] = useState(0);
+
+  // Trigger the scrape client-side on first render so Vercel doesn't kill it
+  useEffect(() => {
+    fetch('/api/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city, query }),
+    }).catch(() => undefined);
+  }, [city, query]);
 
   useEffect(() => {
     if (attempts >= MAX_ATTEMPTS) return;

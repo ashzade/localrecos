@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
       price_range: r.price_range,
       hours: r.hours,
       status: r.status,
-      details_verified: r.details_verified,
       recommendation_count: r.recommendations.length,
       total_net_votes: r.upvotes - r.downvotes,
     }))

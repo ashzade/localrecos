@@ -181,11 +181,6 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
             )}
           </div>
 
-          {!restaurant.details_verified && (
-            <p className="mt-3 text-xs text-amber-600 bg-amber-50 rounded px-3 py-2">
-              Details for this restaurant could not be confirmed via Google Maps. Information shown is sourced from community mentions only.
-            </p>
-          )}
         </div>
       </div>
 

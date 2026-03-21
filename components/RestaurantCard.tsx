@@ -12,6 +12,9 @@ interface Recommendation {
   post_url: string;
   summary: string;
   mention_count: number;
+  source_upvotes: number;
+  upvotes: number;
+  downvotes: number;
   scraped_at: string | Date;
 }
 

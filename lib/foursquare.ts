@@ -124,7 +124,7 @@ export async function searchFoursquare(
       `https://api.foursquare.com/v3/places/search?${params}`,
       {
         headers: { Authorization: apiKey },
-        next: { revalidate: 3600 },
+        cache: 'no-store',
       }
     );
 

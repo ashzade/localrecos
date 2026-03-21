@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { scrapeRedditForRestaurants } from '@/lib/reddit';
 import { lookupRestaurant, searchFoursquare } from '@/lib/foursquare';
 import { tryTransitionToVerified } from '@/lib/rules';
+import { parseQuery } from '@/lib/search';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';
 
@@ -107,7 +108,8 @@ export async function POST(request: NextRequest) {
 
     // Foursquare fallback: if Reddit found nothing, search Foursquare directly
     if (extracted.length === 0) {
-      const foursquareResults = await searchFoursquare(city, query);
+      const terms = parseQuery(query).terms;
+      const foursquareResults = await searchFoursquare(city, terms);
       for (const place of foursquareResults) {
         const existing = await prisma.restaurant.findFirst({
           where: {

@@ -26,7 +26,7 @@ export default function SortBar({ current }: { current: SortValue }) {
       <div className="flex gap-1">
         {SORT_OPTIONS.map((opt) => {
           const active = current === opt.value;
-          if (opt.disabled) {
+          if ('disabled' in opt && opt.disabled) {
             return (
               <span
                 key={opt.value}

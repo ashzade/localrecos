@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    console.log(`[scrape] city=${city} query=${query}`);
     const extracted = await scrapeRedditForRestaurants(city, query);
+    console.log(`[scrape] reddit extracted=${extracted.length}`);
 
     let created = 0;
     let skipped = 0;
@@ -109,7 +111,9 @@ export async function POST(request: NextRequest) {
     // Foursquare fallback: if Reddit found nothing, search Foursquare directly
     if (extracted.length === 0) {
       const terms = parseQuery(query).terms;
+      console.log(`[scrape] foursquare fallback terms=${terms}`);
       const foursquareResults = await searchFoursquare(city, terms);
+      console.log(`[scrape] foursquare results=${foursquareResults.length}`, foursquareResults.map(p => p.name));
       for (const place of foursquareResults) {
         const existing = await prisma.restaurant.findFirst({
           where: {

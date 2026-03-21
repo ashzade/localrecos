@@ -128,14 +128,21 @@ export async function searchFoursquare(
       }
     );
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.error(`[foursquare] search failed status=${response.status}`, await response.text());
+      return [];
+    }
 
     const data = await response.json();
     const results = data.results;
-    if (!Array.isArray(results)) return [];
+    if (!Array.isArray(results)) {
+      console.error('[foursquare] unexpected response shape', JSON.stringify(data).slice(0, 200));
+      return [];
+    }
 
     return results.map((place: Record<string, unknown>) => buildPlaceDetails(place));
-  } catch {
+  } catch (err) {
+    console.error('[foursquare] search threw', err);
     return [];
   }
 }

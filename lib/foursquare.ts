@@ -142,9 +142,26 @@ export async function searchFoursquare(
       fields: 'fsq_place_id,name,location,tel,website,hours,price,photos,attributes',
     });
 
-    const { status, body } = await fsqGet(`/places/search?${params}`, apiKey);
+    const reqPath = `/places/search?${params}`;
+    console.log(`[foursquare] GET https://${FSQ_BASE}${reqPath}`);
+
+    let result: { status: number; body: string } | null = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        result = await fsqGet(reqPath, apiKey);
+        break;
+      } catch (err) {
+        if (attempt === 2) throw err;
+        console.warn(`[foursquare] attempt ${attempt} threw, retrying…`, String(err));
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    if (!result) throw new Error('fsqGet returned no result');
+
+    const { status, body } = result;
+
     if (status < 200 || status >= 300) {
-      console.error(`[foursquare] search failed status=${status}`, body.slice(0, 300));
+      console.error(`[foursquare] search failed status=${status}`, body.slice(0, 500));
       return [];
     }
 

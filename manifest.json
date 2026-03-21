@@ -1,96 +1,335 @@
 {
   "meta": {
-    "featureId": "localrecos",
+    "featureId": "restaurant_recommendations",
     "version": "1.0.0",
     "status": "draft",
-    "owner": "ashzade",
-    "dependsOn": [],
+    "owner": "platform-team",
+    "dependsOn": [
+      "foursquare_api",
+      "google_places_api",
+      "reddit_api"
+    ],
     "tags": [
-      "restaurants",
       "recommendations",
-      "community",
+      "restaurants",
       "search"
     ]
   },
   "feature": {
-    "name": "LocalRecos",
-    "intent": "A site where anonymous users search for restaurant recommendations using natural language (e.g. \"most authentic Indian in Ottawa\"). Results are sourced from community sites like Reddit subreddits (r/ottawa, r/ottawafoodies, and city-specific equivalents). Users can see trending restaurants in their detected city, filter results, vote on recommendations, and share individual restaurant links."
+    "name": "Restaurant Recommendations",
+    "intent": "Accepts natural-language queries, fetches Reddit community discussions, extracts restaurant mentions, enriches them with place details from Foursquare and Google Places, and returns ranked recommendations."
   },
   "externalProviders": {
-    "RedditScraper": {
+    "FoursquareAPI": {
       "methods": [
         {
-          "name": "fetch_mentions",
+          "name": "search",
           "params": [
             {
-              "name": "city",
+              "name": "name",
               "type": "string"
             },
             {
-              "name": "subreddits",
-              "type": "string[]"
+              "name": "city",
+              "type": "string"
             }
           ],
-          "returns": "Post[]"
+          "returns": "json"
+        },
+        {
+          "name": "getDetails",
+          "params": [
+            {
+              "name": "venue_id",
+              "type": "string"
+            }
+          ],
+          "returns": "json"
+        }
+      ],
+      "source": "foursquare-api",
+      "provides": "venue details and ratings for restaurants",
+      "lookupKey": "place_name"
+    },
+    "GooglePlacesAPI": {
+      "methods": [
+        {
+          "name": "findPlace",
+          "params": [
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "type": "string"
+            }
+          ],
+          "returns": "json"
+        },
+        {
+          "name": "getDetails",
+          "params": [
+            {
+              "name": "place_id",
+              "type": "string"
+            }
+          ],
+          "returns": "json"
+        }
+      ],
+      "source": "google-places-api",
+      "provides": "place details, hours, and photos for restaurants",
+      "lookupKey": "place_id"
+    },
+    "RedditAPI": {
+      "methods": [
+        {
+          "name": "search",
+          "params": [
+            {
+              "name": "query",
+              "type": "string"
+            },
+            {
+              "name": "subreddit",
+              "type": "string"
+            }
+          ],
+          "returns": "json"
+        },
+        {
+          "name": "getPost",
+          "params": [
+            {
+              "name": "post_id",
+              "type": "string"
+            }
+          ],
+          "returns": "json"
         }
       ],
       "source": "reddit-api",
-      "provides": "community posts mentioning restaurants from city-specific subreddits",
-      "lookupKey": "city"
-    },
-    "GeoDetector": {
-      "methods": [
-        {
-          "name": "detect_city",
-          "params": [
-            {
-              "name": "context",
-              "type": "RequestContext"
-            }
-          ],
-          "returns": "string | null"
-        }
-      ],
-      "source": "browser-geolocation + ip-geolocation",
-      "provides": "the user's current city",
-      "lookupKey": "request_context"
+      "provides": "community posts and comments mentioning restaurants",
+      "lookupKey": "query"
     }
   },
   "stateMachine": {
     "states": {
-      "UNREVIEWED": "restaurant scraped, no community votes recorded yet",
-      "VERIFIED": "restaurant has received at least one community vote"
+      "PENDING": "query received, Reddit fetch not yet attempted",
+      "FETCHING": "Reddit posts are being retrieved and parsed",
+      "EXTRACTING": "restaurant names are being extracted from posts",
+      "ENRICHING": "place details are being fetched from external APIs",
+      "COMPLETE": "all enrichment succeeded and recommendations are ready",
+      "FAILED": "one or more unrecoverable errors occurred during processing"
     },
     "transitions": [
       {
-        "from": "UNREVIEWED",
-        "to": "VERIFIED",
+        "from": "PENDING",
+        "to": "FETCHING",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "QUERY_RECEIVED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'fetching'"
+            ]
+          }
+        ],
+        "trigger": "query submitted by user",
+        "guard": "RULE_01"
+      },
+      {
+        "from": "FETCHING",
+        "to": "EXTRACTING",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "POSTS_FETCHED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'extracting'"
+            ]
+          }
+        ],
+        "trigger": "Reddit posts retrieved successfully",
+        "guard": "RULE_02"
+      },
+      {
+        "from": "FETCHING",
+        "to": "FAILED",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "FETCH_FAILED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'failed'"
+            ]
+          }
+        ],
+        "trigger": "Reddit fetch raises an exception"
+      },
+      {
+        "from": "EXTRACTING",
+        "to": "ENRICHING",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "EXTRACTION_COMPLETE"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'enriching'"
+            ]
+          }
+        ],
+        "trigger": "restaurant names extracted from posts",
+        "guard": "RULE_03"
+      },
+      {
+        "from": "EXTRACTING",
+        "to": "FAILED",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "EXTRACTION_FAILED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'failed'"
+            ]
+          }
+        ],
+        "trigger": "extraction yields no results"
+      },
+      {
+        "from": "ENRICHING",
+        "to": "COMPLETE",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "ENRICHMENT_COMPLETE"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'complete'"
+            ]
+          }
+        ],
+        "trigger": "place details fetched for all extracted restaurants"
+      },
+      {
+        "from": "ENRICHING",
+        "to": "FAILED",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "ENRICHMENT_FAILED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'failed'"
+            ]
+          }
+        ],
+        "trigger": "enrichment raises an unrecoverable exception"
+      },
+      {
+        "from": "FAILED",
+        "to": "PENDING",
         "actions": [
           {
             "type": "set_field",
             "args": [
               "entity.status",
-              "'VERIFIED'"
+              "'pending'"
             ]
           }
         ],
-        "trigger": "A vote is cast on any of the restaurant's community recommendations",
-        "guard": "RULE_01"
+        "trigger": "retry requested by user"
       }
     ]
   },
   "actors": {
-    "Visitor": {
+    "SystemPipeline": {
       "read": [
-        "Restaurant.*",
-        "CommunityRecommendation.*"
+        "parsed_queries",
+        "reddit_posts",
+        "extracted_restaurants",
+        "place_details",
+        "place_details_raw"
       ],
       "write": [
-        "Vote.direction"
+        "parsed_queries",
+        "reddit_posts",
+        "extracted_restaurants",
+        "place_details",
+        "place_details_raw",
+        "restaurants_with_recommendations"
+      ]
+    },
+    "PublicAPI": {
+      "read": [
+        "restaurants_with_recommendations",
+        "parsed_queries"
+      ],
+      "write": [
+        "parsed_queries"
       ]
     }
   },
   "enforcement": [
+    {
+      "ruleId": "RULE_01",
+      "severity": "HIGH",
+      "responses": [
+        {
+          "action": "reject"
+        }
+      ]
+    },
+    {
+      "ruleId": "RULE_02",
+      "severity": "MEDIUM",
+      "responses": [
+        {
+          "action": "reject"
+        }
+      ]
+    },
     {
       "ruleId": "RULE_03",
       "severity": "MEDIUM",
@@ -102,20 +341,38 @@
     },
     {
       "ruleId": "RULE_04",
-      "severity": "MEDIUM",
+      "severity": "LOW",
+      "responses": [
+        {
+          "action": "audit_log"
+        }
+      ]
+    },
+    {
+      "ruleId": "RULE_05",
+      "severity": "HIGH",
       "responses": [
         {
           "action": "reject"
         }
       ]
+    },
+    {
+      "ruleId": "RULE_06",
+      "severity": "LOW",
+      "responses": [
+        {
+          "action": "audit_log"
+        }
+      ]
     }
   ],
   "dataModel": {
-    "Restaurant": {
+    "ParsedQuery": {
       "fields": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "string",
           "modifiers": [
             {
               "name": "primary",
@@ -127,16 +384,12 @@
             }
           ]
         },
-        "name": {
-          "name": "name",
+        "raw_query": {
+          "name": "raw_query",
           "type": "string",
           "modifiers": [
             {
               "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
               "args": []
             }
           ]
@@ -150,7 +403,458 @@
               "args": []
             },
             {
+              "name": "default",
+              "args": [
+                "env(DEFAULT_CITY)"
+              ]
+            }
+          ]
+        },
+        "cuisine_type": {
+          "name": "cuisine_type",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "keywords": {
+          "name": "keywords",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "[]"
+              ]
+            }
+          ]
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('pending', 'fetching', 'extracting', 'enriching', 'complete', 'failed')",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "pending"
+              ]
+            }
+          ]
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "RedditPost": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "query_id": {
+          "name": "query_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
               "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "ParsedQuery.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "unique",
+              "args": []
+            },
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            }
+          ]
+        },
+        "title": {
+          "name": "title",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "body": {
+          "name": "body",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "subreddit": {
+          "name": "subreddit",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "author": {
+          "name": "author",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "comment_count": {
+          "name": "comment_count",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "0"
+              ]
+            }
+          ]
+        },
+        "url": {
+          "name": "url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "ExtractedRestaurant": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "RedditPost.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "query_id": {
+          "name": "query_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "ParsedQuery.id",
+                "many-to-one"
+              ]
+            }
+          ]
+        },
+        "name": {
+          "name": "name",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "mention_count": {
+          "name": "mention_count",
+          "type": "integer",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "default",
+              "args": [
+                "1"
+              ]
+            }
+          ]
+        },
+        "context_snippet": {
+          "name": "context_snippet",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "city": {
+          "name": "city",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            }
+          ]
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "PlaceDetailsRaw": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "extracted_restaurant_id": {
+          "name": "extracted_restaurant_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "ExtractedRestaurant.id",
+                "one-to-one"
+              ]
+            }
+          ]
+        },
+        "foursquare_raw": {
+          "name": "foursquare_raw",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "google_raw": {
+          "name": "google_raw",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp",
+          "modifiers": [
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        }
+      }
+    },
+    "PlaceDetails": {
+      "fields": {
+        "id": {
+          "name": "id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "primary",
+              "args": []
+            },
+            {
+              "name": "auto-gen",
+              "args": []
+            }
+          ]
+        },
+        "extracted_restaurant_id": {
+          "name": "extracted_restaurant_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
+              "args": []
+            },
+            {
+              "name": "unique",
+              "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "ExtractedRestaurant.id",
+                "one-to-one"
+              ]
+            }
+          ]
+        },
+        "name": {
+          "name": "name",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
               "args": []
             }
           ]
@@ -161,6 +865,16 @@
           "modifiers": [
             {
               "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "city": {
+          "name": "city",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "required",
               "args": []
             }
           ]
@@ -195,9 +909,9 @@
             }
           ]
         },
-        "price_range": {
-          "name": "price_range",
-          "type": "enum('$', '$$', '$$$', '$$$$')",
+        "price_level": {
+          "name": "price_level",
+          "type": "integer",
           "modifiers": [
             {
               "name": "nullable",
@@ -205,9 +919,9 @@
             }
           ]
         },
-        "service_options": {
-          "name": "service_options",
-          "type": "string[]",
+        "rating": {
+          "name": "rating",
+          "type": "decimal",
           "modifiers": [
             {
               "name": "nullable",
@@ -215,24 +929,38 @@
             }
           ]
         },
-        "status": {
-          "name": "status",
-          "type": "enum('UNREVIEWED', 'VERIFIED')",
+        "review_count": {
+          "name": "review_count",
+          "type": "integer",
           "modifiers": [
             {
-              "name": "required",
+              "name": "nullable",
               "args": []
-            },
-            {
-              "name": "default",
-              "args": [
-                "UNREVIEWED"
-              ]
             }
           ]
         },
         "photo_url": {
           "name": "photo_url",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "foursquare_id": {
+          "name": "foursquare_id",
+          "type": "string",
+          "modifiers": [
+            {
+              "name": "nullable",
+              "args": []
+            }
+          ]
+        },
+        "google_place_id": {
+          "name": "google_place_id",
           "type": "string",
           "modifiers": [
             {
@@ -250,24 +978,14 @@
               "args": []
             }
           ]
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "modifiers": [
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
         }
       }
     },
-    "CommunityRecommendation": {
+    "RestaurantWithRecommendations": {
       "fields": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "string",
           "modifiers": [
             {
               "name": "primary",
@@ -279,9 +997,9 @@
             }
           ]
         },
-        "restaurant_id": {
-          "name": "restaurant_id",
-          "type": "uuid",
+        "query_id": {
+          "name": "query_id",
+          "type": "string",
           "modifiers": [
             {
               "name": "required",
@@ -294,39 +1012,46 @@
             {
               "name": "fk",
               "args": [
-                "Restaurant.id",
+                "ParsedQuery.id",
                 "many-to-one"
               ]
             }
           ]
         },
-        "source": {
-          "name": "source",
+        "place_details_id": {
+          "name": "place_details_id",
           "type": "string",
           "modifiers": [
             {
               "name": "required",
               "args": []
+            },
+            {
+              "name": "indexed",
+              "args": []
+            },
+            {
+              "name": "fk",
+              "args": [
+                "PlaceDetails.id",
+                "many-to-one"
+              ]
             }
           ]
         },
-        "post_url": {
-          "name": "post_url",
-          "type": "string",
+        "recommendation_score": {
+          "name": "recommendation_score",
+          "type": "decimal",
           "modifiers": [
             {
               "name": "required",
               "args": []
-            }
-          ]
-        },
-        "summary": {
-          "name": "summary",
-          "type": "string",
-          "modifiers": [
+            },
             {
-              "name": "required",
-              "args": []
+              "name": "default",
+              "args": [
+                "0"
+              ]
             }
           ]
         },
@@ -335,110 +1060,39 @@
           "type": "integer",
           "modifiers": [
             {
-              "name": "default",
-              "args": [
-                "1"
-              ]
-            }
-          ]
-        },
-        "upvotes": {
-          "name": "upvotes",
-          "type": "integer",
-          "modifiers": [
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
-            }
-          ]
-        },
-        "downvotes": {
-          "name": "downvotes",
-          "type": "integer",
-          "modifiers": [
-            {
-              "name": "default",
-              "args": [
-                "0"
-              ]
-            }
-          ]
-        },
-        "scraped_at": {
-          "name": "scraped_at",
-          "type": "timestamp",
-          "modifiers": [
-            {
-              "name": "auto-gen",
-              "args": []
-            }
-          ]
-        }
-      }
-    },
-    "Vote": {
-      "fields": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "modifiers": [
-            {
-              "name": "primary",
+              "name": "required",
               "args": []
             },
             {
-              "name": "auto-gen",
-              "args": []
+              "name": "default",
+              "args": [
+                "0"
+              ]
             }
           ]
         },
-        "recommendation_id": {
-          "name": "recommendation_id",
-          "type": "uuid",
+        "reddit_score": {
+          "name": "reddit_score",
+          "type": "integer",
           "modifiers": [
             {
               "name": "required",
               "args": []
             },
             {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "fk",
+              "name": "default",
               "args": [
-                "CommunityRecommendation.id",
-                "many-to-one"
+                "0"
               ]
             }
           ]
         },
-        "fingerprint": {
-          "name": "fingerprint",
+        "summary": {
+          "name": "summary",
           "type": "string",
           "modifiers": [
             {
-              "name": "required",
-              "args": []
-            },
-            {
-              "name": "indexed",
-              "args": []
-            },
-            {
-              "name": "sensitive",
-              "args": []
-            }
-          ]
-        },
-        "direction": {
-          "name": "direction",
-          "type": "enum('up', 'down')",
-          "modifiers": [
-            {
-              "name": "required",
+              "name": "nullable",
               "args": []
             }
           ]
@@ -457,52 +1111,79 @@
     }
   },
   "computedProperties": {
-    "net_votes": {
-      "aggregate": "SUM",
-      "entity": "Vote",
-      "filter": "entity.recommendation_id == CommunityRecommendation.id",
+    "has_place_data": {
+      "aggregate": "EXISTS",
+      "entity": "PlaceDetails",
+      "filter": "entity.foursquare_id != '' OR entity.google_place_id != ''",
       "window": null
     },
-    "has_community_recommendations": {
-      "aggregate": "EXISTS",
-      "entity": "CommunityRecommendation",
-      "filter": "entity.restaurant_id == Restaurant.id",
+    "high_confidence_recommendations": {
+      "aggregate": "COUNT",
+      "entity": "RestaurantWithRecommendations",
+      "filter": "entity.recommendation_score > 0.7 AND entity.mention_count > 1",
       "window": null
     },
-    "existing_vote": {
-      "aggregate": "EXISTS",
-      "entity": "Vote",
-      "filter": "entity.recommendation_id == Vote.recommendation_id AND entity.fingerprint == actor.fingerprint",
+    "top_mentioned_restaurants": {
+      "aggregate": "COUNT",
+      "entity": "ExtractedRestaurant",
+      "filter": "entity.mention_count > 2",
       "window": null
     }
   },
   "rules": {
     "RULE_01": {
       "id": "RULE_01",
-      "title": "Restaurant Must Have Recommendations to Be Verified",
+      "title": "Query Must Be Non-Empty",
       "references": [],
       "type": "Validation",
-      "entity": "Restaurant",
-      "condition": "has_community_recommendations == true",
-      "message": "A restaurant must have at least one community recommendation before it can be verified."
+      "entity": "ParsedQuery",
+      "condition": "entity.raw_query != '' AND entity.city != ''",
+      "message": "Query text and city are required to begin restaurant search."
+    },
+    "RULE_02": {
+      "id": "RULE_02",
+      "title": "Reddit Posts Must Be Present Before Extraction",
+      "references": [],
+      "type": "Validation",
+      "entity": "RedditPost",
+      "condition": "entity.post_id != '' AND entity.title != ''",
+      "message": "Reddit post is missing required fields; cannot extract restaurants."
     },
     "RULE_03": {
       "id": "RULE_03",
-      "title": "No Duplicate Votes",
+      "title": "Extracted Restaurant Must Have a Name",
       "references": [],
-      "type": "Business",
-      "entity": "Vote",
-      "condition": "existing_vote == false",
-      "message": "You have already voted on this recommendation."
+      "type": "Validation",
+      "entity": "ExtractedRestaurant",
+      "condition": "entity.name != '' AND entity.city != ''",
+      "message": "Extracted restaurant must have a name and city to proceed with enrichment."
     },
     "RULE_04": {
       "id": "RULE_04",
-      "title": "Search Requires City Context",
+      "title": "Skip Enrichment When Place Data Already Exists",
       "references": [],
       "type": "Business",
-      "entity": "Restaurant",
-      "condition": "actor.type == 'Visitor' AND GeoDetector.detect_city(actor.context) != null",
-      "message": "We couldn't detect your location. Please confirm your city to see results."
+      "entity": "ExtractedRestaurant",
+      "condition": "has_place_data == true",
+      "message": "Place details already fetched for this restaurant; skipping enrichment."
+    },
+    "RULE_05": {
+      "id": "RULE_05",
+      "title": "API Keys Required for Enrichment",
+      "references": [],
+      "type": "Business",
+      "entity": "ExtractedRestaurant",
+      "condition": "env(FOURSQUARE_API_KEY) != '' OR env(GOOGLE_PLACES_API_KEY) != ''",
+      "message": "At least one place enrichment API key must be configured; cannot enrich restaurant details."
+    },
+    "RULE_06": {
+      "id": "RULE_06",
+      "title": "Default City Fallback Required",
+      "references": [],
+      "type": "Business",
+      "entity": "ParsedQuery",
+      "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",
+      "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location."
     }
   }
 }

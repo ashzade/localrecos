@@ -216,6 +216,7 @@ async function main() {
   await prisma.restaurant.deleteMany();
 
   for (const data of seed) {
+    if (!data.name || !data.city) throw new Error(`RULE_01: name and city are required for seed entry`);
     const { recommendations, ...restaurantData } = data;
 
     const restaurant = await prisma.restaurant.create({ data: restaurantData });

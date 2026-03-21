@@ -1,4 +1,12 @@
-const FSQ_BASE = 'https://places.foursquare.com/v1';
+const FSQ_BASE = 'https://places-api.foursquare.com';
+const FSQ_VERSION = '2025-06-17';
+
+function fsqHeaders(apiKey: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    'X-Places-Api-Version': FSQ_VERSION,
+  };
+}
 
 export interface PlaceDetails {
   name: string;
@@ -28,15 +36,15 @@ export async function lookupRestaurant(
     const params = new URLSearchParams({
       query: name,
       near: city,
-      categories: '13065', // Food category
+      categories: '13065',
       limit: '1',
-      fields: 'fsq_id,name,location,tel,website,hours,price,photos,features',
+      fields: 'fsq_place_id,name,location,tel,website,hours,price,photos,attributes',
     });
 
     const response = await fetch(
       `${FSQ_BASE}/places/search?${params}`,
       {
-        headers: { Authorization: apiKey },
+        headers: fsqHeaders(apiKey),
         next: { revalidate: 86400 },
       }
     );
@@ -47,9 +55,7 @@ export async function lookupRestaurant(
     const results = data.results;
     if (!results || results.length === 0) return null;
 
-    const place = results[0];
-
-    return buildPlaceDetails(place);
+    return buildPlaceDetails(results[0]);
   } catch {
     return null;
   }
@@ -73,10 +79,10 @@ function buildPlaceDetails(place: Record<string, unknown>): PlaceDetails {
     hours = (hoursData.display as string[]).join(' | ');
   }
 
-  // Service options
+  // Service options — field renamed from features to attributes
   const serviceOptions: string[] = [];
-  const features = place.features as Record<string, unknown> | undefined;
-  const services = features?.services as Record<string, unknown> | undefined;
+  const attributes = place.attributes as Record<string, unknown> | undefined;
+  const services = attributes?.services as Record<string, unknown> | undefined;
   if (services?.dine_in) serviceOptions.push('Dine-in');
   if (services?.takeout) serviceOptions.push('Takeout');
   if (services?.delivery) serviceOptions.push('Delivery');
@@ -117,15 +123,15 @@ export async function searchFoursquare(
     const params = new URLSearchParams({
       query,
       near: city,
-      categories: '13065', // Food category
+      categories: '13065',
       limit: String(limit),
-      fields: 'fsq_id,name,location,tel,website,hours,price,photos,features',
+      fields: 'fsq_place_id,name,location,tel,website,hours,price,photos,attributes',
     });
 
     const response = await fetch(
       `${FSQ_BASE}/places/search?${params}`,
       {
-        headers: { Authorization: apiKey },
+        headers: fsqHeaders(apiKey),
         cache: 'no-store',
       }
     );

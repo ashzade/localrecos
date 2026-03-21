@@ -55,6 +55,9 @@ export interface RestaurantWithRecommendations {
     post_url: string;
     summary: string;
     mention_count: number;
+    source_upvotes: number;
+    upvotes: number;
+    downvotes: number;
     scraped_at: Date;
   }>;
   total_net_votes: number;

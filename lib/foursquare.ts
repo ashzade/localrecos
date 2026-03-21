@@ -100,6 +100,47 @@ function buildPlaceDetails(place: Record<string, unknown>): PlaceDetails {
 }
 
 /**
+ * Search Foursquare for restaurants matching a query in a city.
+ * Used as a fallback when Reddit returns no results.
+ */
+export async function searchFoursquare(
+  city: string,
+  query: string,
+  limit = 10
+): Promise<PlaceDetails[]> {
+  const apiKey = process.env.FOURSQUARE_API_KEY;
+  if (!apiKey || !city.trim()) return [];
+
+  try {
+    const params = new URLSearchParams({
+      query,
+      near: city,
+      categories: '13065', // Food category
+      limit: String(limit),
+      fields: 'fsq_id,name,location,tel,website,hours,price,photos,features',
+    });
+
+    const response = await fetch(
+      `https://api.foursquare.com/v3/places/search?${params}`,
+      {
+        headers: { Authorization: apiKey },
+        next: { revalidate: 3600 },
+      }
+    );
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const results = data.results;
+    if (!Array.isArray(results)) return [];
+
+    return results.map((place: Record<string, unknown>) => buildPlaceDetails(place));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Check whether Foursquare can find the restaurant.
  * Returns true (assume exists) if API key is missing.
  */

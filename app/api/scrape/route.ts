@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeRedditForRestaurants } from '@/lib/reddit';
-import { lookupRestaurant } from '@/lib/foursquare';
+import { lookupRestaurant, searchFoursquare } from '@/lib/foursquare';
 import { tryTransitionToVerified } from '@/lib/rules';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';
@@ -103,6 +103,36 @@ export async function POST(request: NextRequest) {
       });
 
       created++;
+    }
+
+    // Foursquare fallback: if Reddit found nothing, search Foursquare directly
+    if (extracted.length === 0) {
+      const foursquareResults = await searchFoursquare(city, query);
+      for (const place of foursquareResults) {
+        const existing = await prisma.restaurant.findFirst({
+          where: {
+            name: { equals: place.name, mode: 'insensitive' },
+            city: { equals: city, mode: 'insensitive' },
+          },
+        });
+        if (existing) { skipped++; continue; }
+
+        await prisma.restaurant.create({
+          data: {
+            name: place.name,
+            city,
+            address: place.address,
+            phone: place.phone,
+            website: place.website,
+            hours: place.hours,
+            price_range: place.price_range,
+            service_options: place.service_options,
+            photo_url: place.photo_url,
+            status: RestaurantStatus.UNREVIEWED,
+          },
+        });
+        created++;
+      }
     }
 
     return NextResponse.json({

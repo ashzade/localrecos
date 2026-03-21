@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeRedditForRestaurants } from '@/lib/reddit';
-import { lookupRestaurant, isRestaurantVerified } from '@/lib/foursquare';
-import { applyRule02 } from '@/lib/rules';
+import { lookupRestaurant } from '@/lib/foursquare';
+import { tryTransitionToVerified } from '@/lib/rules';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';
 
@@ -65,9 +65,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Look up on Google Places
+      // Look up place details
       const placeDetails = await lookupRestaurant(item.name, city);
-      const verified = placeDetails !== null;
 
       // Create restaurant
       const restaurant = await prisma.restaurant.create({
@@ -82,14 +81,8 @@ export async function POST(request: NextRequest) {
           service_options: placeDetails?.service_options ?? [],
           photo_url: placeDetails?.photo_url ?? null,
           status: RestaurantStatus.UNREVIEWED,
-          details_verified: verified,
         },
       });
-
-      // Apply RULE_02 if Places lookup failed
-      if (!verified) {
-        await applyRule02(restaurant.id);
-      }
 
       // Create the community recommendation
       await prisma.communityRecommendation.create({

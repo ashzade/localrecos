@@ -13,7 +13,6 @@ const seed = [
     price_range: '$$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/ottawa',
@@ -41,7 +40,6 @@ const seed = [
     price_range: '$$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/ottawa',
@@ -69,7 +67,6 @@ const seed = [
     price_range: '$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/ottawa',
@@ -90,7 +87,6 @@ const seed = [
     price_range: '$',
     service_options: ['Dine-in', 'Takeout', 'Delivery'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/ottawa',
@@ -118,7 +114,6 @@ const seed = [
     price_range: '$$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/ottawa',
@@ -139,7 +134,6 @@ const seed = [
     price_range: '$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.UNREVIEWED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/ottawa',
@@ -159,8 +153,7 @@ const seed = [
     hours: null,
     price_range: null,
     service_options: [],
-    status: RestaurantStatus.INCOMPLETE,
-    details_verified: false,
+    status: RestaurantStatus.UNREVIEWED,
     recommendations: [
       {
         source: 'r/ottawafoodies',
@@ -182,7 +175,6 @@ const seed = [
     price_range: '$$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/toronto',
@@ -203,7 +195,6 @@ const seed = [
     price_range: '$',
     service_options: ['Dine-in', 'Takeout'],
     status: RestaurantStatus.VERIFIED,
-    details_verified: true,
     recommendations: [
       {
         source: 'r/toronto',
@@ -225,6 +216,7 @@ async function main() {
   await prisma.restaurant.deleteMany();
 
   for (const data of seed) {
+    if (!data.name || !data.city) throw new Error(`RULE_01: name and city are required for seed entry`);
     const { recommendations, ...restaurantData } = data;
 
     const restaurant = await prisma.restaurant.create({ data: restaurantData });

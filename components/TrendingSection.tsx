@@ -28,14 +28,39 @@ export default function TrendingSection() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/trending')
-      .then((r) => r.json())
-      .then((d) => {
-        setCity(d.city);
-        setResults(d.results ?? []);
-      })
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+    const fetchTrending = (city?: string) => {
+      const url = city ? `/api/trending?city=${encodeURIComponent(city)}` : '/api/trending';
+      fetch(url)
+        .then((r) => r.json())
+        .then((d) => {
+          setCity(d.city);
+          setResults(d.results ?? []);
+        })
+        .catch(() => undefined)
+        .finally(() => setLoading(false));
+    };
+
+    const fetchIpFallback = () =>
+      fetch('/api/geo')
+        .then((r) => r.json())
+        .then((d) => fetchTrending(d.city ?? undefined))
+        .catch(() => fetchTrending());
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          fetch(`/api/geo?lat=${latitude}&lon=${longitude}`)
+            .then((r) => r.json())
+            .then((d) => fetchTrending(d.city ?? undefined))
+            .catch(() => fetchTrending());
+        },
+        () => fetchIpFallback(),
+        { timeout: 5000 }
+      );
+    } else {
+      fetchIpFallback();
+    }
   }, []);
 
   if (loading) {

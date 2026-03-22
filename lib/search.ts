@@ -42,7 +42,6 @@ export interface RestaurantWithRecommendations {
   price_range: string | null;
   service_options: string[];
   status: RestaurantStatus;
-  details_verified: boolean;
   photo_url: string | null;
   upvotes: number;
   downvotes: number;

@@ -1,163 +1,250 @@
 ---
-feature_id: localrecos
+feature_id: restaurant_recommendations
 version: 1.0.0
 status: draft
-owner: ashzade
+owner: platform-team
+depends_on:
+  - google_places_api
+  - reddit_api
 tags:
-  - restaurants
   - recommendations
-  - community
+  - restaurants
   - search
 ---
 
-# LocalRecos
+# Restaurant Recommendations
 
-A site where anonymous users search for restaurant recommendations using natural language (e.g. "most authentic Indian in Ottawa"). Results are sourced from community sites like Reddit subreddits (r/ottawa, r/ottawafoodies, and city-specific equivalents). Users can see trending restaurants in their detected city, filter results, vote on recommendations, and share individual restaurant links.
+Accepts natural-language queries, fetches Reddit community discussions, extracts restaurant mentions, enriches them with place details from Google Places, and returns ranked recommendations.
 
 ## External State Providers
 
-### GooglePlaces
-source: google-maps-api
-provides: restaurant details including address, phone, hours, website, and photo
-lookup_key: restaurant_name + city
+### GooglePlacesAPI
+source: google-places-api
+provides: place details, hours, and photos for restaurants
+lookup_key: place_id
 Methods:
-  - lookup(name: string, city: string): RestaurantDetails
-  - verified(name: string, city: string): boolean
+  - searchText(query: string, city: string): json
 
-### RedditScraper
+### RedditAPI
 source: reddit-api
-provides: community posts mentioning restaurants from city-specific subreddits
-lookup_key: city
+provides: community posts and comments mentioning restaurants
+lookup_key: query
 Methods:
-  - fetch_mentions(city: string, subreddits: string[]): Post[]
-
-### GeoDetector
-source: browser-geolocation + ip-geolocation
-provides: the user's current city
-lookup_key: request_context
-Methods:
-  - detect_city(context: RequestContext): string | null
+  - search(query: string, subreddit: string): json
+  - getPost(post_id: string): json
 
 ## State Machine
 
 ### States
 
-- UNREVIEWED – restaurant scraped, no community votes recorded yet
-- VERIFIED – restaurant has received at least one community vote
-- INCOMPLETE – restaurant details could not be confirmed via Google Maps
+- PENDING – query received, Reddit fetch not yet attempted
+- FETCHING – Reddit posts are being retrieved and parsed
+- EXTRACTING – restaurant names are being extracted from posts
+- ENRICHING – place details are being fetched from external APIs
+- COMPLETE – all enrichment succeeded and recommendations are ready
+- FAILED – one or more unrecoverable errors occurred during processing
 
 ### Transitions
 
-#### UNREVIEWED → VERIFIED
-Trigger: A vote is cast on any of the restaurant's community recommendations
+#### PENDING → FETCHING
+Trigger: query submitted by user
 Guard: RULE_01
-Action: set_field(entity.status, 'VERIFIED')
+Action: emit_event(QUERY_RECEIVED), set_field(entity.status, 'fetching')
 
-#### UNREVIEWED → INCOMPLETE
-Trigger: Google Maps lookup returns no result for the restaurant
+#### FETCHING → EXTRACTING
+Trigger: Reddit posts retrieved successfully
 Guard: RULE_02
-Action: set_field(entity.details_verified, false)
+Action: emit_event(POSTS_FETCHED), set_field(entity.status, 'extracting')
 
-#### INCOMPLETE → VERIFIED
-Trigger: A vote is cast on any of the restaurant's community recommendations
-Guard: RULE_01
+#### FETCHING → FAILED
+Trigger: Reddit fetch raises an exception
+Action: emit_event(FETCH_FAILED), set_field(entity.status, 'failed')
+
+#### EXTRACTING → ENRICHING
+Trigger: restaurant names extracted from posts
+Guard: RULE_03
+Action: emit_event(EXTRACTION_COMPLETE), set_field(entity.status, 'enriching')
+
+#### EXTRACTING → FAILED
+Trigger: extraction yields no results
+Action: emit_event(EXTRACTION_FAILED), set_field(entity.status, 'failed')
+
+#### ENRICHING → COMPLETE
+Trigger: place details fetched for all extracted restaurants
+Action: emit_event(ENRICHMENT_COMPLETE), set_field(entity.status, 'complete')
+
+#### ENRICHING → FAILED
+Trigger: enrichment raises an unrecoverable exception
+Action: emit_event(ENRICHMENT_FAILED), set_field(entity.status, 'failed')
+
+#### FAILED → PENDING
+Trigger: retry requested by user
+Action: set_field(entity.status, 'pending')
 
 ## Actors & Access
 
-### Visitor
-Read: Restaurant.*, CommunityRecommendation.*
-Write: Vote.direction
+### SystemPipeline
+Read: restaurants, community_recommendations
+Write: restaurants, community_recommendations
+
+### PublicAPI
+Read: restaurants, community_recommendations
+Write: restaurant_votes, votes
 
 ### Logic Enforcement
 
+RULE_01: HIGH → reject
+RULE_02: MEDIUM → reject
 RULE_03: MEDIUM → reject
-RULE_04: MEDIUM → reject
+RULE_04: LOW → audit_log
+RULE_05: HIGH → reject
+RULE_06: LOW → audit_log
 
 ## Data Model
 
+Note: ParsedQuery, RedditPost, ExtractedRestaurant, and PlaceDetails are in-memory TypeScript interfaces used during the scraping pipeline. Restaurant, CommunityRecommendation, RestaurantVote, and Vote are persisted to the database.
+
+### ParsedQuery (in-memory)
+
+city:           string | nullable
+terms:          string | required
+raw:            string | required
+
+### RedditPost (in-memory)
+
+id:             string | required
+title:          string | required
+selftext:       string | required
+url:            string | required
+permalink:      string | required
+subreddit:      string | required
+score:          integer | required
+created_utc:    integer | required
+
+### ExtractedRestaurant (in-memory)
+
+name:           string | required
+postUrl:        string | required
+summary:        string | required
+source:         string | required
+redditScore:    integer | required
+
+### PlaceDetails (in-memory)
+
+name:           string | required
+address:        string | nullable
+phone:          string | nullable
+website:        string | nullable
+hours:          string | nullable
+price_range:    string | nullable
+service_options: string[] | required
+photo_url:      string | nullable
+
 ### Restaurant
 
-id:                uuid | primary | auto-gen
-name:              string | required | indexed
-city:              string | required | indexed
-address:           string | nullable
-phone:             string | nullable
-website:           string | nullable
-hours:             string | nullable
-price_range:       enum('$', '$$', '$$$', '$$$$') | nullable
-service_options:   string[] | nullable
-status:            enum('UNREVIEWED', 'VERIFIED', 'INCOMPLETE') | required | default(UNREVIEWED)
-details_verified:  boolean | default(true)
-photo_url:         string | nullable
-created_at:        timestamp | auto-gen
-updated_at:        timestamp | auto-gen
+id:             string | primary | auto-gen
+name:           string | required | indexed
+city:           string | required | indexed
+address:        string | nullable
+phone:          string | nullable
+website:        string | nullable
+hours:          string | nullable
+price_range:    string | nullable
+service_options: string[] | required | default([])
+status:         enum('UNREVIEWED', 'VERIFIED') | required | default(UNREVIEWED)
+photo_url:      string | nullable
+upvotes:        integer | required | default(0)
+downvotes:      integer | required | default(0)
+created_at:     timestamp | auto-gen
+updated_at:     timestamp | auto-gen
 
 ### CommunityRecommendation
 
-id:               uuid | primary | auto-gen
-restaurant_id:    uuid | required | indexed | fk(Restaurant.id, many-to-one)
-source:           string | required
-post_url:         string | required
-summary:          string | required
-mention_count:    integer | default(1)
-upvotes:          integer | default(0)
-downvotes:        integer | default(0)
-scraped_at:       timestamp | auto-gen
+id:             string | primary | auto-gen
+restaurant_id:  string | required | indexed | fk(Restaurant.id, many-to-one)
+source:         string | required
+post_url:       string | required
+summary:        string | required
+mention_count:  integer | required | default(1)
+source_upvotes: integer | required | default(0)
+upvotes:        integer | required | default(0)
+downvotes:      integer | required | default(0)
+scraped_at:     timestamp | auto-gen
+
+### RestaurantVote
+
+id:             string | primary | auto-gen
+restaurant_id:  string | required | indexed | fk(Restaurant.id, many-to-one)
+fingerprint:    string | required | indexed
+direction:      enum('up', 'down') | required
+created_at:     timestamp | auto-gen
 
 ### Vote
 
-id:                uuid | primary | auto-gen
-recommendation_id: uuid | required | indexed | fk(CommunityRecommendation.id, many-to-one)
-fingerprint:       string | required | indexed | sensitive
-direction:         enum('up', 'down') | required
-created_at:        timestamp | auto-gen
+id:             string | primary | auto-gen
+recommendation_id: string | required | indexed | fk(CommunityRecommendation.id, many-to-one)
+fingerprint:    string | required | indexed
+direction:      enum('up', 'down') | required
+created_at:     timestamp | auto-gen
 
 ## Computed Properties
 
-### net_votes
-Aggregate: SUM
-Entity: Vote
-Filter: entity.recommendation_id == CommunityRecommendation.id
+### has_place_data
+Aggregate: EXISTS
+Entity: Restaurant
+Filter: entity.address != '' OR entity.phone != '' OR entity.website != ''
 Window: none
 
-### has_community_recommendations
-Aggregate: EXISTS
+### high_net_vote_restaurants
+Aggregate: COUNT
+Entity: Restaurant
+Filter: entity.upvotes - entity.downvotes > 2
+Window: none
+
+### top_mentioned_restaurants
+Aggregate: COUNT
 Entity: CommunityRecommendation
-Filter: entity.restaurant_id == Restaurant.id
-Window: none
-
-### existing_vote
-Aggregate: EXISTS
-Entity: Vote
-Filter: entity.recommendation_id == Vote.recommendation_id AND entity.fingerprint == actor.fingerprint
+Filter: entity.mention_count > 2
 Window: none
 
 ## Logic Rules
 
 ### Validation Rules
 
-#### RULE_01: Restaurant Must Have Recommendations to Be Verified
+#### RULE_01: Query Must Be Non-Empty
 Type: Validation
-Entity: Restaurant
-Condition: has_community_recommendations == true
-Message: "A restaurant must have at least one community recommendation before it can be verified."
+Entity: ParsedQuery
+Condition: entity.raw_query != '' AND entity.city != ''
+Message: Query text and city are required to begin restaurant search.
 
-#### RULE_02: Restaurant Details Not Found
+#### RULE_02: Reddit Posts Must Be Present Before Extraction
 Type: Validation
-Entity: Restaurant
-Condition: GooglePlaces.verified(entity.name, entity.city) == false
-Message: "Restaurant details could not be confirmed via Google Maps and will be shown as incomplete."
+Entity: RedditPost
+Condition: entity.post_id != '' AND entity.title != ''
+Message: Reddit post is missing required fields; cannot extract restaurants.
+
+#### RULE_03: Extracted Restaurant Must Have a Name
+Type: Validation
+Entity: ExtractedRestaurant
+Condition: entity.name != '' AND entity.city != ''
+Message: Extracted restaurant must have a name and city to proceed with enrichment.
 
 ### Business Rules
 
-#### RULE_03: No Duplicate Votes
+#### RULE_04: Skip Enrichment When Place Data Already Exists
 Type: Business
-Entity: Vote
-Condition: existing_vote == false
-Message: "You have already voted on this recommendation."
+Entity: ExtractedRestaurant
+Condition: has_place_data == true
+Message: Place details already fetched for this restaurant; skipping enrichment.
 
-#### RULE_04: Search Requires City Context
+#### RULE_05: API Keys Required for Enrichment
 Type: Business
-Entity: Restaurant
-Condition: actor.type == 'Visitor' AND GeoDetector.detect_city(actor.context) != null
-Message: "We couldn't detect your location. Please confirm your city to see results."
+Entity: ExtractedRestaurant
+Condition: env(GOOGLE_PLACES_API_KEY) != ''
+Message: Google Places API key must be configured; cannot enrich restaurant details.
+
+#### RULE_06: Default City Fallback Required
+Type: Business
+Entity: ParsedQuery
+Condition: entity.city != '' OR env(DEFAULT_CITY) != ''
+Message: No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.

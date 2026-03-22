@@ -12,20 +12,6 @@ export async function checkRule01(restaurantId: string): Promise<boolean> {
 }
 
 /**
- * RULE_02: If Google Places can't find the restaurant → mark details_verified=false, status=INCOMPLETE.
- * This is called after a failed Places lookup.
- */
-export async function applyRule02(restaurantId: string): Promise<void> {
-  await prisma.restaurant.update({
-    where: { id: restaurantId },
-    data: {
-      details_verified: false,
-      status: RestaurantStatus.INCOMPLETE,
-    },
-  });
-}
-
-/**
  * RULE_03: No duplicate votes. Check if a fingerprint has already voted on a recommendation.
  * Returns true if the vote is allowed (no duplicate), false if it must be rejected.
  */
@@ -63,7 +49,6 @@ export async function checkRule05(
  * After a vote is cast, attempt to transition the restaurant to VERIFIED.
  * State machine:
  *   UNREVIEWED → VERIFIED (guard: RULE_01)
- *   INCOMPLETE → VERIFIED (guard: RULE_01)
  */
 export async function tryTransitionToVerified(restaurantId: string): Promise<void> {
   const restaurant = await prisma.restaurant.findUnique({
@@ -72,11 +57,7 @@ export async function tryTransitionToVerified(restaurantId: string): Promise<voi
 
   if (!restaurant) return;
 
-  // Only transition from UNREVIEWED or INCOMPLETE
-  if (
-    restaurant.status !== RestaurantStatus.UNREVIEWED &&
-    restaurant.status !== RestaurantStatus.INCOMPLETE
-  ) {
+  if (restaurant.status !== RestaurantStatus.UNREVIEWED) {
     return;
   }
 

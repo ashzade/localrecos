@@ -1,3 +1,19 @@
+const GOOGLE_PLACES_BASE = 'https://places.googleapis.com/v1';
+
+const FIELD_MASK = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.nationalPhoneNumber',
+  'places.websiteUri',
+  'places.regularOpeningHours',
+  'places.priceLevel',
+  'places.photos',
+  'places.dineIn',
+  'places.takeout',
+  'places.delivery',
+].join(',');
+
 export interface PlaceDetails {
   name: string;
   address: string | null;
@@ -9,132 +25,115 @@ export interface PlaceDetails {
   photo_url: string | null;
 }
 
-/**
- * Look up a restaurant on Google Places.
- * Returns null gracefully if the API key is missing or the search returns no results.
- */
-export async function lookupRestaurant(
-  name: string,
-  city: string
-): Promise<PlaceDetails | null> {
-  // RULE_04: city is required
-  if (!city || !city.trim()) return null;
+const PRICE_MAP: Record<string, string> = {
+  PRICE_LEVEL_FREE: '$',
+  PRICE_LEVEL_INEXPENSIVE: '$',
+  PRICE_LEVEL_MODERATE: '$$',
+  PRICE_LEVEL_EXPENSIVE: '$$$',
+  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
+};
 
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+function buildPlaceDetails(place: Record<string, unknown>, apiKey: string): PlaceDetails {
+  const displayName = place.displayName as Record<string, string> | undefined;
+  const name = displayName?.text ?? '';
 
-  if (!apiKey) {
-    // Gracefully degrade when no API key is configured
-    return null;
+  const address = (place.formattedAddress as string) ?? null;
+  const phone = (place.nationalPhoneNumber as string) ?? null;
+  const website = (place.websiteUri as string) ?? null;
+
+  let hours: string | null = null;
+  const openingHours = place.regularOpeningHours as Record<string, unknown> | undefined;
+  const weekdayDescriptions = openingHours?.weekdayDescriptions as string[] | undefined;
+  if (weekdayDescriptions && weekdayDescriptions.length > 0) {
+    hours = weekdayDescriptions.join(' | ');
   }
 
-  try {
-    const query = encodeURIComponent(`${name} restaurant ${city}`);
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${apiKey}`;
+  const price_range =
+    typeof place.priceLevel === 'string' ? (PRICE_MAP[place.priceLevel] ?? null) : null;
 
-    const response = await fetch(url, {
-      next: { revalidate: 86400 }, // Cache for 24 hours
-    });
+  const service_options: string[] = [];
+  if (place.dineIn) service_options.push('Dine-in');
+  if (place.takeout) service_options.push('Takeout');
+  if (place.delivery) service_options.push('Delivery');
 
-    if (!response.ok) return null;
-
-    const data = await response.json();
-
-    if (data.status !== 'OK' || !data.results || data.results.length === 0) {
-      return null;
-    }
-
-    const place = data.results[0];
-
-    // Map price_level (0–4) to price range symbols
-    const priceMap: Record<number, string> = {
-      1: '$',
-      2: '$$',
-      3: '$$$',
-      4: '$$$$',
-    };
-
-    const priceRange = place.price_level != null ? priceMap[place.price_level as number] ?? null : null;
-
-    // Build photo URL from the first photo reference
-    let photo_url: string | null = null;
-    if (place.photos?.[0]?.photo_reference) {
-      photo_url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photoreference=${place.photos[0].photo_reference}&key=${apiKey}`;
-    }
-
-    // Fetch detailed info to get phone, website, hours
-    const details = await fetchPlaceDetails(place.place_id, apiKey);
-
-    return {
-      name: place.name ?? name,
-      address: place.formatted_address ?? null,
-      phone: details?.phone ?? null,
-      website: details?.website ?? null,
-      hours: details?.hours ?? null,
-      price_range: priceRange,
-      service_options: details?.service_options ?? [],
-      photo_url,
-    };
-  } catch {
-    return null;
+  let photo_url: string | null = null;
+  const photos = place.photos as Array<Record<string, string>> | undefined;
+  if (photos && photos.length > 0 && photos[0].name) {
+    photo_url = `${GOOGLE_PLACES_BASE}/${photos[0].name}/media?maxWidthPx=600&maxHeightPx=400&key=${apiKey}`;
   }
+
+  return { name, address, phone, website, hours, price_range, service_options, photo_url };
 }
 
-interface PlaceDetailsRaw {
-  phone: string | null;
-  website: string | null;
-  hours: string | null;
-  service_options: string[];
-}
-
-async function fetchPlaceDetails(
-  placeId: string,
-  apiKey: string
-): Promise<PlaceDetailsRaw | null> {
+async function resolvePhotoUrl(photoUrl: string): Promise<string | null> {
   try {
-    const fields = 'formatted_phone_number,website,opening_hours,serves_dine_in,serves_takeout,serves_delivery';
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${apiKey}`;
-
-    const response = await fetch(url, {
-      next: { revalidate: 86400 },
-    });
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-
-    if (data.status !== 'OK' || !data.result) return null;
-
-    const result = data.result;
-
-    const serviceOptions: string[] = [];
-    if (result.serves_dine_in) serviceOptions.push('Dine-in');
-    if (result.serves_takeout) serviceOptions.push('Takeout');
-    if (result.serves_delivery) serviceOptions.push('Delivery');
-
-    let hours: string | null = null;
-    if (result.opening_hours?.weekday_text) {
-      hours = (result.opening_hours.weekday_text as string[]).join(' | ');
-    }
-
-    return {
-      phone: result.formatted_phone_number ?? null,
-      website: result.website ?? null,
-      hours,
-      service_options: serviceOptions,
-    };
+    // Add skipHttpRedirect=true to get the final CDN URL as JSON instead of a redirect
+    const url = photoUrl.replace('/media?', '/media?skipHttpRedirect=true&');
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.photoUri as string) ?? null;
   } catch {
     return null;
   }
 }
 
 /**
- * Check whether Google Places can find the restaurant.
- * Returns false if not found, gracefully returns true (assume exists) if API key is missing.
+ * Search Google Places for restaurants matching a query in a city.
  */
-export async function isRestaurantVerified(name: string, city: string): Promise<boolean> {
+export async function searchGooglePlaces(
+  city: string,
+  query: string,
+  limit = 5
+): Promise<PlaceDetails[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) return true; // Graceful degradation
+  if (!apiKey || !city.trim()) return [];
 
-  const result = await lookupRestaurant(name, city);
-  return result !== null;
+  const textQuery = `${query} in ${city}`;
+  console.log(`[google-places] textQuery="${textQuery}"`);
+
+  try {
+    const response = await fetch(`${GOOGLE_PLACES_BASE}/places:searchText`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': FIELD_MASK,
+      },
+      body: JSON.stringify({
+        textQuery,
+        includedType: 'restaurant',
+        maxResultCount: limit,
+      }),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.error(`[google-places] search failed status=${response.status}`, await response.text());
+      return [];
+    }
+
+    const data = await response.json();
+    const places = data.places;
+    if (!Array.isArray(places)) {
+      console.error('[google-places] unexpected response shape', JSON.stringify(data).slice(0, 200));
+      return [];
+    }
+
+    const results = places.map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
+
+    // Resolve photo redirects to final CDN URLs so Next.js Image can display them
+    await Promise.all(
+      results.map(async (r) => {
+        if (r.photo_url) {
+          r.photo_url = await resolvePhotoUrl(r.photo_url) ?? r.photo_url;
+        }
+      })
+    );
+
+    return results;
+  } catch (err) {
+    console.error('[google-places] search threw', err);
+    return [];
+  }
 }

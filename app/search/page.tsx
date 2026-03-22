@@ -3,6 +3,7 @@ import { searchRestaurants, parseQuery } from '@/lib/search';
 import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
+import SearchPoller from '@/components/SearchPoller';
 
 const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 
@@ -34,14 +35,7 @@ async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCit
     : rawResults; // 'votes' is already the default sort from searchRestaurants
 
   if (results.length === 0) {
-    return (
-      <div className="mt-6 text-center py-12 text-gray-400">
-        <p className="text-lg font-medium text-gray-600 mb-2">No results yet</p>
-        <p className="text-sm">
-          We&apos;re fetching community recommendations from Reddit. Try again in a moment.
-        </p>
-      </div>
-    );
+    return <SearchPoller city={city} query={q} />;
   }
 
   return (

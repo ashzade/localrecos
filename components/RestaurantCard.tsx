@@ -29,7 +29,6 @@ interface Restaurant {
   price_range: string | null;
   photo_url: string | null;
   status: string;
-  details_verified: boolean;
   upvotes: number;
   downvotes: number;
   total_net_votes: number;
@@ -164,10 +163,6 @@ export default function RestaurantCard({ restaurant: r }: RestaurantCardProps) {
               <span>🌐</span>
               {r.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
             </a>
-          )}
-
-          {!r.details_verified && (
-            <p className="mt-1 text-xs text-amber-600">Details unconfirmed — community mention only</p>
           )}
 
           {/* LocalRecos community feedback on this restaurant */}

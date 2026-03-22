@@ -1100,6 +1100,7 @@
       "type": "Business",
       "entity": "ExtractedRestaurant",
       "condition": "env(GOOGLE_PLACES_API_KEY) != ''",
+      "scope": ["File(scrape)"],
       "message": "Google Places API key must be configured; cannot enrich restaurant details."
     },
     "RULE_06": {
@@ -1109,6 +1110,7 @@
       "type": "Business",
       "entity": "ParsedQuery",
       "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",
+      "scope": ["File(scrape)"],
       "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location."
     }
   }

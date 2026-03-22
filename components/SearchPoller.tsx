@@ -50,7 +50,7 @@ export default function SearchPoller({ city, query }: SearchPollerProps) {
             <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
           </div>
           <p className="text-sm font-medium text-gray-600">Fetching results…</p>
-          <p className="text-xs text-gray-400 mt-1">Searching Reddit and Foursquare for recommendations</p>
+          <p className="text-xs text-gray-400 mt-1">Searching for recommendations…</p>
         </>
       )}
     </div>

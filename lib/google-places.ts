@@ -65,6 +65,19 @@ function buildPlaceDetails(place: Record<string, unknown>, apiKey: string): Plac
   return { name, address, phone, website, hours, price_range, service_options, photo_url };
 }
 
+async function resolvePhotoUrl(photoUrl: string): Promise<string | null> {
+  try {
+    // Add skipHttpRedirect=true to get the final CDN URL as JSON instead of a redirect
+    const url = photoUrl.replace('/media?', '/media?skipHttpRedirect=true&');
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.photoUri as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Search Google Places for restaurants matching a query in a city.
  */
@@ -107,7 +120,18 @@ export async function searchGooglePlaces(
       return [];
     }
 
-    return places.map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
+    const results = places.map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
+
+    // Resolve photo redirects to final CDN URLs so Next.js Image can display them
+    await Promise.all(
+      results.map(async (r) => {
+        if (r.photo_url) {
+          r.photo_url = await resolvePhotoUrl(r.photo_url) ?? r.photo_url;
+        }
+      })
+    );
+
+    return results;
   } catch (err) {
     console.error('[google-places] search threw', err);
     return [];

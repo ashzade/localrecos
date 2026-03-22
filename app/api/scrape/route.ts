@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchFoursquare } from '@/lib/foursquare';
+import { searchGooglePlaces } from '@/lib/google-places';
 import { parseQuery } from '@/lib/search';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';
@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!process.env.FOURSQUARE_API_KEY) {
+  if (!process.env.GOOGLE_PLACES_API_KEY) {
     return NextResponse.json(
-      { error: 'RULE_05', message: 'Enrichment API key is not configured' },
+      { error: 'RULE_05', message: 'Places API key is not configured' },
       { status: 503 }
     );
   }
@@ -36,52 +36,46 @@ export async function POST(request: NextRequest) {
     let created = 0;
     let skipped = 0;
 
-    // Foursquare search
-    {
-      const terms = parseQuery(query).terms;
-      console.log(`[scrape] foursquare terms=${terms}`);
-      const foursquareResults = await searchFoursquare(city, terms);
-      console.log(`[scrape] foursquare results=${foursquareResults.length}`, foursquareResults.map(p => p.name));
-      for (const place of foursquareResults) {
-        const existing = await prisma.restaurant.findFirst({
-          where: {
-            name: { equals: place.name, mode: 'insensitive' },
-            city: { equals: city, mode: 'insensitive' },
-          },
-        });
-        if (existing) { skipped++; continue; }
+    const terms = parseQuery(query).terms;
+    console.log(`[scrape] google-places terms=${terms}`);
+    const results = await searchGooglePlaces(city, terms);
+    console.log(`[scrape] google-places results=${results.length}`, results.map(p => p.name));
 
-        const restaurant = await prisma.restaurant.create({
-          data: {
-            name: place.name,
-            city,
-            address: place.address,
-            phone: place.phone,
-            website: place.website,
-            hours: place.hours,
-            price_range: place.price_range,
-            service_options: place.service_options,
-            photo_url: place.photo_url,
-            status: RestaurantStatus.UNREVIEWED,
-          },
-        });
-        await prisma.communityRecommendation.create({
-          data: {
-            restaurant_id: restaurant.id,
-            source: 'foursquare',
-            post_url: `foursquare://places/${restaurant.id}`,
-            summary: query,
-          },
-        });
-        created++;
-      }
+    for (const place of results) {
+      const existing = await prisma.restaurant.findFirst({
+        where: {
+          name: { equals: place.name, mode: 'insensitive' },
+          city: { equals: city, mode: 'insensitive' },
+        },
+      });
+      if (existing) { skipped++; continue; }
+
+      const restaurant = await prisma.restaurant.create({
+        data: {
+          name: place.name,
+          city,
+          address: place.address,
+          phone: place.phone,
+          website: place.website,
+          hours: place.hours,
+          price_range: place.price_range,
+          service_options: place.service_options,
+          photo_url: place.photo_url,
+          status: RestaurantStatus.UNREVIEWED,
+        },
+      });
+      await prisma.communityRecommendation.create({
+        data: {
+          restaurant_id: restaurant.id,
+          source: 'google-places',
+          post_url: `google-places://places/${restaurant.id}`,
+          summary: query,
+        },
+      });
+      created++;
     }
 
-    return NextResponse.json({
-      success: true,
-      created,
-      skipped,
-    });
+    return NextResponse.json({ success: true, created, skipped });
   } catch (error) {
     console.error('Scrape error:', error);
     return NextResponse.json(

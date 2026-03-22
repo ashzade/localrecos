@@ -4,7 +4,6 @@ version: 1.0.0
 status: draft
 owner: platform-team
 depends_on:
-  - foursquare_api
   - google_places_api
   - reddit_api
 tags:
@@ -15,25 +14,16 @@ tags:
 
 # Restaurant Recommendations
 
-Accepts natural-language queries, fetches Reddit community discussions, extracts restaurant mentions, enriches them with place details from Foursquare and Google Places, and returns ranked recommendations.
+Accepts natural-language queries, fetches Reddit community discussions, extracts restaurant mentions, enriches them with place details from Google Places, and returns ranked recommendations.
 
 ## External State Providers
-
-### FoursquareAPI
-source: foursquare-api
-provides: venue details and ratings for restaurants
-lookup_key: place_name
-Methods:
-  - search(name: string, city: string): json
-  - getDetails(venue_id: string): json
 
 ### GooglePlacesAPI
 source: google-places-api
 provides: place details, hours, and photos for restaurants
 lookup_key: place_id
 Methods:
-  - findPlace(name: string, city: string): json
-  - getDetails(place_id: string): json
+  - searchText(query: string, city: string): json
 
 ### RedditAPI
 source: reddit-api
@@ -250,8 +240,8 @@ Message: Place details already fetched for this restaurant; skipping enrichment.
 #### RULE_05: API Keys Required for Enrichment
 Type: Business
 Entity: ExtractedRestaurant
-Condition: env(FOURSQUARE_API_KEY) != '' OR env(GOOGLE_PLACES_API_KEY) != ''
-Message: At least one place enrichment API key must be configured; cannot enrich restaurant details.
+Condition: env(GOOGLE_PLACES_API_KEY) != ''
+Message: Google Places API key must be configured; cannot enrich restaurant details.
 
 #### RULE_06: Default City Fallback Required
 Type: Business

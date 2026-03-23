@@ -54,9 +54,14 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
       id: { not: params.id },
       name: { equals: restaurant.name, mode: 'insensitive' },
     },
-    select: { id: true, address: true },
+    select: { id: true, address: true, phone: true, website: true, hours: true, upvotes: true, downvotes: true },
     orderBy: { upvotes: 'desc' },
   });
+
+  const allLocations = [
+    { id: restaurant.id, address: restaurant.address, phone: restaurant.phone, website: restaurant.website, hours: restaurant.hours, upvotes: restaurant.upvotes, downvotes: restaurant.downvotes },
+    ...sameNameLocations,
+  ];
 
   const statusInfo = STATUS_INFO[restaurant.status] ?? STATUS_INFO.UNREVIEWED;
 
@@ -131,25 +136,30 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
             </div>
           </div>
 
-          {sameNameLocations.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Other locations</p>
-              <div className="flex flex-wrap gap-2">
-                {sameNameLocations.map((loc) => (
-                  <a
-                    key={loc.id}
-                    href={`/restaurant/${loc.id}`}
-                    className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full transition-colors"
-                  >
-                    {loc.address ?? 'View location'}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            {restaurant.address && (
+            {allLocations.length > 1 ? (
+              <div className="sm:col-span-2">
+                <span className="text-gray-400">Locations</span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {allLocations.map((loc) => {
+                    const locMapsUrl = loc.address
+                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`
+                      : null;
+                    return loc.address ? (
+                      <a
+                        key={loc.id}
+                        href={locMapsUrl ?? '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full transition-colors"
+                      >
+                        {loc.address}
+                      </a>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            ) : restaurant.address ? (
               <div>
                 <span className="text-gray-400">Address</span>
                 {mapsUrl ? (
@@ -165,7 +175,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                   <p className="text-gray-700">{restaurant.address}</p>
                 )}
               </div>
-            )}
+            ) : null}
             {restaurant.phone && (
               <div>
                 <span className="text-gray-400">Phone</span>

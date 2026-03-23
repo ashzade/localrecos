@@ -1051,7 +1051,7 @@
       "entity": "ParsedQuery",
       "condition": "entity.raw_query != '' AND entity.city != ''",
       "message": "Query text and city are required to begin restaurant search.",
-      "scope": ["File(search)", "File(scrape)"]
+      "scope": ["File(api/search)", "File(scrape)"]
     },
     "RULE_02": {
       "id": "RULE_02",
@@ -1099,7 +1099,7 @@
       "entity": "ParsedQuery",
       "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",
       "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.",
-      "scope": ["File(search)", "File(scrape)"]
+      "scope": ["File(api/search)", "File(scrape)"]
     }
   }
 }

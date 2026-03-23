@@ -10,7 +10,7 @@ const SORT_OPTIONS = [
 
 type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 
-export default function SortBar({ current }: { current: SortValue }) {
+export default function SortBar({ current, openNow }: { current: SortValue; openNow: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -20,8 +20,18 @@ export default function SortBar({ current }: { current: SortValue }) {
     router.push(`?${params.toString()}`, { scroll: false });
   }
 
+  function toggleOpenNow() {
+    const params = new URLSearchParams(searchParams.toString());
+    if (openNow) {
+      params.delete('open');
+    } else {
+      params.set('open', '1');
+    }
+    router.push(`?${params.toString()}`, { scroll: false });
+  }
+
   return (
-    <div className="flex items-center gap-2 mt-5">
+    <div className="flex items-center gap-2 mt-5 flex-wrap">
       <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Sort</span>
       <div className="flex gap-1">
         {SORT_OPTIONS.map((opt) => {
@@ -52,6 +62,16 @@ export default function SortBar({ current }: { current: SortValue }) {
           );
         })}
       </div>
+      <button
+        onClick={toggleOpenNow}
+        className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+          openNow
+            ? 'bg-green-600 text-white border-green-600'
+            : 'border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+        }`}
+      >
+        🟢 Open now
+      </button>
     </div>
   );
 }

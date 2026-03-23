@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { searchRestaurants, parseQuery, groupRestaurantsByName } from '@/lib/search';
+import { isOpenNow } from '@/lib/hours';
 import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
@@ -12,10 +13,10 @@ const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$':
 const PAGE_SIZE = 10;
 
 interface SearchPageProps {
-  searchParams: { q?: string; city?: string; sort?: string };
+  searchParams: { q?: string; city?: string; sort?: string; open?: string };
 }
 
-async function SearchResults({ q, detectedCity, sort, limit }: { q: string; detectedCity?: string; sort: string; limit: number }) {
+async function SearchResults({ q, detectedCity, sort, openNow, limit }: { q: string; detectedCity?: string; sort: string; openNow: boolean; limit: number }) {
   const parsed = await parseQuery(q);
   const city = parsed.city ?? detectedCity ?? null;
 
@@ -34,13 +35,20 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
   const hasMore = grouped.length > limit;
   const page = grouped.slice(0, limit);
 
-  const results = sort === 'price'
+  let results = sort === 'price'
     ? [...page].sort((a, b) => {
         const pa = a.price_range ? (PRICE_ORDER[a.price_range] ?? 99) : 99;
         const pb = b.price_range ? (PRICE_ORDER[b.price_range] ?? 99) : 99;
         return pa - pb;
       })
     : page;
+
+  if (openNow) {
+    results = results.filter((g) => {
+      const hours = g.locations.find((l) => l.hours)?.hours;
+      return hours ? isOpenNow(hours) === true : false;
+    });
+  }
 
   if (results.length === 0) {
     return <SearchPoller city={city} query={q} />;
@@ -57,7 +65,7 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
             <span className="text-gray-400"> · searching for &ldquo;{parsed.terms}&rdquo;</span>
           )}
         </p>
-        <SortBar current={(sort === 'price' ? 'price' : 'votes')} />
+        <SortBar current={(sort === 'price' ? 'price' : 'votes')} openNow={openNow} />
       </div>
       {results.map((group) => (
         <RestaurantCard
@@ -93,6 +101,7 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   const q = searchParams.q?.trim() ?? '';
   const detectedCity = searchParams.city?.trim();
   const sort = searchParams.sort === 'price' ? 'price' : 'votes';
+  const openNow = searchParams.open === '1';
   const limit = PAGE_SIZE;
 
   return (
@@ -109,7 +118,7 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
             </div>
           }
         >
-          <SearchResults q={q} detectedCity={detectedCity} sort={sort} limit={limit} />
+          <SearchResults q={q} detectedCity={detectedCity} sort={sort} openNow={openNow} limit={limit} />
         </Suspense>
       ) : (
         <p className="mt-6 text-gray-400 text-sm text-center">Enter a search above to get started.</p>

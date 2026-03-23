@@ -58,7 +58,8 @@ export interface RestaurantWithRecommendations {
  */
 export async function searchRestaurants(
   city: string,
-  terms: string
+  terms: string,
+  limit = 10
 ): Promise<RestaurantWithRecommendations[]> {
   const normalizedCity = city.trim();
   const words = terms
@@ -108,7 +109,7 @@ export async function searchRestaurants(
         ],
       },
     },
-    take: 30,
+    take: limit,
   });
 
   return restaurants

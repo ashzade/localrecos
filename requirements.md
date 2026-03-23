@@ -241,6 +241,9 @@ Window: none
 #### RULE_01: Query Must Be Non-Empty
 > Query text and city are required to begin restaurant search.
 
+Scope: api/search, scrape
+> Query text and city are required to begin restaurant search.
+
 Type: Validation
 Entity: ParsedQuery
 Condition: entity.raw_query != '' AND entity.city != ''
@@ -255,6 +258,9 @@ Condition: entity.post_id != '' AND entity.title != ''
 Message: Reddit post is missing required fields; cannot extract restaurants.
 
 #### RULE_03: Extracted Restaurant Must Have a Name
+> Extracted restaurant must have a name and city to proceed with enrichment.
+
+Scope: scrape
 > Extracted restaurant must have a name and city to proceed with enrichment.
 
 Type: Validation
@@ -275,12 +281,18 @@ Message: Place details already fetched for this restaurant; skipping enrichment.
 #### RULE_05: API Keys Required for Enrichment
 > Google Places API key must be configured; cannot enrich restaurant details.
 
+Scope: scrape
+> Google Places API key must be configured; cannot enrich restaurant details.
+
 Type: Business
 Entity: ExtractedRestaurant
 Condition: env(GOOGLE_PLACES_API_KEY) != ''
 Message: Google Places API key must be configured; cannot enrich restaurant details.
 
 #### RULE_06: Default City Fallback Required
+> No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.
+
+Scope: api/search, scrape
 > No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.
 
 Type: Business

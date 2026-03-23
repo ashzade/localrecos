@@ -36,6 +36,7 @@
           "returns": "json"
         }
       ],
+      "scopes": [],
       "source": "google-places-api",
       "provides": "place details, hours, and photos for restaurants",
       "lookupKey": "place_id"
@@ -53,6 +54,7 @@
           "returns": "json"
         }
       ],
+      "scopes": [],
       "source": "openrouter-api",
       "provides": "LLM-powered natural language query parsing via Gemini Flash",
       "lookupKey": "query"
@@ -1047,16 +1049,20 @@
       "id": "RULE_01",
       "title": "Query Must Be Non-Empty",
       "references": [],
+      "scope": [
+        "api/search",
+        "scrape"
+      ],
       "type": "Validation",
       "entity": "ParsedQuery",
       "condition": "entity.raw_query != '' AND entity.city != ''",
-      "message": "Query text and city are required to begin restaurant search.",
-      "scope": ["File(api/search)", "File(scrape)"]
+      "message": "Query text and city are required to begin restaurant search."
     },
     "RULE_02": {
       "id": "RULE_02",
       "title": "Reddit Posts Must Be Present Before Extraction",
       "references": [],
+      "scope": [],
       "type": "Validation",
       "entity": "RedditPost",
       "condition": "entity.post_id != '' AND entity.title != ''",
@@ -1066,16 +1072,19 @@
       "id": "RULE_03",
       "title": "Extracted Restaurant Must Have a Name",
       "references": [],
+      "scope": [
+        "scrape"
+      ],
       "type": "Validation",
       "entity": "ExtractedRestaurant",
       "condition": "entity.name != '' AND entity.city != ''",
-      "message": "Extracted restaurant must have a name and city to proceed with enrichment.",
-      "scope": ["File(scrape)"]
+      "message": "Extracted restaurant must have a name and city to proceed with enrichment."
     },
     "RULE_04": {
       "id": "RULE_04",
       "title": "Skip Enrichment When Place Data Already Exists",
       "references": [],
+      "scope": [],
       "type": "Business",
       "entity": "ExtractedRestaurant",
       "condition": "has_place_data == true",
@@ -1085,17 +1094,22 @@
       "id": "RULE_05",
       "title": "API Keys Required for Enrichment",
       "references": [],
+      "scope": [
+        "scrape"
+      ],
       "type": "Business",
       "entity": "ExtractedRestaurant",
       "condition": "env(GOOGLE_PLACES_API_KEY) != ''",
-      "message": "Google Places API key must be configured; cannot enrich restaurant details.",
-      "scope": ["File(scrape)"]
+      "message": "Google Places API key must be configured; cannot enrich restaurant details."
     },
     "RULE_06": {
       "id": "RULE_06",
       "title": "Default City Fallback Required",
-      "scope": ["File(api/search)", "File(scrape)"],
       "references": [],
+      "scope": [
+        "api/search",
+        "scrape"
+      ],
       "type": "Business",
       "entity": "ParsedQuery",
       "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",

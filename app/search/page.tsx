@@ -51,7 +51,7 @@ async function SearchResults({ q, detectedCity, sort, openNow, limit }: { q: str
   }
 
   const sortBar = (
-    <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="flex flex-col gap-1">
       <p className="text-sm text-gray-500">
         {results.length}{hasMore ? '+' : ''} result{results.length !== 1 ? 's' : ''} in{' '}
         <span className="font-medium text-gray-700">{city}</span>

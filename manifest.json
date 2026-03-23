@@ -1050,7 +1050,8 @@
       "type": "Validation",
       "entity": "ParsedQuery",
       "condition": "entity.raw_query != '' AND entity.city != ''",
-      "message": "Query text and city are required to begin restaurant search."
+      "message": "Query text and city are required to begin restaurant search.",
+      "scope": ["File(search)", "File(scrape)"]
     },
     "RULE_02": {
       "id": "RULE_02",
@@ -1068,7 +1069,8 @@
       "type": "Validation",
       "entity": "ExtractedRestaurant",
       "condition": "entity.name != '' AND entity.city != ''",
-      "message": "Extracted restaurant must have a name and city to proceed with enrichment."
+      "message": "Extracted restaurant must have a name and city to proceed with enrichment.",
+      "scope": ["File(scrape)"]
     },
     "RULE_04": {
       "id": "RULE_04",
@@ -1096,7 +1098,8 @@
       "type": "Business",
       "entity": "ParsedQuery",
       "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",
-      "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location."
+      "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.",
+      "scope": ["File(search)", "File(scrape)"]
     }
   }
 }

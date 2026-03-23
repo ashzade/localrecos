@@ -102,7 +102,6 @@ export async function searchGooglePlaces(
       },
       body: JSON.stringify({
         textQuery,
-        includedType: 'restaurant',
         maxResultCount: limit,
       }),
       cache: 'no-store',

@@ -1,5 +1,6 @@
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const MODEL = 'google/gemini-2.0-flash-exp:free';
+const REDDIT_MODEL = 'qwen/qwen3-235b-a22b:free';
 
 /**
  * Parse a natural-language restaurant query into city + search terms using Gemini Flash.
@@ -57,6 +58,82 @@ export async function parseQueryWithLLM(
   } catch (err) {
     console.error('[openrouter] parseQuery threw', err);
     return regexFallback(query);
+  }
+}
+
+export interface RedditRecommendation {
+  name: string;
+  summary: string;
+}
+
+/**
+ * Ask the LLM what Reddit says about restaurants matching the query.
+ * Returns a list of restaurant names + community summaries.
+ */
+export async function getRedditRecommendations(
+  query: string,
+  city: string,
+  terms: string
+): Promise<RedditRecommendation[]> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: REDDIT_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a local food expert with deep knowledge of Reddit food communities. ' +
+              'Return a JSON object with key "restaurants" containing an array of objects, ' +
+              'each with "name" (exact restaurant name as it appears on Google Maps) and ' +
+              '"summary" (1-2 sentences explaining what Reddit users say about it). ' +
+              'Only include restaurants you are confident exist in the specified city. ' +
+              'Return 4-8 restaurants. Do not include any thinking or explanation outside the JSON.',
+          },
+          {
+            role: 'user',
+            content: `According to Reddit, what are the best ${terms} in ${city}? (original search: "${query}")`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+      }),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.error('[openrouter] reddit-llm failed', response.status, await response.text());
+      return [];
+    }
+
+    const data = await response.json();
+    let content: string = data.choices?.[0]?.message?.content ?? '';
+    if (!content) return [];
+
+    // Strip <think>...</think> blocks that some Qwen models emit
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+    const parsed = JSON.parse(content);
+    const list = parsed.restaurants;
+    if (!Array.isArray(list)) return [];
+
+    return list
+      .filter((r: unknown) => r && typeof (r as Record<string, unknown>).name === 'string' && typeof (r as Record<string, unknown>).summary === 'string')
+      .map((r: Record<string, unknown>) => ({
+        name: (r.name as string).trim(),
+        summary: (r.summary as string).trim(),
+      }));
+  } catch (err) {
+    console.error('[openrouter] getRedditRecommendations threw', err);
+    return [];
   }
 }
 

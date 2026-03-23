@@ -4,6 +4,7 @@ import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
 import SearchPoller from '@/components/SearchPoller';
+import PersistCity from '@/components/PersistCity';
 
 const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 
@@ -40,6 +41,7 @@ async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCit
 
   return (
     <div className="mt-6 space-y-4">
+      <PersistCity city={city} />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500">
           {results.length} result{results.length !== 1 ? 's' : ''} in{' '}

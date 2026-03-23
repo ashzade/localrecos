@@ -72,7 +72,8 @@ function parseWords(terms: string): string[] {
 export async function searchRestaurants(
   city: string,
   terms: string,
-  limit = 10
+  limit = 10,
+  offset = 0
 ): Promise<RestaurantWithRecommendations[]> {
   const normalizedCity = city.trim();
   const words = parseWords(terms);
@@ -120,6 +121,7 @@ export async function searchRestaurants(
       },
     },
     take: limit,
+    skip: offset,
   });
 
   return restaurants

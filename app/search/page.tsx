@@ -5,13 +5,14 @@ import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
 import SearchPoller from '@/components/SearchPoller';
 import PersistCity from '@/components/PersistCity';
+import LoadMoreButton from '@/components/LoadMoreButton';
 
 const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 
 const PAGE_SIZE = 10;
 
 interface SearchPageProps {
-  searchParams: { q?: string; city?: string; sort?: string; limit?: string };
+  searchParams: { q?: string; city?: string; sort?: string };
 }
 
 async function SearchResults({ q, detectedCity, sort, limit }: { q: string; detectedCity?: string; sort: string; limit: number }) {
@@ -44,8 +45,6 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
     return <SearchPoller city={city} query={q} />;
   }
 
-  const moreUrl = `/search?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}&sort=${sort}&limit=${limit + PAGE_SIZE}`;
-
   return (
     <div className="mt-6 space-y-4">
       <PersistCity city={city} />
@@ -63,14 +62,12 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
         <RestaurantCard key={restaurant.id} restaurant={restaurant} />
       ))}
       {hasMore && (
-        <div className="pt-2 text-center">
-          <a
-            href={moreUrl}
-            className="text-sm text-blue-600 hover:underline font-medium"
-          >
-            More
-          </a>
-        </div>
+        <LoadMoreButton
+          city={city}
+          terms={parsed.terms}
+          sort={sort}
+          initialOffset={limit}
+        />
       )}
     </div>
   );
@@ -80,7 +77,7 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   const q = searchParams.q?.trim() ?? '';
   const detectedCity = searchParams.city?.trim();
   const sort = searchParams.sort === 'price' ? 'price' : 'votes';
-  const limit = Math.min(Math.max(parseInt(searchParams.limit ?? '0') || PAGE_SIZE, PAGE_SIZE), 100);
+  const limit = PAGE_SIZE;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

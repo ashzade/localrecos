@@ -54,6 +54,27 @@ interface RawRestaurant {
   recommendations: RestaurantGroup['recommendations'];
 }
 
+function normalizeWebsite(url: string | null): string | null {
+  if (!url) return null;
+  return url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+}
+
+function shouldMerge(a: RawRestaurant[], b: RawRestaurant[]): boolean {
+  const websitesA = new Set(a.map((r) => normalizeWebsite(r.website)).filter(Boolean));
+  for (const r of b) {
+    const w = normalizeWebsite(r.website);
+    if (w && websitesA.has(w)) return true;
+  }
+  const nameA = a[0].name.toLowerCase().trim();
+  const nameB = b[0].name.toLowerCase().trim();
+  const shorter = nameA.length <= nameB.length ? nameA : nameB;
+  const longer = nameA.length <= nameB.length ? nameB : nameA;
+  if (shorter.length >= 5 && longer.startsWith(shorter) && (longer.length === shorter.length || /\W/.test(longer[shorter.length]))) {
+    return true;
+  }
+  return false;
+}
+
 function groupByName(restaurants: RawRestaurant[], excludeNames: Set<string>): RestaurantGroup[] {
   const map = new Map<string, RawRestaurant[]>();
   for (const r of restaurants) {
@@ -64,7 +85,31 @@ function groupByName(restaurants: RawRestaurant[], excludeNames: Set<string>): R
     map.set(key, group);
   }
 
-  return Array.from(map.values())
+  // Second pass: merge groups with shared website or prefix-name match
+  let groups = Array.from(map.values());
+  let merged = true;
+  while (merged) {
+    merged = false;
+    const next: RawRestaurant[][] = [];
+    const used = new Set<number>();
+    for (let i = 0; i < groups.length; i++) {
+      if (used.has(i)) continue;
+      let combined = groups[i];
+      for (let j = i + 1; j < groups.length; j++) {
+        if (used.has(j)) continue;
+        if (shouldMerge(combined, groups[j])) {
+          combined = [...combined, ...groups[j]];
+          used.add(j);
+          merged = true;
+        }
+      }
+      next.push(combined);
+      used.add(i);
+    }
+    groups = next;
+  }
+
+  return groups
     .map((group) => {
       const sorted = [...group].sort((a, b) => b.total_net_votes - a.total_net_votes);
       const primary = sorted[0];
@@ -129,8 +174,11 @@ export default function LoadMoreButton({ city, terms, sort, initialOffset, shown
         ? [...newGroups].sort((a, b) => (PRICE_ORDER[a.price_range ?? ''] ?? 99) - (PRICE_ORDER[b.price_range ?? ''] ?? 99))
         : newGroups;
 
+      const shownIds = new Set(newGroups.flatMap((g) => g.locations.map((l) => l.id)));
       const newSeen = new Set(seenNames);
-      for (const g of newGroups) newSeen.add(g.name.toLowerCase().trim());
+      for (const r of (data.results as RawRestaurant[])) {
+        if (shownIds.has(r.id)) newSeen.add(r.name.toLowerCase().trim());
+      }
 
       setGroups((prev) => [...prev, ...sorted]);
       setSeenNames(newSeen);

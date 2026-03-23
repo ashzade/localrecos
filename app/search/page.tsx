@@ -77,7 +77,12 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
           terms={parsed.terms}
           sort={sort}
           initialOffset={limit * 3}
-          shownNames={results.map((r) => r.name.toLowerCase().trim())}
+          shownNames={(() => {
+            const shownIds = new Set(results.flatMap((g) => g.locations.map((l) => l.id)));
+            return rawResults
+              .filter((r) => shownIds.has(r.id))
+              .map((r) => r.name.toLowerCase().trim());
+          })()}
         />
       )}
     </div>

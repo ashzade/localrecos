@@ -78,7 +78,13 @@ export interface RestaurantGroup {
 
 function normalizeWebsite(url: string | null): string | null {
   if (!url) return null;
-  return url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  try {
+    const { hostname } = new URL(url);
+    return hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    // fallback for URLs without a protocol
+    return url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+  }
 }
 
 function buildGroup(group: RestaurantWithRecommendations[]): RestaurantGroup {

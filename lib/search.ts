@@ -56,16 +56,26 @@ export interface RestaurantWithRecommendations {
  * Search for restaurants in a city matching the given terms.
  * Searches both restaurant name and recommendation summaries.
  */
+const STOP_WORDS = new Set([
+  'food', 'foods', 'restaurant', 'restaurants', 'place', 'places',
+  'eat', 'eating', 'good', 'best', 'great', 'top', 'local', 'near',
+  'nearby', 'spot', 'spots', 'recommend', 'recommendations',
+]);
+
+function parseWords(terms: string): string[] {
+  return terms
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+}
+
 export async function searchRestaurants(
   city: string,
   terms: string,
   limit = 10
 ): Promise<RestaurantWithRecommendations[]> {
   const normalizedCity = city.trim();
-  const words = terms
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 2);
+  const words = parseWords(terms);
 
   // Build a condition that matches any of the search words in the recommendation summary
   // or matches the restaurant name
@@ -128,10 +138,7 @@ export async function searchRestaurants(
  */
 export async function countSearchResults(city: string, terms: string): Promise<number> {
   const normalizedCity = city.trim();
-  const words = terms
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 2);
+  const words = parseWords(terms);
 
   if (words.length === 0) {
     return prisma.restaurant.count({

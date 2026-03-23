@@ -52,6 +52,78 @@ export interface RestaurantWithRecommendations {
   total_net_votes: number;
 }
 
+export interface RestaurantLocation {
+  id: string;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  hours: string | null;
+  upvotes: number;
+  downvotes: number;
+}
+
+export interface RestaurantGroup {
+  id: string; // primary (highest-voted) location id
+  name: string;
+  city: string;
+  price_range: string | null;
+  photo_url: string | null;
+  status: RestaurantStatus;
+  upvotes: number;
+  downvotes: number;
+  total_net_votes: number;
+  recommendations: RestaurantWithRecommendations['recommendations'];
+  locations: RestaurantLocation[];
+}
+
+export function groupRestaurantsByName(restaurants: RestaurantWithRecommendations[]): RestaurantGroup[] {
+  const map = new Map<string, RestaurantWithRecommendations[]>();
+  for (const r of restaurants) {
+    const key = r.name.toLowerCase().trim();
+    const group = map.get(key) ?? [];
+    group.push(r);
+    map.set(key, group);
+  }
+
+  return Array.from(map.values())
+    .map((group) => {
+      const sorted = [...group].sort((a, b) => b.total_net_votes - a.total_net_votes);
+      const primary = sorted[0];
+
+      const seenUrls = new Set<string>();
+      const mergedRecs = sorted
+        .flatMap((r) => r.recommendations)
+        .filter((rec) => {
+          if (seenUrls.has(rec.post_url)) return false;
+          seenUrls.add(rec.post_url);
+          return true;
+        });
+
+      return {
+        id: primary.id,
+        name: primary.name,
+        city: primary.city,
+        price_range: primary.price_range,
+        photo_url: primary.photo_url,
+        status: primary.status,
+        upvotes: group.reduce((s, r) => s + r.upvotes, 0),
+        downvotes: group.reduce((s, r) => s + r.downvotes, 0),
+        total_net_votes: group.reduce((s, r) => s + r.total_net_votes, 0),
+        recommendations: mergedRecs,
+        locations: sorted.map((r) => ({
+          id: r.id,
+          address: r.address,
+          phone: r.phone,
+          website: r.website,
+          hours: r.hours,
+          upvotes: r.upvotes,
+          downvotes: r.downvotes,
+        })),
+      };
+    })
+    .sort((a, b) => b.total_net_votes - a.total_net_votes);
+}
+
 /**
  * Search for restaurants in a city matching the given terms.
  * Searches both restaurant name and recommendation summaries.

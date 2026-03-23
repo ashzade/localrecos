@@ -3,14 +3,20 @@
 import { useState } from 'react';
 import RestaurantCard from './RestaurantCard';
 
-interface Restaurant {
+interface Location {
   id: string;
-  name: string;
-  city: string;
   address: string | null;
   phone: string | null;
   website: string | null;
   hours: string | null;
+  upvotes: number;
+  downvotes: number;
+}
+
+interface RestaurantGroup {
+  id: string;
+  name: string;
+  city: string;
   price_range: string | null;
   photo_url: string | null;
   status: string;
@@ -28,41 +34,108 @@ interface Restaurant {
     downvotes: number;
     scraped_at: string;
   }>;
+  locations: Location[];
 }
+
+interface RawRestaurant {
+  id: string;
+  name: string;
+  city: string;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  hours: string | null;
+  price_range: string | null;
+  photo_url: string | null;
+  status: string;
+  upvotes: number;
+  downvotes: number;
+  total_net_votes: number;
+  recommendations: RestaurantGroup['recommendations'];
+}
+
+function groupByName(restaurants: RawRestaurant[], excludeNames: Set<string>): RestaurantGroup[] {
+  const map = new Map<string, RawRestaurant[]>();
+  for (const r of restaurants) {
+    const key = r.name.toLowerCase().trim();
+    if (excludeNames.has(key)) continue;
+    const group = map.get(key) ?? [];
+    group.push(r);
+    map.set(key, group);
+  }
+
+  return Array.from(map.values())
+    .map((group) => {
+      const sorted = [...group].sort((a, b) => b.total_net_votes - a.total_net_votes);
+      const primary = sorted[0];
+      const seenUrls = new Set<string>();
+      const mergedRecs = sorted.flatMap((r) => r.recommendations).filter((rec) => {
+        if (seenUrls.has(rec.post_url)) return false;
+        seenUrls.add(rec.post_url);
+        return true;
+      });
+      return {
+        id: primary.id,
+        name: primary.name,
+        city: primary.city,
+        price_range: primary.price_range,
+        photo_url: primary.photo_url,
+        status: primary.status,
+        upvotes: group.reduce((s, r) => s + r.upvotes, 0),
+        downvotes: group.reduce((s, r) => s + r.downvotes, 0),
+        total_net_votes: group.reduce((s, r) => s + r.total_net_votes, 0),
+        recommendations: mergedRecs,
+        locations: sorted.map((r) => ({
+          id: r.id,
+          address: r.address,
+          phone: r.phone,
+          website: r.website,
+          hours: r.hours,
+          upvotes: r.upvotes,
+          downvotes: r.downvotes,
+        })),
+      };
+    })
+    .sort((a, b) => b.total_net_votes - a.total_net_votes);
+}
+
+const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
+const BATCH = 30; // fetch enough raw rows to produce ~10 grouped results
 
 interface LoadMoreButtonProps {
   city: string;
   terms: string;
   sort: string;
   initialOffset: number;
+  shownNames: string[];
 }
 
-export default function LoadMoreButton({ city, terms, sort, initialOffset }: LoadMoreButtonProps) {
-  const [results, setResults] = useState<Restaurant[]>([]);
+export default function LoadMoreButton({ city, terms, sort, initialOffset, shownNames }: LoadMoreButtonProps) {
+  const [groups, setGroups] = useState<RestaurantGroup[]>([]);
   const [offset, setOffset] = useState(initialOffset);
+  const [seenNames, setSeenNames] = useState<Set<string>>(new Set(shownNames));
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
 
   async function loadMore() {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        city,
-        terms,
-        offset: String(offset),
-        limit: '10',
-      });
+      const params = new URLSearchParams({ city, terms, offset: String(offset), limit: String(BATCH) });
       const res = await fetch(`/api/search-more?${params}`);
       const data = await res.json();
-      const sorted: Restaurant[] = sort === 'price'
-        ? [...data.results].sort((a: Restaurant, b: Restaurant) => {
-            const order: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
-            return (order[a.price_range ?? ''] ?? 99) - (order[b.price_range ?? ''] ?? 99);
-          })
-        : data.results;
-      setResults((prev) => [...prev, ...sorted]);
-      setOffset(offset + sorted.length);
-      setHasMore(data.hasMore);
+
+      const newGroups = groupByName(data.results as RawRestaurant[], seenNames);
+      const sorted = sort === 'price'
+        ? [...newGroups].sort((a, b) => (PRICE_ORDER[a.price_range ?? ''] ?? 99) - (PRICE_ORDER[b.price_range ?? ''] ?? 99))
+        : newGroups;
+
+      const newSeen = new Set(seenNames);
+      for (const g of newGroups) newSeen.add(g.name.toLowerCase().trim());
+
+      setGroups((prev) => [...prev, ...sorted]);
+      setSeenNames(newSeen);
+      setOffset(offset + data.results.length);
+      setHasMore(data.hasMore && data.results.length > 0);
     } finally {
       setLoading(false);
     }
@@ -70,8 +143,11 @@ export default function LoadMoreButton({ city, terms, sort, initialOffset }: Loa
 
   return (
     <>
-      {results.map((r) => (
-        <RestaurantCard key={r.id} restaurant={r} />
+      {groups.map((g) => (
+        <RestaurantCard
+          key={g.id}
+          restaurant={{ ...g, address: g.locations[0]?.address ?? null, phone: g.locations[0]?.phone ?? null, website: g.locations[0]?.website ?? null, hours: g.locations[0]?.hours ?? null }}
+        />
       ))}
       {hasMore && (
         <div className="pt-2 text-center">

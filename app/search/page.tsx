@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { searchRestaurants, parseQuery } from '@/lib/search';
+import { searchRestaurants, parseQuery, groupRestaurantsByName } from '@/lib/search';
 import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
@@ -28,10 +28,11 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
     );
   }
 
-  // Fetch one extra to detect if more results exist
-  const rawResults = await searchRestaurants(city, parsed.terms, limit + 1);
-  const hasMore = rawResults.length > limit;
-  const page = rawResults.slice(0, limit);
+  // Fetch more than limit to account for grouping collapsing multi-location restaurants
+  const rawResults = await searchRestaurants(city, parsed.terms, limit * 3);
+  const grouped = groupRestaurantsByName(rawResults);
+  const hasMore = grouped.length > limit;
+  const page = grouped.slice(0, limit);
 
   const results = sort === 'price'
     ? [...page].sort((a, b) => {
@@ -58,15 +59,25 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
         </p>
         <SortBar current={(sort === 'price' ? 'price' : 'votes')} />
       </div>
-      {results.map((restaurant) => (
-        <RestaurantCard key={restaurant.id} restaurant={restaurant} />
+      {results.map((group) => (
+        <RestaurantCard
+          key={group.id}
+          restaurant={{
+            ...group,
+            address: group.locations[0]?.address ?? null,
+            phone: group.locations[0]?.phone ?? null,
+            website: group.locations[0]?.website ?? null,
+            hours: group.locations[0]?.hours ?? null,
+          }}
+        />
       ))}
       {hasMore && (
         <LoadMoreButton
           city={city}
           terms={parsed.terms}
           sort={sort}
-          initialOffset={limit}
+          initialOffset={limit * 3}
+          shownNames={results.map((r) => r.name.toLowerCase().trim())}
         />
       )}
     </div>

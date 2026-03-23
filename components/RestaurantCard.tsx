@@ -18,6 +18,14 @@ interface Recommendation {
   scraped_at: string | Date;
 }
 
+interface Location {
+  id: string;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  hours: string | null;
+}
+
 interface Restaurant {
   id: string;
   name: string;
@@ -33,6 +41,7 @@ interface Restaurant {
   downvotes: number;
   total_net_votes: number;
   recommendations: Recommendation[];
+  locations?: Location[];
 }
 
 interface RestaurantCardProps {
@@ -62,9 +71,11 @@ export default function RestaurantCard({ restaurant: r }: RestaurantCardProps) {
   const sentiment = getSentimentSummary(r.recommendations);
   const visible = showAll ? r.recommendations : r.recommendations.slice(0, VISIBLE_COUNT);
   const hidden = r.recommendations.length - VISIBLE_COUNT;
-  const openNow = r.hours ? isOpenNow(r.hours) : null;
-  const mapsUrl = r.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.address)}`
+  const locations = r.locations ?? [{ id: r.id, address: r.address, phone: r.phone, website: r.website, hours: r.hours }];
+  const primaryLocation = locations[0];
+  const openNow = primaryLocation.hours ? isOpenNow(primaryLocation.hours) : null;
+  const mapsUrl = primaryLocation.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(primaryLocation.address)}`
     : null;
 
   function shareLink() {
@@ -123,7 +134,26 @@ export default function RestaurantCard({ restaurant: r }: RestaurantCardProps) {
                 )}
               </div>
 
-              {r.address && (
+              {locations.length > 1 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {locations.map((loc) => {
+                    const locMapsUrl = loc.address
+                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`
+                      : null;
+                    return loc.address ? (
+                      <a
+                        key={loc.id}
+                        href={locMapsUrl ?? `/restaurant/${loc.id}`}
+                        target={locMapsUrl ? '_blank' : undefined}
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full transition-colors"
+                      >
+                        {loc.address}
+                      </a>
+                    ) : null;
+                  })}
+                </div>
+              ) : primaryLocation.address ? (
                 mapsUrl ? (
                   <a
                     href={mapsUrl}
@@ -131,12 +161,12 @@ export default function RestaurantCard({ restaurant: r }: RestaurantCardProps) {
                     rel="noopener noreferrer"
                     className="mt-0.5 block text-sm text-blue-600 hover:underline"
                   >
-                    {r.address}
+                    {primaryLocation.address}
                   </a>
                 ) : (
-                  <p className="mt-0.5 text-sm text-gray-500">{r.address}</p>
+                  <p className="mt-0.5 text-sm text-gray-500">{primaryLocation.address}</p>
                 )
-              )}
+              ) : null}
             </div>
 
             <button

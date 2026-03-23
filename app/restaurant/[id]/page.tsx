@@ -49,6 +49,15 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
 
   if (!restaurant) notFound();
 
+  const sameNameLocations = await prisma.restaurant.findMany({
+    where: {
+      id: { not: params.id },
+      name: { equals: restaurant.name, mode: 'insensitive' },
+    },
+    select: { id: true, address: true },
+    orderBy: { upvotes: 'desc' },
+  });
+
   const statusInfo = STATUS_INFO[restaurant.status] ?? STATUS_INFO.UNREVIEWED;
 
   const recs = restaurant.recommendations.map((rec) => ({
@@ -121,6 +130,23 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
               </span>
             </div>
           </div>
+
+          {sameNameLocations.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Other locations</p>
+              <div className="flex flex-wrap gap-2">
+                {sameNameLocations.map((loc) => (
+                  <a
+                    key={loc.id}
+                    href={`/restaurant/${loc.id}`}
+                    className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full transition-colors"
+                  >
+                    {loc.address ?? 'View location'}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             {restaurant.address && (

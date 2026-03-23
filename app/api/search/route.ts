@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseQuery, searchRestaurants } from '@/lib/search';
+import { parseQuery, searchRestaurants, groupRestaurantsByName } from '@/lib/search';
 import { detect_city, extractIp } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
@@ -43,10 +43,11 @@ export async function GET(request: NextRequest) {
   const city: string = resolvedCity;
   const terms = parsed.terms;
   const restaurants = await searchRestaurants(city, terms);
+  const grouped = groupRestaurantsByName(restaurants);
 
-  if (restaurants.length < 3) {
+  if (grouped.length < 3) {
     triggerScrape(request.nextUrl.origin, city, q);
   }
 
-  return NextResponse.json({ city, terms, results: restaurants, count: restaurants.length });
+  return NextResponse.json({ city, terms, results: grouped, count: grouped.length });
 }

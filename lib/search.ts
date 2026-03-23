@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { Prisma, RestaurantStatus } from '@prisma/client';
+import { parseQueryWithLLM } from '@/lib/openrouter';
 
 export interface ParsedQuery {
   city: string | null;
@@ -8,27 +9,16 @@ export interface ParsedQuery {
 }
 
 /**
- * Parse a natural language query into city + search terms.
- * e.g. "most authentic Indian in Ottawa" → { city: "Ottawa", terms: "most authentic Indian" }
+ * Parse a natural language query into city + search terms using Gemini Flash.
+ * Falls back to regex if the API key is missing or the call fails.
  */
-export function parseQuery(query: string): ParsedQuery {
+export async function parseQuery(query: string): Promise<ParsedQuery> {
   const trimmed = query.trim();
-
-  // Match "in <City>" or "near <City>" at the end or middle of the query
-  const cityPattern = /\b(?:in|near)\s+([A-Z][a-zA-Z\s]+?)(?:\s*$|\s+(?:area|canada|usa|us|uk))/i;
-  const match = trimmed.match(cityPattern);
-
-  if (match) {
-    const city = match[1].trim();
-    // Remove the city portion from the query to get the search terms
-    const terms = trimmed
-      .replace(match[0], '')
-      .trim()
-      .replace(/\s+/g, ' ');
-    return { city, terms: terms || trimmed, raw: trimmed };
+  if (!trimmed) {
+    throw new Error('RULE_01: Query text is required to begin restaurant search.');
   }
-
-  return { city: null, terms: trimmed, raw: trimmed };
+  const { city, terms } = await parseQueryWithLLM(trimmed);
+  return { city, terms, raw: trimmed };
 }
 
 export interface RestaurantWithRecommendations {

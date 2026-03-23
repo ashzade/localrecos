@@ -12,7 +12,7 @@ interface SearchPageProps {
 }
 
 async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCity?: string; sort: string }) {
-  const parsed = parseQuery(q);
+  const parsed = await parseQuery(q);
   const city = parsed.city ?? detectedCity ?? null;
 
   if (!city) {

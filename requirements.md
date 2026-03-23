@@ -5,7 +5,7 @@ status: draft
 owner: platform-team
 depends_on:
   - google_places_api
-  - reddit_api
+  - openrouter_api
 tags:
   - recommendations
   - restaurants
@@ -25,13 +25,12 @@ lookup_key: place_id
 Methods:
   - searchText(query: string, city: string): json
 
-### RedditAPI
-source: reddit-api
-provides: community posts and comments mentioning restaurants
+### OpenRouterAPI
+source: openrouter-api
+provides: LLM-powered natural language query parsing via Gemini Flash
 lookup_key: query
 Methods:
-  - search(query: string, subreddit: string): json
-  - getPost(post_id: string): json
+  - parseQuery(query: string): json
 
 ## State Machine
 

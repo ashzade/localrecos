@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     let created = 0;
     let skipped = 0;
 
-    const terms = parseQuery(query).terms;
+    const terms = (await parseQuery(query)).terms;
     console.log(`[scrape] google-places terms=${terms}`);
     const results = await searchGooglePlaces(city, terms);
     console.log(`[scrape] google-places results=${results.length}`, results.map(p => p.name));

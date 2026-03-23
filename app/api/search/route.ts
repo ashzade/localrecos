@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Query parameter q is required' }, { status: 400 });
   }
 
-  const parsed = parseQuery(q);
+  const parsed = await parseQuery(q);
   const ip = extractIp(request.headers);
 
   // RULE_04: reject if no city can be resolved

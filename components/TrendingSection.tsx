@@ -33,6 +33,7 @@ export default function TrendingSection() {
       fetch(url)
         .then((r) => r.json())
         .then((d) => {
+          if (d.city) localStorage.setItem('lastKnownCity', d.city);
           setCity(d.city);
           setResults(d.results ?? []);
         })

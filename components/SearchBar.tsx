@@ -11,42 +11,25 @@ interface SearchBarProps {
 export default function SearchBar({ initialValue = '', autoDetectCity = false }: SearchBarProps) {
   const [query, setQuery] = useState(initialValue);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
-  const [detectingCity, setDetectingCity] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (!autoDetectCity) return;
-
-    setDetectingCity(true);
-
-    const saveAndSet = (city: string | null) => {
-      if (city) localStorage.setItem('lastKnownCity', city);
-      setDetectedCity(city);
-    };
-
-    const fetchIpFallback = () =>
-      fetch('/api/geo')
-        .then((r) => r.json())
-        .then((d) => { saveAndSet(d.city ?? null); })
-        .catch(() => undefined)
-        .finally(() => setDetectingCity(false));
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          fetch(`/api/geo?lat=${latitude}&lon=${longitude}`)
-            .then((r) => r.json())
-            .then((d) => { saveAndSet(d.city ?? null); })
-            .catch(() => undefined)
-            .finally(() => setDetectingCity(false));
-        },
-        () => fetchIpFallback(),
-        { timeout: 5000 }
-      );
-    } else {
-      fetchIpFallback();
+    const saved = localStorage.getItem('lastKnownCity');
+    if (saved) {
+      setDetectedCity(saved);
+      return;
     }
+    // No saved city yet — poll until TrendingSection saves one (up to 10s)
+    const interval = setInterval(() => {
+      const city = localStorage.getItem('lastKnownCity');
+      if (city) {
+        setDetectedCity(city);
+        clearInterval(interval);
+      }
+    }, 300);
+    const timeout = setTimeout(() => clearInterval(interval), 10000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
   }, [autoDetectCity]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -90,9 +73,7 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
 
       {autoDetectCity && (
         <p className="mt-2 text-sm text-gray-500">
-          {detectingCity ? (
-            <span className="text-gray-400">Detecting your city...</span>
-          ) : detectedCity ? (
+          {detectedCity ? (
             <>
               Detected city:{' '}
               <button
@@ -104,7 +85,7 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
               </button>
             </>
           ) : (
-            <span className="text-gray-400">Could not detect city — include &quot;in [city]&quot; in your search</span>
+            <span className="text-gray-400">Detecting your city...</span>
           )}
         </p>
       )}

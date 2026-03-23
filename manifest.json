@@ -289,7 +289,6 @@
     {
       "ruleId": "RULE_05",
       "severity": "HIGH",
-      "scope": ["File(scrape)"],
       "responses": [
         {
           "action": "reject"
@@ -1087,7 +1086,8 @@
       "type": "Business",
       "entity": "ExtractedRestaurant",
       "condition": "env(GOOGLE_PLACES_API_KEY) != ''",
-      "message": "Google Places API key must be configured; cannot enrich restaurant details."
+      "message": "Google Places API key must be configured; cannot enrich restaurant details.",
+      "scope": ["File(scrape)"]
     },
     "RULE_06": {
       "id": "RULE_06",

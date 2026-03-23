@@ -66,54 +66,30 @@ export async function POST(request: NextRequest) {
     const terms = (await parseQuery(query)).terms;
     console.log(`[scrape] terms=${terms}`);
 
-    // Run Reddit LLM and Google Places search in parallel
-    const [redditRecs, googleResults] = await Promise.all([
-      getRedditRecommendations(query, city, terms),
-      searchGooglePlaces(city, terms),
-    ]);
+    // Reddit LLM drives which restaurants appear; Google Places enriches with location data
+    const redditRecs = await getRedditRecommendations(query, city, terms);
     console.log(`[scrape] reddit-llm recs=${redditRecs.length}`, redditRecs.map(r => r.name));
-    console.log(`[scrape] google-places results=${googleResults.length}`, googleResults.map(p => p.name));
 
-    // Process Google Places results
-    for (const place of googleResults) {
-      const { restaurant, wasCreated } = await upsertRestaurant(city, place.name, place);
-      if (!wasCreated) { skipped++; continue; }
-      await prisma.communityRecommendation.create({
-        data: {
-          restaurant_id: restaurant.id,
-          source: 'google-places',
-          post_url: `google-places://places/${restaurant.id}`,
-          summary: query,
-        },
-      });
-      created++;
-    }
-
-    // Process Reddit LLM recommendations
-    for (const rec of redditRecs) {
-      // Find or create restaurant, enriching with Google Places if needed
-      let existing = await prisma.restaurant.findFirst({
-        where: {
-          name: { equals: rec.name, mode: 'insensitive' },
-          city: { equals: city, mode: 'insensitive' },
-        },
-      });
-
-      if (!existing) {
+    // Enrich all recommendations with Google Places in parallel
+    const enriched = await Promise.all(
+      redditRecs.map(async (rec) => {
         const places = await searchGooglePlaces(city, rec.name, 1);
-        const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, places[0]);
-        if (wasCreated) created++;
-        existing = restaurant;
-      }
+        return { rec, place: places[0] as PlaceDetails | undefined };
+      })
+    );
+
+    for (const { rec, place } of enriched) {
+      const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, place);
+      if (wasCreated) created++; else skipped++;
 
       // Add reddit-llm recommendation if not already present
       const existingRec = await prisma.communityRecommendation.findFirst({
-        where: { restaurant_id: existing.id, source: 'reddit-llm' },
+        where: { restaurant_id: restaurant.id, source: 'reddit-llm' },
       });
       if (!existingRec) {
         await prisma.communityRecommendation.create({
           data: {
-            restaurant_id: existing.id,
+            restaurant_id: restaurant.id,
             source: 'reddit-llm',
             post_url: `reddit-llm://${encodeURIComponent(query)}`,
             summary: rec.summary,

@@ -19,10 +19,15 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
 
     setDetectingCity(true);
 
+    const saveAndSet = (city: string | null) => {
+      if (city) localStorage.setItem('lastKnownCity', city);
+      setDetectedCity(city);
+    };
+
     const fetchIpFallback = () =>
       fetch('/api/geo')
         .then((r) => r.json())
-        .then((d) => { setDetectedCity(d.city ?? null); })
+        .then((d) => { saveAndSet(d.city ?? null); })
         .catch(() => undefined)
         .finally(() => setDetectingCity(false));
 
@@ -32,7 +37,7 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
           const { latitude, longitude } = pos.coords;
           fetch(`/api/geo?lat=${latitude}&lon=${longitude}`)
             .then((r) => r.json())
-            .then((d) => { setDetectedCity(d.city ?? null); })
+            .then((d) => { saveAndSet(d.city ?? null); })
             .catch(() => undefined)
             .finally(() => setDetectingCity(false));
         },
@@ -49,8 +54,9 @@ export default function SearchBar({ initialValue = '', autoDetectCity = false }:
     const q = query.trim();
     if (!q) return;
     const hasCity = / in | near /i.test(q);
-    const cityParam = !hasCity && detectedCity
-      ? `&city=${encodeURIComponent(detectedCity)}`
+    const city = detectedCity ?? localStorage.getItem('lastKnownCity');
+    const cityParam = !hasCity && city
+      ? `&city=${encodeURIComponent(city)}`
       : '';
     router.push(`/search?q=${encodeURIComponent(q)}${cityParam}`);
   }

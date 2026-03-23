@@ -44,8 +44,7 @@ async function SearchResults({ q, detectedCity, sort, limit }: { q: string; dete
     return <SearchPoller city={city} query={q} />;
   }
 
-  const cityParam = detectedCity ? `&city=${encodeURIComponent(detectedCity)}` : '';
-  const moreUrl = `/search?q=${encodeURIComponent(q)}${cityParam}&sort=${sort}&limit=${limit + PAGE_SIZE}`;
+  const moreUrl = `/search?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}&sort=${sort}&limit=${limit + PAGE_SIZE}`;
 
   return (
     <div className="mt-6 space-y-4">

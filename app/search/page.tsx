@@ -44,6 +44,9 @@ async function SearchResults({ q, detectedCity, sort }: { q: string; detectedCit
         <p className="text-sm text-gray-500">
           {results.length} result{results.length !== 1 ? 's' : ''} in{' '}
           <span className="font-medium text-gray-700">{city}</span>
+          {parsed.terms && (
+            <span className="text-gray-400"> · searching for &ldquo;{parsed.terms}&rdquo;</span>
+          )}
         </p>
         <SortBar current={(sort === 'price' ? 'price' : 'votes')} />
       </div>

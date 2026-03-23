@@ -50,23 +50,33 @@ async function SearchResults({ q, detectedCity, sort, openNow, limit }: { q: str
     });
   }
 
+  const sortBar = (
+    <div className="flex items-center justify-between flex-wrap gap-2">
+      <p className="text-sm text-gray-500">
+        {results.length}{hasMore ? '+' : ''} result{results.length !== 1 ? 's' : ''} in{' '}
+        <span className="font-medium text-gray-700">{city}</span>
+        {parsed.terms && (
+          <span className="text-gray-400"> · searching for &ldquo;{parsed.terms}&rdquo;</span>
+        )}
+      </p>
+      <SortBar current={(sort === 'price' ? 'price' : 'votes')} openNow={openNow} />
+    </div>
+  );
+
   if (results.length === 0) {
-    return <SearchPoller city={city} query={q} />;
+    return (
+      <div className="mt-6 space-y-4">
+        <PersistCity city={city} />
+        {sortBar}
+        <SearchPoller city={city} query={q} />
+      </div>
+    );
   }
 
   return (
     <div className="mt-6 space-y-4">
       <PersistCity city={city} />
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm text-gray-500">
-          {results.length}{hasMore ? '+' : ''} result{results.length !== 1 ? 's' : ''} in{' '}
-          <span className="font-medium text-gray-700">{city}</span>
-          {parsed.terms && (
-            <span className="text-gray-400"> · searching for &ldquo;{parsed.terms}&rdquo;</span>
-          )}
-        </p>
-        <SortBar current={(sort === 'price' ? 'price' : 'votes')} openNow={openNow} />
-      </div>
+      {sortBar}
       {results.map((group) => (
         <RestaurantCard
           key={group.id}

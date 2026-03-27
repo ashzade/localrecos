@@ -36,10 +36,10 @@ LLM-powered natural language …"]
     Ingest[/"📄 Document
 query received, Reddit fetch …"/]
     subgraph Knowledge["🗂️ Structured Knowledge"]
-        ParsedQuery (in-memory)[("Parsed Query (in-memory)")]
-        RedditPost (in-memory)[("Reddit Post (in-memory)")]
-        ExtractedRestaurant (in-memory)[("Extracted Restaurant (in-memory)")]
-        PlaceDetails (in-memory)[("Place Details (in-memory)")]
+        ParsedQueryNode[("Parsed Query (in-memory)")]
+        RedditPostNode[("Reddit Post (in-memory)")]
+        ExtractedRestaurantNode[("Extracted Restaurant (in-memory)")]
+        PlaceDetailsNode[("Place Details (in-memory)")]
         Restaurant[("Restaurant")]
         CommunityRecommendation[("Community Recommendation")]
         RestaurantVote[("Restaurant Vote")]
@@ -47,10 +47,10 @@ query received, Reddit fetch …"/]
     end
     GooglePlacesAPI --> Ingest
     OpenRouterAPI --> Ingest
-    Ingest --> ParsedQuery (in-memory)
-    Ingest --> RedditPost (in-memory)
-    Ingest --> ExtractedRestaurant (in-memory)
-    Ingest --> PlaceDetails (in-memory)
+    Ingest --> ParsedQueryNode
+    Ingest --> RedditPostNode
+    Ingest --> ExtractedRestaurantNode
+    Ingest --> PlaceDetailsNode
     Ingest --> Restaurant
     Ingest --> CommunityRecommendation
     Ingest --> RestaurantVote

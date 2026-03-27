@@ -1,4 +1,5 @@
 import SearchBar from '@/components/SearchBar';
+import CategoryPills from '@/components/CategoryPills';
 import TrendingSection from '@/components/TrendingSection';
 
 export default function HomePage() {
@@ -12,6 +13,7 @@ export default function HomePage() {
       </div>
 
       <SearchBar autoDetectCity />
+      <CategoryPills />
 
       <TrendingSection />
     </div>

@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import RecommendationCard from '@/components/RecommendationCard';
 import RestaurantFeedbackButton from '@/components/RestaurantFeedbackButton';
 import { isOpenNow } from '@/lib/hours';
+import { groupRestaurantsByName } from '@/lib/search';
 
 interface RestaurantPageProps {
   params: { id: string };
@@ -48,6 +49,21 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
   });
 
   if (!restaurant) notFound();
+
+  // Fetch all restaurants in this city to run the same grouping logic as search results
+  const cityRestaurants = await prisma.restaurant.findMany({
+    where: { city: { equals: restaurant.city, mode: 'insensitive' } },
+    include: { recommendations: true },
+  });
+
+  const cityGroups = groupRestaurantsByName(
+    cityRestaurants.map((r) => ({ ...r, total_net_votes: r.upvotes - r.downvotes }))
+  );
+
+  const myGroup = cityGroups.find((g) => g.locations.some((l) => l.id === params.id));
+  const allLocations = myGroup?.locations ?? [
+    { id: restaurant.id, address: restaurant.address, phone: restaurant.phone, website: restaurant.website, hours: restaurant.hours, upvotes: restaurant.upvotes, downvotes: restaurant.downvotes },
+  ];
 
   const statusInfo = STATUS_INFO[restaurant.status] ?? STATUS_INFO.UNREVIEWED;
 
@@ -123,7 +139,29 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
           </div>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            {restaurant.address && (
+            {allLocations.length > 1 ? (
+              <div className="sm:col-span-2">
+                <span className="text-gray-400">Locations</span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {allLocations.map((loc) => {
+                    const locMapsUrl = loc.address
+                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`
+                      : null;
+                    return loc.address ? (
+                      <a
+                        key={loc.id}
+                        href={locMapsUrl ?? '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full transition-colors"
+                      >
+                        {loc.address}
+                      </a>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            ) : restaurant.address ? (
               <div>
                 <span className="text-gray-400">Address</span>
                 {mapsUrl ? (
@@ -139,7 +177,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                   <p className="text-gray-700">{restaurant.address}</p>
                 )}
               </div>
-            )}
+            ) : null}
             {restaurant.phone && (
               <div>
                 <span className="text-gray-400">Phone</span>

@@ -9,10 +9,16 @@ import { RestaurantStatus } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 
 async function upsertRestaurant(city: string, name: string, placeData?: PlaceDetails) {
+  const canonicalName = placeData?.name ?? name;
+
+  // Check by canonical Google Places name OR address to avoid duplicates when
+  // the same place is extracted under slightly different names from different comments
   const existing = await prisma.restaurant.findFirst({
     where: {
-      name: { equals: name, mode: 'insensitive' },
-      city: { equals: city, mode: 'insensitive' },
+      OR: [
+        { name: { equals: canonicalName, mode: 'insensitive' }, city: { equals: city, mode: 'insensitive' } },
+        ...(placeData?.address ? [{ address: placeData.address }] : []),
+      ],
     },
   });
   if (existing) return { restaurant: existing, wasCreated: false };

@@ -45,25 +45,77 @@ const SUBREDDIT_MAP: Record<string, string[]> = {
 function getSubreddits(city: string): string[] {
   const key = city.toLowerCase().trim();
   if (SUBREDDIT_MAP[key]) return SUBREDDIT_MAP[key];
-  // Default: try city name as subreddit plus city+food
   const slug = key.replace(/\s+/g, '');
   return [slug, `${slug}food`];
 }
 
 const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0';
+const CLIENT_ID = process.env.REDDIT_CLIENT_ID;
+const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;
+
+// Cached token: { token, expiresAt }
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+async function getAccessToken(): Promise<string | null> {
+  if (!CLIENT_ID || !CLIENT_SECRET) return null;
+
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.token;
+  }
+
+  const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+  try {
+    const response = await fetch('https://www.reddit.com/api/v1/access_token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': USER_AGENT,
+      },
+      body: 'grant_type=client_credentials',
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!data.access_token) return null;
+
+    cachedToken = {
+      token: data.access_token,
+      expiresAt: Date.now() + (data.expires_in - 60) * 1000,
+    };
+    return cachedToken.token;
+  } catch {
+    return null;
+  }
+}
 
 async function fetchSubredditPosts(
   subreddit: string,
   query: string
 ): Promise<RedditPost[]> {
   const encodedQuery = encodeURIComponent(query);
-  const url = `https://www.reddit.com/r/${subreddit}/search.json?q=${encodedQuery}&sort=top&t=year&limit=25&restrict_sr=1`;
+  const token = await getAccessToken();
+
+  // Use authenticated OAuth endpoint if credentials are available, otherwise fall back
+  const [baseUrl, authHeader] = token
+    ? [
+        `https://oauth.reddit.com/r/${subreddit}/search`,
+        `Bearer ${token}`,
+      ]
+    : [
+        `https://www.reddit.com/r/${subreddit}/search.json`,
+        null,
+      ];
+
+  const url = `${baseUrl}?q=${encodedQuery}&sort=top&t=year&limit=25&restrict_sr=1`;
 
   try {
+    const headers: Record<string, string> = { 'User-Agent': USER_AGENT };
+    if (authHeader) headers['Authorization'] = authHeader;
+
     const response = await fetch(url, {
-      headers: {
-        'User-Agent': USER_AGENT,
-      },
+      headers,
       next: { revalidate: 3600 },
     });
 
@@ -129,7 +181,6 @@ export function extractRestaurantName(title: string): string | null {
   const capitalizedWords = title.match(/\b([A-Z][a-zA-Z']+(?:\s+[A-Z][a-zA-Z']+){1,3})\b/);
   if (capitalizedWords) {
     const candidate = capitalizedWords[1].trim();
-    // Skip common sentence-start words
     const skipWords = new Set([
       'Best', 'Top', 'Great', 'Good', 'Most', 'Any', 'What', 'Where',
       'Which', 'Looking', 'Need', 'Help', 'Recommendations', 'Anyone',
@@ -180,16 +231,13 @@ export async function scrapeRedditForRestaurants(
     })
   );
 
-  // Sort by Reddit score descending
   return results.sort((a, b) => b.redditScore - a.redditScore);
 }
 
 function buildSummary(post: RedditPost): string {
   const text = post.selftext?.trim();
   if (text && text.length > 20) {
-    // Take first 200 chars of body
     return text.length > 200 ? `${text.slice(0, 197)}...` : text;
   }
-  // Fall back to title
   return post.title.length > 200 ? `${post.title.slice(0, 197)}...` : post.title;
 }

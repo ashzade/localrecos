@@ -1,6 +1,6 @@
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
-const MODEL = 'google/gemini-2.0-flash-exp:free';
-const REDDIT_MODEL = 'qwen/qwen3-next-80b-a3b-instruct:free';
+const MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
+const REDDIT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
 /**
  * Parse a natural-language restaurant query into city + search terms using Gemini Flash.
@@ -37,6 +37,7 @@ export async function parseQueryWithLLM(
         ],
         response_format: { type: 'json_object' },
         temperature: 0,
+        max_tokens: 256,
       }),
       cache: 'no-store',
     });
@@ -105,6 +106,7 @@ export async function getRedditRecommendations(
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
+        max_tokens: 1024,
       }),
       cache: 'no-store',
     });

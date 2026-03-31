@@ -12,7 +12,19 @@ const FIELD_MASK = [
   'places.dineIn',
   'places.takeout',
   'places.delivery',
+  'places.primaryType',
 ].join(',');
+
+const FOOD_TYPES = new Set([
+  'restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'cafe', 'bakery',
+  'bar', 'night_club', 'fast_food_restaurant', 'pizza_restaurant',
+  'indian_restaurant', 'chinese_restaurant', 'japanese_restaurant',
+  'thai_restaurant', 'vietnamese_restaurant', 'korean_restaurant',
+  'mexican_restaurant', 'italian_restaurant', 'seafood_restaurant',
+  'steak_house', 'hamburger_restaurant', 'sandwich_shop', 'breakfast_restaurant',
+  'brunch_restaurant', 'buffet_restaurant', 'food_court', 'ice_cream_shop',
+  'dessert_restaurant', 'fine_dining_restaurant', 'diner',
+]);
 
 export interface PlaceDetails {
   name: string;
@@ -119,7 +131,12 @@ export async function searchGooglePlaces(
       return [];
     }
 
-    const results = places.map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
+    const results = places
+      .filter((place: Record<string, unknown>) => {
+        const primaryType = place.primaryType as string | undefined;
+        return !primaryType || FOOD_TYPES.has(primaryType);
+      })
+      .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
 
     // Resolve photo redirects to final CDN URLs so Next.js Image can display them
     await Promise.all(

@@ -10,10 +10,9 @@ Accepts natural-language queries, searches real Reddit community discussions usi
 
 ## Business rules
 
-- **Skip Enrichment When Place Data Already Exists** _(LOW)_ — Place details already fetched for this restaurant; skipping enrichment.
 - **API Keys Required for Enrichment** _(HIGH)_ — Google Places API key must be configured; cannot enrich restaurant details.
 - **Default City Fallback Required** _(LOW)_ — No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.
-- **Google Places Must Confirm Food Venue** — Google Places returned a non-food venue for this name; skipping.
+- **Google Places Must Confirm Food Venue** _(MEDIUM)_ — Google Places returned a non-food venue for this name; skipping.
 
 ## Validation rules
 
@@ -143,7 +142,7 @@ stateDiagram-v2
 - FALLBACK → **FAILED**: LLM fallback returns empty list
 - EXTRACTING → **VALIDATING**: restaurant names extracted _(guard: RULE_03)_
 - EXTRACTING → **FAILED**: extraction yields no results after filtering
-- VALIDATING → **ENRICHING**: one or more names confirmed as food venues by Google Places _(guard: RULE_07)_
+- VALIDATING → **ENRICHING**: one or more names confirmed as food venues by Google Places
 - VALIDATING → **FAILED**: all extracted names rejected by Google Places type filter
 - ENRICHING → **COMPLETE**: restaurants and community recommendations upserted to database
 - ENRICHING → **FAILED**: enrichment raises an unrecoverable exception

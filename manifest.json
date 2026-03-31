@@ -314,8 +314,7 @@
             ]
           }
         ],
-        "trigger": "one or more names confirmed as food venues by Google Places",
-        "guard": "RULE_07"
+        "trigger": "one or more names confirmed as food venues by Google Places"
       },
       {
         "from": "VALIDATING",
@@ -444,15 +443,6 @@
       ]
     },
     {
-      "ruleId": "RULE_04",
-      "severity": "LOW",
-      "responses": [
-        {
-          "action": "audit_log"
-        }
-      ]
-    },
-    {
       "ruleId": "RULE_05",
       "severity": "HIGH",
       "responses": [
@@ -467,6 +457,15 @@
       "responses": [
         {
           "action": "audit_log"
+        }
+      ]
+    },
+    {
+      "ruleId": "RULE_07",
+      "severity": "MEDIUM",
+      "responses": [
+        {
+          "action": "reject"
         }
       ]
     }
@@ -1244,16 +1243,6 @@
       "condition": "entity.name != '' AND entity.city != ''",
       "message": "Extracted restaurant must have a name and city to proceed with enrichment."
     },
-    "RULE_04": {
-      "id": "RULE_04",
-      "title": "Skip Enrichment When Place Data Already Exists",
-      "references": [],
-      "scope": [],
-      "type": "Business",
-      "entity": "ExtractedRestaurant",
-      "condition": "has_place_data == true",
-      "message": "Place details already fetched for this restaurant; skipping enrichment."
-    },
     "RULE_05": {
       "id": "RULE_05",
       "title": "API Keys Required for Enrichment",
@@ -1288,7 +1277,7 @@
       ],
       "type": "Business",
       "entity": "ExtractedRestaurant",
-      "condition": "entity.google_places_primary_type != 'historic_site' AND entity.google_places_primary_type != 'park' AND entity.google_places_primary_type != 'transit_station'",
+      "condition": "entity.google_places_primary_type != '' AND entity.name != ''",
       "message": "Google Places returned a non-food venue for this name; skipping."
     }
   }

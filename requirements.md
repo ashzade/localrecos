@@ -128,7 +128,6 @@ Action: emit_event(EXTRACTION_FAILED), set_field(entity.status, 'failed')
 > Google Places confirmed at least one result as a real food venue.
 
 Trigger: one or more names confirmed as food venues by Google Places
-Guard: RULE_07
 Action: emit_event(VALIDATION_COMPLETE), set_field(entity.status, 'enriching')
 
 #### VALIDATING → FAILED
@@ -170,9 +169,9 @@ Write: restaurant_votes, votes
 RULE_01: HIGH → reject
 RULE_02: MEDIUM → reject
 RULE_03: MEDIUM → reject
-RULE_04: LOW → audit_log
 RULE_05: HIGH → reject
 RULE_06: LOW → audit_log
+RULE_07: MEDIUM → reject
 
 ## Data Model
 
@@ -325,19 +324,11 @@ Message: Extracted restaurant must have a name and city to proceed with enrichme
 
 ### Business Rules
 
-#### RULE_04: Skip Enrichment When Place Data Already Exists
-> Place details already fetched for this restaurant; skipping enrichment.
-
-Type: Business
-Entity: ExtractedRestaurant
-Condition: has_place_data == true
-Message: Place details already fetched for this restaurant; skipping enrichment.
 
 #### RULE_05: API Keys Required for Enrichment
-> Google Places API key must be configured; cannot enrich restaurant details.
+> Google Places API key must be configured when enrichment is needed; only applies when place data does not already exist (i.e. RULE_04 condition is false).
 
 Scope: scrape
-> Google Places API key must be configured; cannot enrich restaurant details.
 
 Type: Business
 Entity: ExtractedRestaurant
@@ -362,5 +353,5 @@ Scope: scrape
 
 Type: Business
 Entity: ExtractedRestaurant
-Condition: entity.google_places_primary_type != 'historic_site' AND entity.google_places_primary_type != 'park' AND entity.google_places_primary_type != 'transit_station'
+Condition: entity.google_places_primary_type != '' AND entity.name != ''
 Message: Google Places returned a non-food venue for this name; skipping.

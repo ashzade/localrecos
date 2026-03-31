@@ -326,7 +326,7 @@ Message: Extracted restaurant must have a name and city to proceed with enrichme
 
 
 #### RULE_05: API Keys Required for Enrichment
-> Google Places API key must be configured when enrichment is needed; only applies when place data does not already exist (i.e. RULE_04 condition is false).
+> Google Places API key must be configured; cannot enrich restaurant details.
 
 Scope: scrape
 

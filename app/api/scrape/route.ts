@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       // Use the original extracted name (rec.name) since that's what Reddit users write,
       // not the full Google Places canonical name which may include location suffixes.
       const picks = await fetchCommunityPicksForRestaurant(city, rec.name);
-      console.log(`[scrape] community picks for "${canonicalName}": ${picks.length}`);
+      console.log(`[scrape] community picks for "${rec.name}": ${picks.length}`);
 
       for (const pick of picks) {
         const existingRec = await prisma.communityRecommendation.findFirst({

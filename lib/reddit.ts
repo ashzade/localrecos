@@ -155,6 +155,29 @@ function isRecommendationRequest(title: string): boolean {
   return REQUEST_PATTERNS.some((p) => p.test(title));
 }
 
+const STOP_WORDS = new Set([
+  'best', 'good', 'great', 'any', 'where', 'what', 'which', 'the', 'a', 'an',
+  'in', 'for', 'to', 'of', 'and', 'or', 'is', 'are', 'can', 'get', 'find',
+  'looking', 'recommend', 'recommendations', 'suggestion', 'suggestions',
+]);
+
+/**
+ * Check that a post is actually about the search query.
+ * Extracts meaningful words from the query and checks if at least one appears
+ * in the post title or body, to avoid mining comments from unrelated posts.
+ */
+function isPostRelevantToQuery(post: RedditPost, query: string): boolean {
+  const queryWords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+
+  if (queryWords.length === 0) return true;
+
+  const haystack = `${post.title} ${post.selftext}`.toLowerCase();
+  return queryWords.some((word) => haystack.includes(word));
+}
+
 // Validate that an extracted string looks like a restaurant name
 function isValidRestaurantName(name: string): boolean {
   const words = name.trim().split(/\s+/);
@@ -271,6 +294,9 @@ export async function scrapeRedditForRestaurants(
       const posts = await fetchSubredditPosts(subreddit, query);
 
       for (const post of posts) {
+        // Skip posts that aren't actually about the search query
+        if (!isPostRelevantToQuery(post, query)) continue;
+
         // For recommendation-request posts, mine the comments for restaurant names
         if (isRecommendationRequest(post.title)) {
           const comments = await fetchPostComments(subreddit, post.id, token);

@@ -134,7 +134,7 @@ export async function searchGooglePlaces(
     const results = places
       .filter((place: Record<string, unknown>) => {
         const primaryType = place.primaryType as string | undefined;
-        return !primaryType || FOOD_TYPES.has(primaryType);
+        return !!primaryType && FOOD_TYPES.has(primaryType);
       })
       .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
 

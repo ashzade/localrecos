@@ -200,7 +200,6 @@ export function extractRestaurantName(title: string): string | null {
     /\bcheck(?:ed)?\s+out\s+([A-Z][a-zA-Z'\s&]{2,40}?)(?:\s+(?:and|last|this)|[,!?.]|$)/,
     /\bat\s+([A-Z][a-zA-Z'\s&]{2,40}?)\s+(?:restaurant|bistro|cafe|bar|grill|kitchen|house|place)/i,
     /\bgo(?:ing)?\s+to\s+([A-Z][a-zA-Z'\s&]{2,40}?)(?:\s+(?:for|in|is)|[,!?.]|$)/,
-    /^([A-Z][a-zA-Z'\s&]{2,40}?)\s+(?:is|has|was|for|on)\b/,
   ];
 
   for (const pattern of patterns) {
@@ -219,6 +218,13 @@ export function extractRestaurantName(title: string): string | null {
       'Which', 'Looking', 'Need', 'Help', 'Recommendations', 'Anyone',
       'Does', 'Has', 'Are', 'Can', 'Should', 'Would', 'Could', 'New',
       'Inexpensive', 'Authentic', 'Cheap', 'Hidden', 'Local',
+      // First-person / common sentence starters
+      'I', 'We', 'They', 'You', 'He', 'She', 'It', 'My', 'Our',
+      // Neighbourhood/area indicators (not restaurant names)
+      'Downtown', 'Uptown', 'North', 'South', 'East', 'West', 'Central',
+      // Filler
+      'Honestly', 'Personally', 'Definitely', 'Probably', 'Basically',
+      'Second', 'Third', 'First', 'Another', 'Also', 'Just', 'Only',
     ]);
     if (!skipWords.has(candidate.split(' ')[0])) {
       return candidate;

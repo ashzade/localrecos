@@ -1,5 +1,5 @@
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
-const MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
+const MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
 const REDDIT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
 /**

@@ -95,11 +95,17 @@ function buildHeaders(token: string | null): Record<string, string> {
   return headers;
 }
 
+function foodQuery(query: string): string {
+  // Ensure the query is food-contextualised so we don't match unrelated posts
+  if (FOOD_KEYWORD_RE.test(query)) return query;
+  return `${query} restaurant food`;
+}
+
 async function fetchSubredditPosts(
   subreddit: string,
   query: string
 ): Promise<RedditPost[]> {
-  const encodedQuery = encodeURIComponent(query);
+  const encodedQuery = encodeURIComponent(foodQuery(query));
   const token = await getAccessToken();
   const headers = buildHeaders(token);
 
@@ -141,6 +147,21 @@ async function fetchSubredditPosts(
   }
 }
 
+const FOOD_KEYWORDS = [
+  'food', 'eat', 'eating', 'restaurant', 'restaurants', 'cuisine', 'dining',
+  'lunch', 'dinner', 'breakfast', 'brunch', 'takeout', 'takeaway', 'delivery',
+  'menu', 'dish', 'dishes', 'cook', 'cooked', 'meal', 'meals', 'cafe', 'bistro',
+  'biryani', 'curry', 'indian', 'chinese', 'thai', 'sushi', 'pizza', 'burger',
+  'pho', 'ramen', 'tacos', 'buffet', 'halal', 'vegan', 'vegetarian',
+  'delicious', 'tasty', 'flavour', 'flavor', 'spicy', 'authentic',
+];
+
+const FOOD_KEYWORD_RE = new RegExp(`\\b(${FOOD_KEYWORDS.join('|')})\\b`, 'i');
+
+function isFoodPost(title: string, body: string): boolean {
+  return FOOD_KEYWORD_RE.test(title) || FOOD_KEYWORD_RE.test(body.slice(0, 500));
+}
+
 // Detect posts that are asking for recommendations (rather than reviewing a specific place)
 const REQUEST_PATTERNS = [
   /\b(best|good|great|authentic|recommend|looking for|suggestions?|where (to|can)|any(one|where)|hidden gem)\b/i,
@@ -149,6 +170,21 @@ const REQUEST_PATTERNS = [
 
 function isRecommendationRequest(title: string): boolean {
   return REQUEST_PATTERNS.some((p) => p.test(title));
+}
+
+// Validate that an extracted string looks like a restaurant name
+function isValidRestaurantName(name: string): boolean {
+  const words = name.trim().split(/\s+/);
+  // Must be 1-6 words
+  if (words.length > 6) return false;
+  // Must start with a capital letter
+  if (!/^[A-Z]/.test(name)) return false;
+  // Must not be a common English phrase fragment
+  const invalidStarts = /^(The\s+best|A\s+lot|In\s+|On\s+|At\s+|Of\s+|For\s+|From\s+|With\s+)/i;
+  if (invalidStarts.test(name)) return false;
+  // Must contain at least one letter sequence of 3+ chars
+  if (!/[a-zA-Z]{3}/.test(name)) return false;
+  return true;
 }
 
 async function fetchPostComments(
@@ -252,12 +288,15 @@ export async function scrapeRedditForRestaurants(
       const posts = await fetchSubredditPosts(subreddit, query);
 
       for (const post of posts) {
+        // Skip posts that aren't about food at all
+        if (!isFoodPost(post.title, post.selftext)) continue;
+
         // For recommendation-request posts, mine the comments for restaurant names
         if (isRecommendationRequest(post.title)) {
           const comments = await fetchPostComments(subreddit, post.id, token);
           for (const comment of comments) {
             const name = extractRestaurantName(comment);
-            if (!name) continue;
+            if (!name || !isValidRestaurantName(name)) continue;
             const key = name.toLowerCase();
             if (seen.has(key)) continue;
             seen.add(key);
@@ -272,7 +311,7 @@ export async function scrapeRedditForRestaurants(
         } else {
           // Direct review/mention post — extract from title
           const name = extractRestaurantName(post.title);
-          if (!name) continue;
+          if (!name || !isValidRestaurantName(name)) continue;
           const key = name.toLowerCase();
           if (seen.has(key)) continue;
           seen.add(key);

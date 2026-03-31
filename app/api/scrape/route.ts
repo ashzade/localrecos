@@ -102,12 +102,17 @@ export async function POST(request: NextRequest) {
         where: { restaurant_id: restaurant.id, post_url: rec.postUrl },
       });
       if (!existingRec) {
+        // Append search terms to summary so text search can find this restaurant
+        const summaryWithTerms =
+          rec.summary.toLowerCase().includes(terms.toLowerCase())
+            ? rec.summary
+            : `${rec.summary} [${terms}]`;
         await prisma.communityRecommendation.create({
           data: {
             restaurant_id: restaurant.id,
             source: rec.source,
             post_url: rec.postUrl,
-            summary: rec.summary,
+            summary: summaryWithTerms,
             source_upvotes: rec.redditScore,
           },
         });

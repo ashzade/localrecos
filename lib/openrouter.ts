@@ -1,6 +1,6 @@
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
-const MODEL = 'google/gemini-2.0-flash-exp:free';
-const REDDIT_MODEL = 'qwen/qwen3-next-80b-a3b-instruct:free';
+const MODEL = 'google/gemini-2.0-flash-001';
+const REDDIT_MODEL = 'google/gemini-2.0-flash-001';
 
 /**
  * Parse a natural-language restaurant query into city + search terms using Gemini Flash.

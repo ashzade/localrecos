@@ -53,7 +53,6 @@ const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0';
 const CLIENT_ID = process.env.REDDIT_CLIENT_ID;
 const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;
 
-// Cached token: { token, expiresAt }
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string | null> {
@@ -90,35 +89,29 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
+function buildHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = { 'User-Agent': USER_AGENT };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 async function fetchSubredditPosts(
   subreddit: string,
   query: string
 ): Promise<RedditPost[]> {
   const encodedQuery = encodeURIComponent(query);
   const token = await getAccessToken();
+  const headers = buildHeaders(token);
 
-  // Use authenticated OAuth endpoint if credentials are available, otherwise fall back
-  const [baseUrl, authHeader] = token
-    ? [
-        `https://oauth.reddit.com/r/${subreddit}/search`,
-        `Bearer ${token}`,
-      ]
-    : [
-        `https://www.reddit.com/r/${subreddit}/search.json`,
-        null,
-      ];
+  const base = token
+    ? `https://oauth.reddit.com/r/${subreddit}/search`
+    : `https://www.reddit.com/r/${subreddit}/search.json`;
 
-  const url = `${baseUrl}?q=${encodedQuery}&sort=top&t=year&limit=25&restrict_sr=1`;
+  // Search by relevance to find text-matched posts, not just top-voted
+  const url = `${base}?q=${encodedQuery}&sort=relevance&t=all&limit=25&restrict_sr=1`;
 
   try {
-    const headers: Record<string, string> = { 'User-Agent': USER_AGENT };
-    if (authHeader) headers['Authorization'] = authHeader;
-
-    const response = await fetch(url, {
-      headers,
-      next: { revalidate: 3600 },
-    });
-
+    const response = await fetch(url, { headers, next: { revalidate: 3600 } });
     if (!response.ok) return [];
 
     const data = await response.json();
@@ -148,12 +141,50 @@ async function fetchSubredditPosts(
   }
 }
 
+// Detect posts that are asking for recommendations (rather than reviewing a specific place)
+const REQUEST_PATTERNS = [
+  /\b(best|good|great|authentic|recommend|looking for|suggestions?|where (to|can)|any(one|where)|hidden gem)\b/i,
+  /\?/,
+];
+
+function isRecommendationRequest(title: string): boolean {
+  return REQUEST_PATTERNS.some((p) => p.test(title));
+}
+
+async function fetchPostComments(
+  subreddit: string,
+  postId: string,
+  token: string | null
+): Promise<string[]> {
+  const base = token
+    ? `https://oauth.reddit.com/r/${subreddit}/comments/${postId}`
+    : `https://www.reddit.com/r/${subreddit}/comments/${postId}.json`;
+
+  try {
+    const response = await fetch(`${base}?limit=50&depth=1`, {
+      headers: buildHeaders(token),
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    // Comments are in the second element of the array
+    const commentListing = Array.isArray(data) ? data[1] : null;
+    if (!commentListing?.data?.children) return [];
+
+    return commentListing.data.children
+      .map((c: { data?: { body?: string } }) => c.data?.body || '')
+      .filter((b: string) => b.length > 10);
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Extract likely restaurant name from a Reddit post title.
- * Uses several heuristics in order of confidence.
+ * Extract likely restaurant name from a Reddit post title or comment.
  */
 export function extractRestaurantName(title: string): string | null {
-  // 1. Quoted text: "Restaurant Name" or 'Restaurant Name'
+  // 1. Quoted text
   const doubleQuoteMatch = title.match(/"([^"]{2,60})"/);
   if (doubleQuoteMatch) return doubleQuoteMatch[1].trim();
 
@@ -168,6 +199,8 @@ export function extractRestaurantName(title: string): string | null {
     /\bbest\s+(?:\w+\s+)?(?:restaurant|place|spot|food)\s+is\s+([A-Z][a-zA-Z'\s&]{2,40}?)(?:[,!?.]|$)/i,
     /\bcheck(?:ed)?\s+out\s+([A-Z][a-zA-Z'\s&]{2,40}?)(?:\s+(?:and|last|this)|[,!?.]|$)/,
     /\bat\s+([A-Z][a-zA-Z'\s&]{2,40}?)\s+(?:restaurant|bistro|cafe|bar|grill|kitchen|house|place)/i,
+    /\bgo(?:ing)?\s+to\s+([A-Z][a-zA-Z'\s&]{2,40}?)(?:\s+(?:for|in|is)|[,!?.]|$)/,
+    /^([A-Z][a-zA-Z'\s&]{2,40}?)\s+(?:is|has|was|for|on)\b/,
   ];
 
   for (const pattern of patterns) {
@@ -185,6 +218,7 @@ export function extractRestaurantName(title: string): string | null {
       'Best', 'Top', 'Great', 'Good', 'Most', 'Any', 'What', 'Where',
       'Which', 'Looking', 'Need', 'Help', 'Recommendations', 'Anyone',
       'Does', 'Has', 'Are', 'Can', 'Should', 'Would', 'Could', 'New',
+      'Inexpensive', 'Authentic', 'Cheap', 'Hidden', 'Local',
     ]);
     if (!skipWords.has(candidate.split(' ')[0])) {
       return candidate;
@@ -196,13 +230,14 @@ export function extractRestaurantName(title: string): string | null {
 
 /**
  * Scrape Reddit for restaurant mentions in a given city and query.
- * Returns a list of extracted restaurant candidates.
+ * For recommendation-request posts, also extracts names from comments.
  */
 export async function scrapeRedditForRestaurants(
   city: string,
   query: string
 ): Promise<ExtractedRestaurant[]> {
   const subreddits = getSubreddits(city);
+  const token = await getAccessToken();
   const results: ExtractedRestaurant[] = [];
   const seen = new Set<string>();
 
@@ -211,22 +246,38 @@ export async function scrapeRedditForRestaurants(
       const posts = await fetchSubredditPosts(subreddit, query);
 
       for (const post of posts) {
-        const restaurantName = extractRestaurantName(post.title);
-        if (!restaurantName) continue;
-
-        const key = restaurantName.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        const summary = buildSummary(post);
-
-        results.push({
-          name: restaurantName,
-          postUrl: post.permalink,
-          summary,
-          source: `r/${post.subreddit}`,
-          redditScore: post.score,
-        });
+        // For recommendation-request posts, mine the comments for restaurant names
+        if (isRecommendationRequest(post.title)) {
+          const comments = await fetchPostComments(subreddit, post.id, token);
+          for (const comment of comments) {
+            const name = extractRestaurantName(comment);
+            if (!name) continue;
+            const key = name.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            results.push({
+              name,
+              postUrl: post.permalink,
+              summary: comment.length > 200 ? `${comment.slice(0, 197)}...` : comment,
+              source: `r/${post.subreddit}`,
+              redditScore: post.score,
+            });
+          }
+        } else {
+          // Direct review/mention post — extract from title
+          const name = extractRestaurantName(post.title);
+          if (!name) continue;
+          const key = name.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          results.push({
+            name,
+            postUrl: post.permalink,
+            summary: buildSummary(post),
+            source: `r/${post.subreddit}`,
+            redditScore: post.score,
+          });
+        }
       }
     })
   );

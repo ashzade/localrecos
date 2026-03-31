@@ -283,7 +283,7 @@ export async function scrapeRedditForRestaurants(
             results.push({
               name,
               postUrl: post.permalink,
-              summary: comment.length > 200 ? `${comment.slice(0, 197)}...` : comment,
+              summary: extractRelevantSentences(comment, name),
               source: `r/${post.subreddit}`,
               redditScore: post.score,
             });
@@ -316,4 +316,16 @@ function buildSummary(post: RedditPost): string {
     return text.length > 200 ? `${text.slice(0, 197)}...` : text;
   }
   return post.title.length > 200 ? `${post.title.slice(0, 197)}...` : post.title;
+}
+
+/**
+ * Extract sentences from a comment that mention the restaurant name.
+ * Falls back to the full comment (truncated) if no matching sentence is found.
+ */
+function extractRelevantSentences(comment: string, name: string): string {
+  const sentences = comment.split(/(?<=[.!?])\s+/);
+  const nameLower = name.toLowerCase();
+  const relevant = sentences.filter((s) => s.toLowerCase().includes(nameLower));
+  const text = relevant.length > 0 ? relevant.join(' ') : comment;
+  return text.length > 200 ? `${text.slice(0, 197)}...` : text;
 }

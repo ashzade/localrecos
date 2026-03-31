@@ -91,9 +91,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Enrich with Google Places in parallel
+    // Include terms in the query so Google Places validates the place serves the right food type
     const enriched = await Promise.all(
       redditResults.map(async (rec) => {
-        const places = await searchGooglePlaces(city, rec.name, 1);
+        const placeQuery = terms ? `${rec.name} ${terms}` : rec.name;
+        const places = await searchGooglePlaces(city, placeQuery, 1);
         return { rec, place: places[0] as PlaceDetails | undefined };
       })
     );

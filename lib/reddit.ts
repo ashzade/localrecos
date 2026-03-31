@@ -154,6 +154,9 @@ const FOOD_KEYWORDS = [
   'biryani', 'curry', 'indian', 'chinese', 'thai', 'sushi', 'pizza', 'burger',
   'pho', 'ramen', 'tacos', 'buffet', 'halal', 'vegan', 'vegetarian',
   'delicious', 'tasty', 'flavour', 'flavor', 'spicy', 'authentic',
+  'sandwich', 'sandwiches', 'sub', 'subs', 'hoagie', 'deli', 'wrap', 'bagel',
+  'bakery', 'pastry', 'dessert', 'ice cream', 'noodle', 'dumpling', 'wings',
+  'bbq', 'barbecue', 'steak', 'seafood', 'sushi', 'dim sum', 'brunch',
 ];
 
 const FOOD_KEYWORD_RE = new RegExp(`\\b(${FOOD_KEYWORDS.join('|')})\\b`, 'i');

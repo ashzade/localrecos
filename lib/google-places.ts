@@ -13,6 +13,7 @@ const FIELD_MASK = [
   'places.takeout',
   'places.delivery',
   'places.primaryType',
+  'places.businessStatus',
 ].join(',');
 
 const FOOD_TYPES = new Set([
@@ -134,7 +135,9 @@ export async function searchGooglePlaces(
     const results = places
       .filter((place: Record<string, unknown>) => {
         const primaryType = place.primaryType as string | undefined;
-        return !!primaryType && FOOD_TYPES.has(primaryType);
+        if (!primaryType || !FOOD_TYPES.has(primaryType)) return false;
+        if (place.businessStatus === 'CLOSED_PERMANENTLY') return false;
+        return true;
       })
       .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
 

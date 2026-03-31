@@ -93,7 +93,13 @@ export async function POST(request: NextRequest) {
     );
 
     // Step 4: Upsert restaurants and store Reddit posts as community recommendations
+    // Skip any result Google Places couldn't confirm as a real food venue
     for (const { rec, place } of enriched) {
+      if (!place) {
+        console.log(`[scrape] skipping "${rec.name}" — not found in Google Places`);
+        skipped++;
+        continue;
+      }
       const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, place);
       if (wasCreated) created++; else skipped++;
 

@@ -1,9 +1,10 @@
 ---
 feature_id: restaurant_recommendations
-version: 1.0.0
+version: 1.1.0
 status: draft
 owner: platform-team
 depends_on:
+  - reddit_api
   - google_places_api
   - openrouter_api
 tags:
@@ -14,78 +15,132 @@ tags:
 
 # Restaurant Recommendations
 
-Accepts natural-language queries, fetches Reddit community discussions, extracts restaurant mentions, enriches them with place details from Google Places, and returns ranked recommendations.
+Accepts natural-language queries, searches real Reddit community discussions using the Reddit OAuth API, extracts restaurant names from posts and comments, validates each result against Google Places (food venues only), enriches with address/hours/photos, and returns ranked recommendations backed by community votes.
 
 ## External State Providers
 
+### RedditAPI
+> Used for: searching subreddit posts and comments for real restaurant recommendations.
+
+source: reddit-oauth-api
+provides: real community Reddit posts and comments about local restaurants
+lookup_key: subreddit + query
+env:
+  - REDDIT_CLIENT_ID
+  - REDDIT_CLIENT_SECRET
+  - REDDIT_USER_AGENT
+Methods:
+  - searchPosts(subreddit: string, query: string, sort: 'relevance'): RedditPost[]
+  - getComments(subreddit: string, postId: string): string[]
+
 ### GooglePlacesAPI
-> Used for: place details, hours, and photos for restaurants.
+> Used for: validating extracted restaurant names and enriching with place details, hours, and photos. Only food-type venues (restaurant, cafe, bar, etc.) are accepted — any result with a non-food primaryType is rejected.
 
 source: google-places-api
 provides: place details, hours, and photos for restaurants
 lookup_key: place_id
+env:
+  - GOOGLE_PLACES_API_KEY
 Methods:
   - searchText(query: string, city: string): json
 
 ### OpenRouterAPI
-> Used for: LLM-powered natural language query parsing via Gemini Flash.
+> Used for: LLM-powered natural language query parsing (city + search terms extraction) and as a fallback recommendation source when Reddit returns no results.
 
 source: openrouter-api
-provides: LLM-powered natural language query parsing via Gemini Flash
+provides: LLM-powered natural language query parsing (free-tier llama models)
 lookup_key: query
+env:
+  - OPENROUTER_API_KEY
 Methods:
   - parseQuery(query: string): json
+  - getRedditRecommendations(query: string, city: string, terms: string): json
 
 ## State Machine
 
 ### States
 
-- PENDING – query received, Reddit fetch not yet attempted
-- FETCHING – Reddit posts are being retrieved and parsed
-- EXTRACTING – restaurant names are being extracted from posts
-- ENRICHING – place details are being fetched from external APIs
-- COMPLETE – all enrichment succeeded and recommendations are ready
+- PENDING – query received, scrape not yet triggered
+- PARSING – LLM is extracting city and search terms from the raw query
+- FETCHING – Reddit OAuth API is being searched for relevant posts and comments
+- FALLBACK – Reddit returned no results; LLM is generating restaurant candidates instead
+- EXTRACTING – restaurant names are being extracted from Reddit posts/comments
+- VALIDATING – each extracted name is being checked against Google Places (food venues only)
+- ENRICHING – confirmed food venues are being enriched with address, hours, and photos
+- COMPLETE – all enrichment succeeded and recommendations are persisted and ready
 - FAILED – one or more unrecoverable errors occurred during processing
 
 ### Transitions
 
-#### PENDING → FETCHING
+#### PENDING → PARSING
 > Query submitted by user.
 
 Trigger: query submitted by user
 Guard: RULE_01
-Action: emit_event(QUERY_RECEIVED), set_field(entity.status, 'fetching')
+Action: emit_event(QUERY_RECEIVED), set_field(entity.status, 'parsing')
+
+#### PARSING → FETCHING
+> LLM parsed city and search terms successfully.
+
+Trigger: city and terms extracted from query
+Guard: RULE_06
+Action: emit_event(QUERY_PARSED), set_field(entity.status, 'fetching')
 
 #### FETCHING → EXTRACTING
-> Reddit posts retrieved successfully.
+> Reddit OAuth search returned food-relevant posts.
 
-Trigger: Reddit posts retrieved successfully
+Trigger: Reddit posts retrieved and food-filtered successfully
 Guard: RULE_02
 Action: emit_event(POSTS_FETCHED), set_field(entity.status, 'extracting')
 
-#### FETCHING → FAILED
-> Reddit fetch raises an exception.
+#### FETCHING → FALLBACK
+> Reddit returned no food-relevant results for this city/query.
 
-Trigger: Reddit fetch raises an exception
-Action: emit_event(FETCH_FAILED), set_field(entity.status, 'failed')
+Trigger: Reddit search returns zero food-relevant posts
+Action: emit_event(REDDIT_EMPTY), set_field(entity.status, 'fallback')
 
-#### EXTRACTING → ENRICHING
-> Restaurant names extracted from posts.
+#### FALLBACK → EXTRACTING
+> LLM generated restaurant candidates to use instead of Reddit.
 
-Trigger: restaurant names extracted from posts
+Trigger: LLM fallback returns restaurant list
+Action: emit_event(FALLBACK_COMPLETE), set_field(entity.status, 'extracting')
+
+#### FALLBACK → FAILED
+> LLM fallback also returns no results.
+
+Trigger: LLM fallback returns empty list
+Action: emit_event(FALLBACK_FAILED), set_field(entity.status, 'failed')
+
+#### EXTRACTING → VALIDATING
+> Restaurant names extracted from posts or comments.
+
+Trigger: restaurant names extracted
 Guard: RULE_03
-Action: emit_event(EXTRACTION_COMPLETE), set_field(entity.status, 'enriching')
+Action: emit_event(EXTRACTION_COMPLETE), set_field(entity.status, 'validating')
 
 #### EXTRACTING → FAILED
-> Extraction yields no results.
+> Extraction yields no valid restaurant names.
 
-Trigger: extraction yields no results
+Trigger: extraction yields no results after filtering
 Action: emit_event(EXTRACTION_FAILED), set_field(entity.status, 'failed')
 
-#### ENRICHING → COMPLETE
-> Place details fetched for all extracted restaurants.
+#### VALIDATING → ENRICHING
+> Google Places confirmed at least one result as a real food venue.
 
-Trigger: place details fetched for all extracted restaurants
+Trigger: one or more names confirmed as food venues by Google Places
+Guard: RULE_07
+Action: emit_event(VALIDATION_COMPLETE), set_field(entity.status, 'enriching')
+
+#### VALIDATING → FAILED
+> Google Places found no food venues for any extracted name.
+
+Trigger: all extracted names rejected by Google Places type filter
+Action: emit_event(VALIDATION_FAILED), set_field(entity.status, 'failed')
+
+#### ENRICHING → COMPLETE
+> Place details persisted for all validated restaurants.
+
+Trigger: restaurants and community recommendations upserted to database
 Action: emit_event(ENRICHMENT_COMPLETE), set_field(entity.status, 'complete')
 
 #### ENRICHING → FAILED
@@ -299,3 +354,13 @@ Type: Business
 Entity: ParsedQuery
 Condition: entity.city != '' OR env(DEFAULT_CITY) != ''
 Message: No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.
+
+#### RULE_07: Google Places Must Confirm Food Venue
+> Extracted restaurant name must resolve to a food-type venue in Google Places; non-food venues (parks, historic sites, moving companies, etc.) are rejected.
+
+Scope: scrape
+
+Type: Business
+Entity: ExtractedRestaurant
+Condition: entity.google_places_primary_type != 'historic_site' AND entity.google_places_primary_type != 'park' AND entity.google_places_primary_type != 'transit_station'
+Message: Google Places returned a non-food venue for this name; skipping.

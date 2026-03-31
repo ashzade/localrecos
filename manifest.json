@@ -1,10 +1,11 @@
 {
   "meta": {
     "featureId": "restaurant_recommendations",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "status": "draft",
     "owner": "platform-team",
     "dependsOn": [
+      "reddit_api",
       "google_places_api",
       "openrouter_api"
     ],
@@ -16,9 +17,49 @@
   },
   "feature": {
     "name": "Restaurant Recommendations",
-    "intent": "Accepts natural-language queries, fetches Reddit community discussions, extracts restaurant mentions, enriches them with place details from Google Places, and returns ranked recommendations."
+    "intent": "Accepts natural-language queries, searches real Reddit community discussions using the Reddit OAuth API, extracts restaurant names from posts and comments, validates each result against Google Places (food venues only), enriches with address/hours/photos, and returns ranked recommendations backed by community votes."
   },
   "externalProviders": {
+    "RedditAPI": {
+      "methods": [
+        {
+          "name": "searchPosts",
+          "params": [
+            {
+              "name": "subreddit",
+              "type": "string"
+            },
+            {
+              "name": "query",
+              "type": "string"
+            },
+            {
+              "name": "sort",
+              "type": "'relevance'"
+            }
+          ],
+          "returns": "RedditPost[]"
+        },
+        {
+          "name": "getComments",
+          "params": [
+            {
+              "name": "subreddit",
+              "type": "string"
+            },
+            {
+              "name": "postId",
+              "type": "string"
+            }
+          ],
+          "returns": "string[]"
+        }
+      ],
+      "scopes": [],
+      "source": "reddit-oauth-api",
+      "provides": "real community Reddit posts and comments about local restaurants",
+      "lookupKey": "subreddit + query"
+    },
     "GooglePlacesAPI": {
       "methods": [
         {
@@ -52,27 +93,48 @@
             }
           ],
           "returns": "json"
+        },
+        {
+          "name": "getRedditRecommendations",
+          "params": [
+            {
+              "name": "query",
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "type": "string"
+            },
+            {
+              "name": "terms",
+              "type": "string"
+            }
+          ],
+          "returns": "json"
         }
       ],
       "scopes": [],
       "source": "openrouter-api",
-      "provides": "LLM-powered natural language query parsing via Gemini Flash",
+      "provides": "LLM-powered natural language query parsing (free-tier llama models)",
       "lookupKey": "query"
     }
   },
   "stateMachine": {
     "states": {
-      "PENDING": "query received, Reddit fetch not yet attempted",
-      "FETCHING": "Reddit posts are being retrieved and parsed",
-      "EXTRACTING": "restaurant names are being extracted from posts",
-      "ENRICHING": "place details are being fetched from external APIs",
-      "COMPLETE": "all enrichment succeeded and recommendations are ready",
+      "PENDING": "query received, scrape not yet triggered",
+      "PARSING": "LLM is extracting city and search terms from the raw query",
+      "FETCHING": "Reddit OAuth API is being searched for relevant posts and comments",
+      "FALLBACK": "Reddit returned no results; LLM is generating restaurant candidates instead",
+      "EXTRACTING": "restaurant names are being extracted from Reddit posts/comments",
+      "VALIDATING": "each extracted name is being checked against Google Places (food venues only)",
+      "ENRICHING": "confirmed food venues are being enriched with address, hours, and photos",
+      "COMPLETE": "all enrichment succeeded and recommendations are persisted and ready",
       "FAILED": "one or more unrecoverable errors occurred during processing"
     },
     "transitions": [
       {
         "from": "PENDING",
-        "to": "FETCHING",
+        "to": "PARSING",
         "actions": [
           {
             "type": "emit_event",
@@ -84,12 +146,33 @@
             "type": "set_field",
             "args": [
               "entity.status",
-              "'fetching'"
+              "'parsing'"
             ]
           }
         ],
         "trigger": "query submitted by user",
         "guard": "RULE_01"
+      },
+      {
+        "from": "PARSING",
+        "to": "FETCHING",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "QUERY_PARSED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'fetching'"
+            ]
+          }
+        ],
+        "trigger": "city and terms extracted from query",
+        "guard": "RULE_06"
       },
       {
         "from": "FETCHING",
@@ -109,17 +192,57 @@
             ]
           }
         ],
-        "trigger": "Reddit posts retrieved successfully",
+        "trigger": "Reddit posts retrieved and food-filtered successfully",
         "guard": "RULE_02"
       },
       {
         "from": "FETCHING",
+        "to": "FALLBACK",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "REDDIT_EMPTY"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'fallback'"
+            ]
+          }
+        ],
+        "trigger": "Reddit search returns zero food-relevant posts"
+      },
+      {
+        "from": "FALLBACK",
+        "to": "EXTRACTING",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "FALLBACK_COMPLETE"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'extracting'"
+            ]
+          }
+        ],
+        "trigger": "LLM fallback returns restaurant list"
+      },
+      {
+        "from": "FALLBACK",
         "to": "FAILED",
         "actions": [
           {
             "type": "emit_event",
             "args": [
-              "FETCH_FAILED"
+              "FALLBACK_FAILED"
             ]
           },
           {
@@ -130,11 +253,11 @@
             ]
           }
         ],
-        "trigger": "Reddit fetch raises an exception"
+        "trigger": "LLM fallback returns empty list"
       },
       {
         "from": "EXTRACTING",
-        "to": "ENRICHING",
+        "to": "VALIDATING",
         "actions": [
           {
             "type": "emit_event",
@@ -146,11 +269,11 @@
             "type": "set_field",
             "args": [
               "entity.status",
-              "'enriching'"
+              "'validating'"
             ]
           }
         ],
-        "trigger": "restaurant names extracted from posts",
+        "trigger": "restaurant names extracted",
         "guard": "RULE_03"
       },
       {
@@ -171,7 +294,48 @@
             ]
           }
         ],
-        "trigger": "extraction yields no results"
+        "trigger": "extraction yields no results after filtering"
+      },
+      {
+        "from": "VALIDATING",
+        "to": "ENRICHING",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "VALIDATION_COMPLETE"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'enriching'"
+            ]
+          }
+        ],
+        "trigger": "one or more names confirmed as food venues by Google Places",
+        "guard": "RULE_07"
+      },
+      {
+        "from": "VALIDATING",
+        "to": "FAILED",
+        "actions": [
+          {
+            "type": "emit_event",
+            "args": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          {
+            "type": "set_field",
+            "args": [
+              "entity.status",
+              "'failed'"
+            ]
+          }
+        ],
+        "trigger": "all extracted names rejected by Google Places type filter"
       },
       {
         "from": "ENRICHING",
@@ -191,7 +355,7 @@
             ]
           }
         ],
-        "trigger": "place details fetched for all extracted restaurants"
+        "trigger": "restaurants and community recommendations upserted to database"
       },
       {
         "from": "ENRICHING",
@@ -1114,6 +1278,18 @@
       "entity": "ParsedQuery",
       "condition": "entity.city != '' OR env(DEFAULT_CITY) != ''",
       "message": "No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location."
+    },
+    "RULE_07": {
+      "id": "RULE_07",
+      "title": "Google Places Must Confirm Food Venue",
+      "references": [],
+      "scope": [
+        "scrape"
+      ],
+      "type": "Business",
+      "entity": "ExtractedRestaurant",
+      "condition": "entity.google_places_primary_type != 'historic_site' AND entity.google_places_primary_type != 'park' AND entity.google_places_primary_type != 'transit_station'",
+      "message": "Google Places returned a non-food venue for this name; skipping."
     }
   }
 }

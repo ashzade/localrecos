@@ -111,9 +111,10 @@ export async function POST(request: NextRequest) {
       const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, place);
       if (wasCreated) created++; else skipped++;
 
-      // Search Reddit specifically for this restaurant and store relevant posts/comments
-      const canonicalName = place.name ?? rec.name;
-      const picks = await fetchCommunityPicksForRestaurant(city, canonicalName);
+      // Search Reddit specifically for this restaurant and store relevant posts/comments.
+      // Use the original extracted name (rec.name) since that's what Reddit users write,
+      // not the full Google Places canonical name which may include location suffixes.
+      const picks = await fetchCommunityPicksForRestaurant(city, rec.name);
       console.log(`[scrape] community picks for "${canonicalName}": ${picks.length}`);
 
       for (const pick of picks) {

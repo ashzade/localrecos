@@ -96,8 +96,7 @@ function buildHeaders(token: string | null): Record<string, string> {
 }
 
 function foodQuery(query: string): string {
-  // Always append "restaurant" so Reddit returns food-relevant posts regardless of query wording
-  return `${query} restaurant`;
+  return query;
 }
 
 async function fetchSubredditPosts(

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { searchGooglePlaces, PlaceDetails } from '@/lib/google-places';
 import { parseQuery } from '@/lib/search';
 import { getRedditRecommendations } from '@/lib/openrouter';
-import { scrapeRedditForRestaurants, ExtractedRestaurant } from '@/lib/reddit';
+import { scrapeRedditForRestaurants, fetchCommunityPicksForRestaurant, ExtractedRestaurant } from '@/lib/reddit';
 import prisma from '@/lib/db';
 import { RestaurantStatus } from '@prisma/client';
 
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // Step 4: Upsert restaurants and store Reddit posts as community recommendations
+    // Step 4: Upsert restaurants and fetch community picks specifically about each restaurant
     // Skip any result Google Places couldn't confirm as a real food venue
     for (const { rec, place } of enriched) {
       if (!place) {
@@ -111,25 +111,26 @@ export async function POST(request: NextRequest) {
       const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, place);
       if (wasCreated) created++; else skipped++;
 
-      // Store each Reddit post as a community recommendation (deduped by post_url)
-      const existingRec = await prisma.communityRecommendation.findFirst({
-        where: { restaurant_id: restaurant.id, post_url: rec.postUrl },
-      });
-      if (!existingRec) {
-        // Append search terms to summary so text search can find this restaurant
-        const summaryWithTerms =
-          rec.summary.toLowerCase().includes(terms.toLowerCase())
-            ? rec.summary
-            : `${rec.summary} [${terms}]`;
-        await prisma.communityRecommendation.create({
-          data: {
-            restaurant_id: restaurant.id,
-            source: rec.source,
-            post_url: rec.postUrl,
-            summary: summaryWithTerms,
-            source_upvotes: rec.redditScore,
-          },
+      // Search Reddit specifically for this restaurant and store relevant posts/comments
+      const canonicalName = place.name ?? rec.name;
+      const picks = await fetchCommunityPicksForRestaurant(city, canonicalName);
+      console.log(`[scrape] community picks for "${canonicalName}": ${picks.length}`);
+
+      for (const pick of picks) {
+        const existingRec = await prisma.communityRecommendation.findFirst({
+          where: { restaurant_id: restaurant.id, post_url: pick.postUrl },
         });
+        if (!existingRec) {
+          await prisma.communityRecommendation.create({
+            data: {
+              restaurant_id: restaurant.id,
+              source: pick.source,
+              post_url: pick.postUrl,
+              summary: pick.summary,
+              source_upvotes: pick.redditScore,
+            },
+          });
+        }
       }
     }
 

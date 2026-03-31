@@ -336,6 +336,65 @@ export async function scrapeRedditForRestaurants(
   return results.sort((a, b) => b.redditScore - a.redditScore);
 }
 
+export interface CommunityPick {
+  postUrl: string;
+  summary: string;
+  source: string;
+  redditScore: number;
+}
+
+/**
+ * Search Reddit specifically for a validated restaurant name and return
+ * posts/comments about it as community picks.
+ */
+export async function fetchCommunityPicksForRestaurant(
+  city: string,
+  restaurantName: string
+): Promise<CommunityPick[]> {
+  const subreddits = getSubreddits(city);
+  const token = await getAccessToken();
+  const picks: CommunityPick[] = [];
+  const seenUrls = new Set<string>();
+
+  await Promise.all(
+    subreddits.map(async (subreddit) => {
+      const posts = await fetchSubredditPosts(subreddit, restaurantName);
+
+      for (const post of posts) {
+        // Only use posts that actually mention this restaurant
+        const haystack = `${post.title} ${post.selftext}`.toLowerCase();
+        if (!haystack.includes(restaurantName.toLowerCase())) continue;
+        if (seenUrls.has(post.permalink)) continue;
+        seenUrls.add(post.permalink);
+
+        if (isRecommendationRequest(post.title)) {
+          // Mine comments for mentions of this restaurant
+          const comments = await fetchPostComments(subreddit, post.id, token);
+          for (const comment of comments) {
+            if (!comment.toLowerCase().includes(restaurantName.toLowerCase())) continue;
+            picks.push({
+              postUrl: post.permalink,
+              summary: extractRelevantSentences(comment, restaurantName),
+              source: `r/${post.subreddit}`,
+              redditScore: post.score,
+            });
+          }
+        } else {
+          // Direct post about the restaurant
+          picks.push({
+            postUrl: post.permalink,
+            summary: buildSummary(post),
+            source: `r/${post.subreddit}`,
+            redditScore: post.score,
+          });
+        }
+      }
+    })
+  );
+
+  return picks.sort((a, b) => b.redditScore - a.redditScore).slice(0, 5);
+}
+
 function buildSummary(post: RedditPost): string {
   const text = post.selftext?.trim();
   if (text && text.length > 20) {

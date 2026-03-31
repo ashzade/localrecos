@@ -96,9 +96,8 @@ function buildHeaders(token: string | null): Record<string, string> {
 }
 
 function foodQuery(query: string): string {
-  // Ensure the query is food-contextualised so we don't match unrelated posts
-  if (FOOD_KEYWORD_RE.test(query)) return query;
-  return `${query} restaurant food`;
+  // Always append "restaurant" so Reddit returns food-relevant posts regardless of query wording
+  return `${query} restaurant`;
 }
 
 async function fetchSubredditPosts(
@@ -145,24 +144,6 @@ async function fetchSubredditPosts(
   } catch {
     return [];
   }
-}
-
-const FOOD_KEYWORDS = [
-  'food', 'eat', 'eating', 'restaurant', 'restaurants', 'cuisine', 'dining',
-  'lunch', 'dinner', 'breakfast', 'brunch', 'takeout', 'takeaway', 'delivery',
-  'menu', 'dish', 'dishes', 'cook', 'cooked', 'meal', 'meals', 'cafe', 'bistro',
-  'biryani', 'curry', 'indian', 'chinese', 'thai', 'sushi', 'pizza', 'burger',
-  'pho', 'ramen', 'tacos', 'buffet', 'halal', 'vegan', 'vegetarian',
-  'delicious', 'tasty', 'flavour', 'flavor', 'spicy', 'authentic',
-  'sandwich', 'sandwiches', 'sub', 'subs', 'hoagie', 'deli', 'wrap', 'bagel',
-  'bakery', 'pastry', 'dessert', 'ice cream', 'noodle', 'dumpling', 'wings',
-  'bbq', 'barbecue', 'steak', 'seafood', 'sushi', 'dim sum', 'brunch',
-];
-
-const FOOD_KEYWORD_RE = new RegExp(`\\b(${FOOD_KEYWORDS.join('|')})\\b`, 'i');
-
-function isFoodPost(title: string, body: string): boolean {
-  return FOOD_KEYWORD_RE.test(title) || FOOD_KEYWORD_RE.test(body.slice(0, 500));
 }
 
 // Detect posts that are asking for recommendations (rather than reviewing a specific place)
@@ -291,9 +272,6 @@ export async function scrapeRedditForRestaurants(
       const posts = await fetchSubredditPosts(subreddit, query);
 
       for (const post of posts) {
-        // Skip posts that aren't about food at all
-        if (!isFoodPost(post.title, post.selftext)) continue;
-
         // For recommendation-request posts, mine the comments for restaurant names
         if (isRecommendationRequest(post.title)) {
           const comments = await fetchPostComments(subreddit, post.id, token);

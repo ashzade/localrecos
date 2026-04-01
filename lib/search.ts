@@ -1,6 +1,7 @@
 import prisma from '@/lib/db';
 import { Prisma, RestaurantStatus } from '@prisma/client';
 import { parseQueryWithLLM } from '@/lib/openrouter';
+import { validateParsedQuery } from '@/lib/validate';
 
 export interface ParsedQuery {
   city: string | null;
@@ -18,7 +19,9 @@ export async function parseQuery(query: string): Promise<ParsedQuery> {
     throw new Error('RULE_01: Query text is required to begin restaurant search.');
   }
   const { city, terms } = await parseQueryWithLLM(trimmed);
-  return { city, terms, raw: trimmed };
+  const result = { city, terms, raw: trimmed };
+  validateParsedQuery(result as unknown as Record<string, unknown>);
+  return result;
 }
 
 export interface RestaurantWithRecommendations {

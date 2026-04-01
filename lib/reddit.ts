@@ -49,6 +49,8 @@ function getSubreddits(city: string): string[] {
   return [slug, `${slug}food`];
 }
 
+import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate';
+
 const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0';
 const CLIENT_ID = process.env.REDDIT_CLIENT_ID;
 const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;
@@ -96,9 +98,7 @@ function buildHeaders(token: string | null): Record<string, string> {
 }
 
 function foodQuery(query: string): string {
-  // Ensure the query is food-contextualised so we don't match unrelated posts
-  if (FOOD_KEYWORD_RE.test(query)) return query;
-  return `${query} restaurant food`;
+  return query;
 }
 
 async function fetchSubredditPosts(
@@ -127,7 +127,7 @@ async function fetchSubredditPosts(
       for (const child of data.data.children) {
         const post = child.data;
         if (post && post.title) {
-          posts.push({
+          const redditPost = {
             id: post.id,
             title: post.title,
             selftext: post.selftext || '',
@@ -136,7 +136,13 @@ async function fetchSubredditPosts(
             subreddit: post.subreddit,
             score: post.score || 0,
             created_utc: post.created_utc || 0,
-          });
+          };
+          try {
+            validateRedditPost(redditPost as unknown as Record<string, unknown>);
+            posts.push(redditPost);
+          } catch {
+            // skip malformed posts silently
+          }
         }
       }
     }
@@ -147,21 +153,6 @@ async function fetchSubredditPosts(
   }
 }
 
-const FOOD_KEYWORDS = [
-  'food', 'eat', 'eating', 'restaurant', 'restaurants', 'cuisine', 'dining',
-  'lunch', 'dinner', 'breakfast', 'brunch', 'takeout', 'takeaway', 'delivery',
-  'menu', 'dish', 'dishes', 'cook', 'cooked', 'meal', 'meals', 'cafe', 'bistro',
-  'biryani', 'curry', 'indian', 'chinese', 'thai', 'sushi', 'pizza', 'burger',
-  'pho', 'ramen', 'tacos', 'buffet', 'halal', 'vegan', 'vegetarian',
-  'delicious', 'tasty', 'flavour', 'flavor', 'spicy', 'authentic',
-];
-
-const FOOD_KEYWORD_RE = new RegExp(`\\b(${FOOD_KEYWORDS.join('|')})\\b`, 'i');
-
-function isFoodPost(title: string, body: string): boolean {
-  return FOOD_KEYWORD_RE.test(title) || FOOD_KEYWORD_RE.test(body.slice(0, 500));
-}
-
 // Detect posts that are asking for recommendations (rather than reviewing a specific place)
 const REQUEST_PATTERNS = [
   /\b(best|good|great|authentic|recommend|looking for|suggestions?|where (to|can)|any(one|where)|hidden gem)\b/i,
@@ -170,6 +161,29 @@ const REQUEST_PATTERNS = [
 
 function isRecommendationRequest(title: string): boolean {
   return REQUEST_PATTERNS.some((p) => p.test(title));
+}
+
+const STOP_WORDS = new Set([
+  'best', 'good', 'great', 'any', 'where', 'what', 'which', 'the', 'a', 'an',
+  'in', 'for', 'to', 'of', 'and', 'or', 'is', 'are', 'can', 'get', 'find',
+  'looking', 'recommend', 'recommendations', 'suggestion', 'suggestions',
+]);
+
+/**
+ * Check that a post is actually about the search query.
+ * Extracts meaningful words from the query and checks if at least one appears
+ * in the post title or body, to avoid mining comments from unrelated posts.
+ */
+function isPostRelevantToQuery(post: RedditPost, query: string): boolean {
+  const queryWords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+
+  if (queryWords.length === 0) return true;
+
+  const haystack = `${post.title} ${post.selftext}`.toLowerCase();
+  return queryWords.some((word) => haystack.includes(word));
 }
 
 // Validate that an extracted string looks like a restaurant name
@@ -288,8 +302,8 @@ export async function scrapeRedditForRestaurants(
       const posts = await fetchSubredditPosts(subreddit, query);
 
       for (const post of posts) {
-        // Skip posts that aren't about food at all
-        if (!isFoodPost(post.title, post.selftext)) continue;
+        // Skip posts that aren't actually about the search query
+        if (!isPostRelevantToQuery(post, query)) continue;
 
         // For recommendation-request posts, mine the comments for restaurant names
         if (isRecommendationRequest(post.title)) {
@@ -300,13 +314,19 @@ export async function scrapeRedditForRestaurants(
             const key = name.toLowerCase();
             if (seen.has(key)) continue;
             seen.add(key);
-            results.push({
+            const extracted = {
               name,
               postUrl: post.permalink,
-              summary: comment.length > 200 ? `${comment.slice(0, 197)}...` : comment,
+              summary: extractRelevantSentences(comment, name),
               source: `r/${post.subreddit}`,
               redditScore: post.score,
-            });
+            };
+            try {
+              validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
+              results.push(extracted);
+            } catch {
+              // skip entries that fail validation
+            }
           }
         } else {
           // Direct review/mention post — extract from title
@@ -315,8 +335,73 @@ export async function scrapeRedditForRestaurants(
           const key = name.toLowerCase();
           if (seen.has(key)) continue;
           seen.add(key);
-          results.push({
+          const extracted = {
             name,
+            postUrl: post.permalink,
+            summary: buildSummary(post),
+            source: `r/${post.subreddit}`,
+            redditScore: post.score,
+          };
+          try {
+            validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
+            results.push(extracted);
+          } catch {
+            // skip entries that fail validation
+          }
+        }
+      }
+    })
+  );
+
+  return results.sort((a, b) => b.redditScore - a.redditScore);
+}
+
+export interface CommunityPick {
+  postUrl: string;
+  summary: string;
+  source: string;
+  redditScore: number;
+}
+
+/**
+ * Search Reddit specifically for a validated restaurant name and return
+ * posts/comments about it as community picks.
+ */
+export async function fetchCommunityPicksForRestaurant(
+  city: string,
+  restaurantName: string
+): Promise<CommunityPick[]> {
+  const subreddits = getSubreddits(city);
+  const token = await getAccessToken();
+  const picks: CommunityPick[] = [];
+  const seenUrls = new Set<string>();
+
+  await Promise.all(
+    subreddits.map(async (subreddit) => {
+      const posts = await fetchSubredditPosts(subreddit, restaurantName);
+
+      for (const post of posts) {
+        // Only use posts that actually mention this restaurant
+        const haystack = `${post.title} ${post.selftext}`.toLowerCase();
+        if (!haystack.includes(restaurantName.toLowerCase())) continue;
+        if (seenUrls.has(post.permalink)) continue;
+        seenUrls.add(post.permalink);
+
+        if (isRecommendationRequest(post.title)) {
+          // Mine comments for mentions of this restaurant
+          const comments = await fetchPostComments(subreddit, post.id, token);
+          for (const comment of comments) {
+            if (!comment.toLowerCase().includes(restaurantName.toLowerCase())) continue;
+            picks.push({
+              postUrl: post.permalink,
+              summary: extractRelevantSentences(comment, restaurantName),
+              source: `r/${post.subreddit}`,
+              redditScore: post.score,
+            });
+          }
+        } else {
+          // Direct post about the restaurant
+          picks.push({
             postUrl: post.permalink,
             summary: buildSummary(post),
             source: `r/${post.subreddit}`,
@@ -327,7 +412,7 @@ export async function scrapeRedditForRestaurants(
     })
   );
 
-  return results.sort((a, b) => b.redditScore - a.redditScore);
+  return picks.sort((a, b) => b.redditScore - a.redditScore).slice(0, 5);
 }
 
 function buildSummary(post: RedditPost): string {
@@ -336,4 +421,16 @@ function buildSummary(post: RedditPost): string {
     return text.length > 200 ? `${text.slice(0, 197)}...` : text;
   }
   return post.title.length > 200 ? `${post.title.slice(0, 197)}...` : post.title;
+}
+
+/**
+ * Extract sentences from a comment that mention the restaurant name.
+ * Falls back to the full comment (truncated) if no matching sentence is found.
+ */
+function extractRelevantSentences(comment: string, name: string): string {
+  const sentences = comment.split(/(?<=[.!?])\s+/);
+  const nameLower = name.toLowerCase();
+  const relevant = sentences.filter((s) => s.toLowerCase().includes(nameLower));
+  const text = relevant.length > 0 ? relevant.join(' ') : comment;
+  return text.length > 200 ? `${text.slice(0, 197)}...` : text;
 }

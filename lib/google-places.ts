@@ -1,3 +1,5 @@
+import { validatePlaceDetails } from '@/lib/validate';
+
 const GOOGLE_PLACES_BASE = 'https://places.googleapis.com/v1';
 
 const FIELD_MASK = [
@@ -13,6 +15,7 @@ const FIELD_MASK = [
   'places.takeout',
   'places.delivery',
   'places.primaryType',
+  'places.businessStatus',
 ].join(',');
 
 const FOOD_TYPES = new Set([
@@ -134,9 +137,19 @@ export async function searchGooglePlaces(
     const results = places
       .filter((place: Record<string, unknown>) => {
         const primaryType = place.primaryType as string | undefined;
-        return !primaryType || FOOD_TYPES.has(primaryType);
+        if (!primaryType || !FOOD_TYPES.has(primaryType)) return false;
+        if (place.businessStatus === 'CLOSED_PERMANENTLY') return false;
+        return true;
       })
-      .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
+      .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey))
+      .filter((details) => {
+        try {
+          validatePlaceDetails(details as unknown as Record<string, unknown>);
+          return true;
+        } catch {
+          return false;
+        }
+      });
 
     // Resolve photo redirects to final CDN URLs so Next.js Image can display them
     await Promise.all(

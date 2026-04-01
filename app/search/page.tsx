@@ -63,20 +63,11 @@ async function SearchResults({ q, detectedCity, sort, openNow, limit }: { q: str
     </div>
   );
 
-  if (results.length === 0) {
-    return (
-      <div className="mt-6 space-y-4">
-        <PersistCity city={city} />
-        {sortBar}
-        <SearchPoller city={city} query={q} />
-      </div>
-    );
-  }
-
   return (
     <div className="mt-6 space-y-4">
       <PersistCity city={city} />
-      {sortBar}
+      {results.length > 0 && sortBar}
+      <SearchPoller city={city} query={q} hasResults={results.length > 0} />
       {results.map((group) => (
         <RestaurantCard
           key={group.id}

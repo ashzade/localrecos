@@ -49,6 +49,8 @@ function getSubreddits(city: string): string[] {
   return [slug, `${slug}food`];
 }
 
+import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate';
+
 const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0';
 const CLIENT_ID = process.env.REDDIT_CLIENT_ID;
 const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;
@@ -125,7 +127,7 @@ async function fetchSubredditPosts(
       for (const child of data.data.children) {
         const post = child.data;
         if (post && post.title) {
-          posts.push({
+          const redditPost = {
             id: post.id,
             title: post.title,
             selftext: post.selftext || '',
@@ -134,7 +136,13 @@ async function fetchSubredditPosts(
             subreddit: post.subreddit,
             score: post.score || 0,
             created_utc: post.created_utc || 0,
-          });
+          };
+          try {
+            validateRedditPost(redditPost as unknown as Record<string, unknown>);
+            posts.push(redditPost);
+          } catch {
+            // skip malformed posts silently
+          }
         }
       }
     }
@@ -306,13 +314,19 @@ export async function scrapeRedditForRestaurants(
             const key = name.toLowerCase();
             if (seen.has(key)) continue;
             seen.add(key);
-            results.push({
+            const extracted = {
               name,
               postUrl: post.permalink,
               summary: extractRelevantSentences(comment, name),
               source: `r/${post.subreddit}`,
               redditScore: post.score,
-            });
+            };
+            try {
+              validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
+              results.push(extracted);
+            } catch {
+              // skip entries that fail validation
+            }
           }
         } else {
           // Direct review/mention post — extract from title
@@ -321,13 +335,19 @@ export async function scrapeRedditForRestaurants(
           const key = name.toLowerCase();
           if (seen.has(key)) continue;
           seen.add(key);
-          results.push({
+          const extracted = {
             name,
             postUrl: post.permalink,
             summary: buildSummary(post),
             source: `r/${post.subreddit}`,
             redditScore: post.score,
-          });
+          };
+          try {
+            validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
+            results.push(extracted);
+          } catch {
+            // skip entries that fail validation
+          }
         }
       }
     })

@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { computeFingerprint } from '@/lib/fingerprint';
 import { checkRule05, tryTransitionToVerified } from '@/lib/rules';
 import { VoteDirection } from '@prisma/client';
+import { validateRestaurantVoteInput } from '@/lib/validate';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,8 @@ export async function POST(request: NextRequest) {
   }
 
   const voteDirection = direction === 'up' ? VoteDirection.up : VoteDirection.down;
+
+  validateRestaurantVoteInput({ restaurant_id, fingerprint, direction } as unknown as Record<string, unknown>);
 
   await prisma.$transaction(async (tx) => {
     await tx.restaurantVote.create({

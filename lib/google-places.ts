@@ -1,3 +1,5 @@
+import { validatePlaceDetails } from '@/lib/validate';
+
 const GOOGLE_PLACES_BASE = 'https://places.googleapis.com/v1';
 
 const FIELD_MASK = [
@@ -139,7 +141,15 @@ export async function searchGooglePlaces(
         if (place.businessStatus === 'CLOSED_PERMANENTLY') return false;
         return true;
       })
-      .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey));
+      .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey))
+      .filter((details) => {
+        try {
+          validatePlaceDetails(details as unknown as Record<string, unknown>);
+          return true;
+        } catch {
+          return false;
+        }
+      });
 
     // Resolve photo redirects to final CDN URLs so Next.js Image can display them
     await Promise.all(

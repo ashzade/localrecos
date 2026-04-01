@@ -137,7 +137,10 @@ export async function searchGooglePlaces(
     const results = places
       .filter((place: Record<string, unknown>) => {
         const primaryType = place.primaryType as string | undefined;
-        if (!primaryType || !FOOD_TYPES.has(primaryType)) return false;
+        if (!primaryType || !FOOD_TYPES.has(primaryType)) {
+          console.warn('Google Places returned a non-food venue for this name; skipping.');
+          return false;
+        }
         if (place.businessStatus === 'CLOSED_PERMANENTLY') return false;
         return true;
       })

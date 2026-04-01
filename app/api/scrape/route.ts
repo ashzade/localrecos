@@ -50,11 +50,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { city, query } = body;
+  let { city, query } = body;
 
-  if (!city || !query) {
+  // RULE_06: fall back to DEFAULT_CITY if caller omits city
+  if (!city) {
+    const defaultCity = process.env.DEFAULT_CITY;
+    if (!defaultCity) {
+      return NextResponse.json(
+        { error: 'RULE_06', message: 'No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.' },
+        { status: 400 }
+      );
+    }
+    city = defaultCity;
+  }
+
+  if (!query) {
     return NextResponse.json(
-      { error: 'city and query are required' },
+      { error: 'RULE_01', message: 'Query text and city are required to begin restaurant search.' },
       { status: 400 }
     );
   }

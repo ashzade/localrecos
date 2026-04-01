@@ -141,7 +141,7 @@ async function fetchSubredditPosts(
             validateRedditPost(redditPost as unknown as Record<string, unknown>);
             posts.push(redditPost);
           } catch {
-            // skip malformed posts silently
+            console.warn('Reddit post is missing required fields; cannot extract restaurants.');
           }
         }
       }
@@ -325,7 +325,7 @@ export async function scrapeRedditForRestaurants(
               validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
               results.push(extracted);
             } catch {
-              // skip entries that fail validation
+              console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');
             }
           }
         } else {
@@ -346,7 +346,7 @@ export async function scrapeRedditForRestaurants(
             validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
             results.push(extracted);
           } catch {
-            // skip entries that fail validation
+            console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');
           }
         }
       }

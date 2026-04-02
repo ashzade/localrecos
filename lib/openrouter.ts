@@ -3,7 +3,7 @@ const MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
 const REDDIT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
 /**
- * Parse a natural-language restaurant query into city + search terms using Gemini Flash.
+ * Parse a natural-language restaurant query into city + search terms using an LLM via OpenRouter.
  * Falls back to regex if the API key is missing or the call fails.
  */
 export async function parseQueryWithLLM(
@@ -54,7 +54,6 @@ export async function parseQueryWithLLM(
     const parsed = JSON.parse(content);
     const city = typeof parsed.city === 'string' ? parsed.city.trim() || null : null;
     const terms = typeof parsed.terms === 'string' ? parsed.terms.trim() : query;
-    console.log(`[openrouter] parsed query="${query}" → city="${city}" terms="${terms}"`);
     return { city, terms };
   } catch (err) {
     console.error('[openrouter] parseQuery threw', err);

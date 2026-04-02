@@ -2,6 +2,8 @@ import prisma from '@/lib/db';
 import { Prisma, RestaurantStatus } from '@prisma/client';
 import { parseQueryWithLLM } from '@/lib/openrouter';
 import { validateParsedQuery } from '@/lib/validate';
+import { groupRestaurantsByName as _groupRestaurantsByName, type GroupableRestaurant } from '@/lib/restaurant-grouping';
+export type { RestaurantLocation, RestaurantGroup } from '@/lib/restaurant-grouping';
 
 export interface ParsedQuery {
   city: string | null;
@@ -10,7 +12,7 @@ export interface ParsedQuery {
 }
 
 /**
- * Parse a natural language query into city + search terms using Gemini Flash.
+ * Parse a natural language query into city + search terms using an LLM via OpenRouter.
  * Falls back to regex if the API key is missing or the call fails.
  */
 export async function parseQuery(query: string): Promise<ParsedQuery> {
@@ -20,7 +22,7 @@ export async function parseQuery(query: string): Promise<ParsedQuery> {
   }
   const { city, terms } = await parseQueryWithLLM(trimmed);
   const result = { city, terms, raw: trimmed };
-  validateParsedQuery(result as unknown as Record<string, unknown>);
+  validateParsedQuery(result);
   return result;
 }
 
@@ -55,135 +57,27 @@ export interface RestaurantWithRecommendations {
   total_net_votes: number;
 }
 
-export interface RestaurantLocation {
-  id: string;
-  address: string | null;
-  phone: string | null;
-  website: string | null;
-  hours: string | null;
-  upvotes: number;
-  downvotes: number;
+export function groupRestaurantsByName(restaurants: RestaurantWithRecommendations[]): ReturnType<typeof _groupRestaurantsByName> {
+  return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[]);
 }
 
-export interface RestaurantGroup {
-  id: string; // primary (highest-voted) location id
-  name: string;
-  city: string;
-  price_range: string | null;
-  photo_url: string | null;
-  status: RestaurantStatus;
-  upvotes: number;
-  downvotes: number;
-  total_net_votes: number;
-  recommendations: RestaurantWithRecommendations['recommendations'];
-  locations: RestaurantLocation[];
-}
-
-function normalizeWebsite(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const { hostname } = new URL(url);
-    return hostname.toLowerCase().replace(/^www\./, '');
-  } catch {
-    // fallback for URLs without a protocol
-    return url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-  }
-}
-
-function buildGroup(group: RestaurantWithRecommendations[]): RestaurantGroup {
-  const sorted = [...group].sort((a, b) => b.total_net_votes - a.total_net_votes);
-  const primary = sorted[0];
-  const seenUrls = new Set<string>();
-  const mergedRecs = sorted
-    .flatMap((r) => r.recommendations)
-    .filter((rec) => {
-      if (seenUrls.has(rec.post_url)) return false;
-      seenUrls.add(rec.post_url);
-      return true;
-    });
-  return {
-    id: primary.id,
-    name: primary.name,
-    city: primary.city,
-    price_range: primary.price_range,
-    photo_url: primary.photo_url,
-    status: primary.status,
-    upvotes: group.reduce((s, r) => s + r.upvotes, 0),
-    downvotes: group.reduce((s, r) => s + r.downvotes, 0),
-    total_net_votes: group.reduce((s, r) => s + r.total_net_votes, 0),
-    recommendations: mergedRecs,
-    locations: sorted.map((r) => ({
-      id: r.id,
-      address: r.address,
-      phone: r.phone,
-      website: r.website,
-      hours: r.hours,
-      upvotes: r.upvotes,
-      downvotes: r.downvotes,
-    })),
-  };
-}
-
-function shouldMergeGroups(a: RestaurantWithRecommendations[], b: RestaurantWithRecommendations[]): boolean {
-  // Check shared website across any locations
-  const websitesA = new Set(a.map((r) => normalizeWebsite(r.website)).filter(Boolean));
-  for (const r of b) {
-    const w = normalizeWebsite(r.website);
-    if (w && websitesA.has(w)) return true;
-  }
-
-  // Check if one name is a word-boundary prefix of the other (min 5 chars)
-  const nameA = a[0].name.toLowerCase().trim();
-  const nameB = b[0].name.toLowerCase().trim();
-  const shorter = nameA.length <= nameB.length ? nameA : nameB;
-  const longer = nameA.length <= nameB.length ? nameB : nameA;
-  if (shorter.length >= 5) {
-    // longer starts with shorter and the next char is a non-word char (space, punctuation)
-    if (longer.startsWith(shorter) && (longer.length === shorter.length || /\W/.test(longer[shorter.length]))) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-export function groupRestaurantsByName(restaurants: RestaurantWithRecommendations[]): RestaurantGroup[] {
-  // First pass: exact name grouping
-  const map = new Map<string, RestaurantWithRecommendations[]>();
-  for (const r of restaurants) {
-    const key = r.name.toLowerCase().trim();
-    const group = map.get(key) ?? [];
-    group.push(r);
-    map.set(key, group);
-  }
-
-  // Second pass: merge groups with shared website or prefix-name match
-  let groups = Array.from(map.values());
-  let merged = true;
-  while (merged) {
-    merged = false;
-    const next: RestaurantWithRecommendations[][] = [];
-    const used = new Set<number>();
-    for (let i = 0; i < groups.length; i++) {
-      if (used.has(i)) continue;
-      let combined = groups[i];
-      for (let j = i + 1; j < groups.length; j++) {
-        if (used.has(j)) continue;
-        if (shouldMergeGroups(combined, groups[j])) {
-          combined = [...combined, ...groups[j]];
-          used.add(j);
-          merged = true;
-        }
-      }
-      next.push(combined);
-      used.add(i);
-    }
-    groups = next;
-  }
-
-  return groups
-    .map(buildGroup)
-    .sort((a, b) => b.total_net_votes - a.total_net_votes);
+/**
+ * Find the restaurant group for a single restaurant by querying only candidates
+ * with the same name prefix or shared website — avoids loading all city restaurants.
+ */
+export async function findRestaurantGroup(restaurantId: string, city: string, name: string) {
+  const namePrefix = name.toLowerCase().trim().slice(0, 5);
+  const candidates = await prisma.restaurant.findMany({
+    where: {
+      city: { equals: city, mode: 'insensitive' },
+      name: { contains: namePrefix, mode: 'insensitive' },
+    },
+    include: { recommendations: { orderBy: [{ mention_count: 'desc' }, { scraped_at: 'desc' }] } },
+  });
+  const groups = _groupRestaurantsByName(
+    candidates.map((r) => ({ ...r, total_net_votes: r.upvotes - r.downvotes }))
+  );
+  return groups.find((g) => g.locations.some((l) => l.id === restaurantId)) ?? null;
 }
 
 /**

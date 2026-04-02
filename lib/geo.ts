@@ -1,9 +1,8 @@
 /**
  * IP geolocation using ip-api.com (free, no API key needed).
  * Returns the city name, or null if detection fails.
- * Alias: detect_city (used by GeoDetector.detect_city in the spec)
  */
-export async function detect_city(ip: string): Promise<string | null> {
+export async function detectCityFromIp(ip: string): Promise<string | null> {
   // Skip for localhost / private addresses
   if (
     !ip ||
@@ -36,8 +35,6 @@ export async function detect_city(ip: string): Promise<string | null> {
   }
 }
 
-/** Alias for backward compatibility */
-export const detectCityFromIp = detect_city;
 
 /**
  * Extract client IP from request headers.

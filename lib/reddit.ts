@@ -1,3 +1,5 @@
+import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate';
+
 export interface RedditPost {
   id: string;
   title: string;
@@ -49,8 +51,6 @@ function getSubreddits(city: string): string[] {
   return [slug, `${slug}food`];
 }
 
-import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate';
-
 const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0';
 const CLIENT_ID = process.env.REDDIT_CLIENT_ID;
 const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;
@@ -97,15 +97,11 @@ function buildHeaders(token: string | null): Record<string, string> {
   return headers;
 }
 
-function foodQuery(query: string): string {
-  return query;
-}
-
 async function fetchSubredditPosts(
   subreddit: string,
   query: string
 ): Promise<RedditPost[]> {
-  const encodedQuery = encodeURIComponent(foodQuery(query));
+  const encodedQuery = encodeURIComponent(query);
   const token = await getAccessToken();
   const headers = buildHeaders(token);
 
@@ -138,7 +134,7 @@ async function fetchSubredditPosts(
             created_utc: post.created_utc || 0,
           };
           try {
-            validateRedditPost(redditPost as unknown as Record<string, unknown>);
+            validateRedditPost(redditPost);
             posts.push(redditPost);
           } catch {
             console.warn('Reddit post is missing required fields; cannot extract restaurants.');
@@ -322,7 +318,7 @@ export async function scrapeRedditForRestaurants(
               redditScore: post.score,
             };
             try {
-              validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
+              validateExtractedRestaurant(extracted);
               results.push(extracted);
             } catch {
               console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');
@@ -343,7 +339,7 @@ export async function scrapeRedditForRestaurants(
             redditScore: post.score,
           };
           try {
-            validateExtractedRestaurant(extracted as unknown as Record<string, unknown>);
+            validateExtractedRestaurant(extracted);
             results.push(extracted);
           } catch {
             console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');

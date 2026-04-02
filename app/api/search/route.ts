@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseQuery, searchRestaurants, groupRestaurantsByName } from '@/lib/search';
-import { detect_city, extractIp } from '@/lib/geo';
+import { detectCityFromIp, extractIp } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
 
 const JSON_HEADER = { 'Content-Type': 'application/json' };
 
 function triggerScrape(origin: string, city: string, query: string): void {
+  const headers: Record<string, string> = { ...JSON_HEADER };
+  if (process.env.INTERNAL_API_TOKEN) {
+    headers['x-internal-token'] = process.env.INTERNAL_API_TOKEN;
+  }
   fetch(`${origin}/api/scrape`, {
     method: 'POST',
-    headers: JSON_HEADER,
-    body: JSON.stringify({ city, query }),
+    headers,
+    body: JSON.stringify({ city, q: query }),
   }).catch(() => undefined);
 }
 
@@ -26,7 +30,7 @@ export async function GET(request: NextRequest) {
   const ip = extractIp(request.headers);
 
   // RULE_04: reject if no city can be resolved
-  const resolvedCity = parsed.city ?? await detect_city(ip);
+  const resolvedCity = parsed.city ?? await detectCityFromIp(ip);
 
   if (!resolvedCity) {
     return NextResponse.json(

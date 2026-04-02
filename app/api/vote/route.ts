@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   const voteDirection = direction === 'up' ? VoteDirection.up : VoteDirection.down;
 
-  validateVoteInput({ recommendation_id, fingerprint, direction } as unknown as Record<string, unknown>);
+  validateVoteInput({ recommendation_id, fingerprint, direction });
 
   await prisma.$transaction(async (tx) => {
     await tx.vote.create({

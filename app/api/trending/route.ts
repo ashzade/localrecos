@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { detect_city, extractIp } from '@/lib/geo';
+import { detectCityFromIp, extractIp } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   if (!city) {
     const ip = extractIp(request.headers);
-    city = await detect_city(ip);
+    city = await detectCityFromIp(ip);
   }
 
   if (!city) city = 'Ottawa';

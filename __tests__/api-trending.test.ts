@@ -14,16 +14,16 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/geo', () => ({
-  detect_city: vi.fn(),
+  detectCityFromIp: vi.fn(),
   extractIp: vi.fn().mockReturnValue('1.2.3.4'),
 }));
 
 import { GET } from '@/app/api/trending/route';
 import prisma from '@/lib/db';
-import { detect_city } from '@/lib/geo';
+import { detectCityFromIp } from '@/lib/geo';
 
 const mockFindMany = vi.mocked(prisma.restaurant.findMany);
-const mockDetectCity = vi.mocked(detect_city);
+const mockDetectCity = vi.mocked(detectCityFromIp);
 
 function makeRestaurant(id: string, upvotes: number, downvotes: number, recommendations = 2) {
   return {

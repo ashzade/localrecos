@@ -1,6 +1,9 @@
 /**
  * Runtime validators for in-memory data types.
  * These enforce the field-level constraints defined in manifest.json's dataModel section.
+ *
+ * Interfaces are defined locally (mirroring the source types) to avoid circular imports.
+ * TypeScript structural typing means callers can pass their richer typed objects directly.
  */
 
 export class ValidationError extends Error {
@@ -12,7 +15,13 @@ export class ValidationError extends Error {
 
 // ── ParsedQuery (in-memory) ──────────────────────────────────────────────────
 
-export function validateParsedQuery(obj: Record<string, unknown>): void {
+interface ParsedQuery {
+  city?: string | null;
+  terms?: string | null;
+  raw?: string | null;
+}
+
+export function validateParsedQuery(obj: ParsedQuery): void {
   if (obj.terms === null || obj.terms === undefined) {
     throw new ValidationError("Field 'terms' is required on ParsedQuery (in-memory).");
   }
@@ -29,9 +38,20 @@ export function validateParsedQuery(obj: Record<string, unknown>): void {
 
 // ── RedditPost (in-memory) ───────────────────────────────────────────────────
 
+interface RedditPost {
+  id?: string | null;
+  title?: string | null;
+  selftext?: string | null;
+  url?: string | null;
+  permalink?: string | null;
+  subreddit?: string | null;
+  score?: number | null;
+  created_utc?: number | null;
+}
+
 const REDDIT_POST_STRING_FIELDS = ['id', 'title', 'selftext', 'url', 'permalink', 'subreddit'] as const;
 
-export function validateRedditPost(obj: Record<string, unknown>): void {
+export function validateRedditPost(obj: RedditPost): void {
   for (const field of REDDIT_POST_STRING_FIELDS) {
     if (obj[field] === null || obj[field] === undefined) {
       throw new ValidationError(`Field '${field}' is required on RedditPost (in-memory).`);
@@ -50,7 +70,15 @@ export function validateRedditPost(obj: Record<string, unknown>): void {
 
 // ── ExtractedRestaurant (in-memory) ─────────────────────────────────────────
 
-export function validateExtractedRestaurant(obj: Record<string, unknown>): void {
+interface ExtractedRestaurant {
+  name?: string | null;
+  postUrl?: string | null;
+  summary?: string | null;
+  source?: string | null;
+  redditScore?: number | null;
+}
+
+export function validateExtractedRestaurant(obj: ExtractedRestaurant): void {
   if (obj.name === null || obj.name === undefined) {
     throw new ValidationError("Field 'name' is required on ExtractedRestaurant (in-memory).");
   }
@@ -73,7 +101,18 @@ export function validateExtractedRestaurant(obj: Record<string, unknown>): void 
 
 // ── PlaceDetails (in-memory) ─────────────────────────────────────────────────
 
-export function validatePlaceDetails(obj: Record<string, unknown>): void {
+interface PlaceDetails {
+  name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  hours?: string | null;
+  price_range?: string | null;
+  service_options?: string[] | null;
+  photo_url?: string | null;
+}
+
+export function validatePlaceDetails(obj: PlaceDetails): void {
   if (obj.name === null || obj.name === undefined) {
     throw new ValidationError("Field 'name' is required on PlaceDetails (in-memory).");
   }
@@ -87,7 +126,22 @@ export function validatePlaceDetails(obj: Record<string, unknown>): void {
 
 // ── Restaurant (DB entity — application-layer pre-write guard) ───────────────
 
-export function validateRestaurantInput(obj: Record<string, unknown>): void {
+interface RestaurantInput {
+  name?: string | null;
+  city?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  hours?: string | null;
+  price_range?: string | null;
+  service_options?: string[] | null;
+  status?: string | null;
+  photo_url?: string | null;
+  upvotes?: number | null;
+  downvotes?: number | null;
+}
+
+export function validateRestaurantInput(obj: RestaurantInput): void {
   if (obj.name === null || obj.name === undefined) {
     throw new ValidationError("Field 'name' is required on Restaurant.");
   }
@@ -116,7 +170,18 @@ export function validateRestaurantInput(obj: Record<string, unknown>): void {
 
 // ── CommunityRecommendation (DB entity — application-layer pre-write guard) ──
 
-export function validateCommunityRecommendationInput(obj: Record<string, unknown>): void {
+interface CommunityRecommendationInput {
+  restaurant_id?: string | null;
+  source?: string | null;
+  post_url?: string | null;
+  summary?: string | null;
+  mention_count?: number | null;
+  source_upvotes?: number | null;
+  upvotes?: number | null;
+  downvotes?: number | null;
+}
+
+export function validateCommunityRecommendationInput(obj: CommunityRecommendationInput): void {
   if (obj.restaurant_id === null || obj.restaurant_id === undefined) {
     throw new ValidationError("Field 'restaurant_id' is required on CommunityRecommendation.");
   }
@@ -157,7 +222,13 @@ export function validateCommunityRecommendationInput(obj: Record<string, unknown
 
 // ── RestaurantVote (DB entity — application-layer pre-write guard) ────────────
 
-export function validateRestaurantVoteInput(obj: Record<string, unknown>): void {
+interface RestaurantVoteInput {
+  restaurant_id?: string | null;
+  fingerprint?: string | null;
+  direction?: string | null;
+}
+
+export function validateRestaurantVoteInput(obj: RestaurantVoteInput): void {
   if (obj.restaurant_id === null || obj.restaurant_id === undefined) {
     throw new ValidationError("Field 'restaurant_id' is required on RestaurantVote.");
   }
@@ -177,7 +248,13 @@ export function validateRestaurantVoteInput(obj: Record<string, unknown>): void 
 
 // ── Vote (DB entity — application-layer pre-write guard) ─────────────────────
 
-export function validateVoteInput(obj: Record<string, unknown>): void {
+interface VoteInput {
+  recommendation_id?: string | null;
+  fingerprint?: string | null;
+  direction?: string | null;
+}
+
+export function validateVoteInput(obj: VoteInput): void {
   if (obj.recommendation_id === null || obj.recommendation_id === undefined) {
     throw new ValidationError("Field 'recommendation_id' is required on Vote.");
   }

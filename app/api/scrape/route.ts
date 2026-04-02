@@ -10,6 +10,102 @@ import { assertValidTransition, type ScrapeState } from '@/lib/state-machine';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Fetch Reddit results for city+query, falling back to LLM if Reddit returns nothing.
+ * Advances the state machine through PARSING → FETCHING → (FALLBACK?) → EXTRACTING.
+ */
+async function fetchWithFallback(
+  city: string,
+  query: string,
+  state: ScrapeState,
+  advance: (s: ScrapeState) => void,
+): Promise<{ results: ExtractedRestaurant[]; state: ScrapeState; empty: boolean }> {
+  advance('PARSING');
+  const terms = (await parseQuery(query)).terms;
+
+  advance('FETCHING');
+  let results: ExtractedRestaurant[] = await scrapeRedditForRestaurants(city, query);
+
+  if (results.length === 0) {
+    advance('FALLBACK');
+    const llmRecs = await getRedditRecommendations(query, city, terms);
+    if (llmRecs.length === 0) {
+      advance('FAILED');
+      return { results: [], state: 'FAILED', empty: true };
+    }
+    results = llmRecs.map((r) => ({
+      name: r.name,
+      postUrl: `reddit-llm://${encodeURIComponent(query)}`,
+      summary: r.summary,
+      source: 'reddit-llm',
+      redditScore: 0,
+    }));
+  }
+
+  advance('EXTRACTING');
+  return { results, state, empty: false };
+}
+
+/**
+ * For each confirmed restaurant, upsert it and store any new community picks.
+ * Returns { created, skipped } counts.
+ */
+async function enrichAndUpsert(
+  confirmed: Array<{ rec: ExtractedRestaurant; place: PlaceDetails }>,
+  city: string,
+): Promise<{ created: number; skipped: number }> {
+  let created = 0;
+  let skipped = 0;
+  for (const { rec, place } of confirmed) {
+    validateRestaurantInput({
+      name: place.name ?? rec.name,
+      city,
+      address: place.address ?? null,
+      phone: place.phone ?? null,
+      website: place.website ?? null,
+      hours: place.hours ?? null,
+      price_range: place.price_range ?? null,
+      service_options: place.service_options ?? [],
+      status: RestaurantStatus.UNREVIEWED,
+      photo_url: place.photo_url ?? null,
+      upvotes: 0,
+      downvotes: 0,
+    });
+
+    const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, place);
+    if (wasCreated) created++; else skipped++;
+
+    const picks = await fetchCommunityPicksForRestaurant(city, rec.name);
+    for (const pick of picks) {
+      const existingRec = await prisma.communityRecommendation.findFirst({
+        where: { restaurant_id: restaurant.id, post_url: pick.postUrl },
+      });
+      if (!existingRec) {
+        validateCommunityRecommendationInput({
+          restaurant_id: restaurant.id,
+          source: pick.source,
+          post_url: pick.postUrl,
+          summary: pick.summary,
+          mention_count: 1,
+          source_upvotes: pick.redditScore,
+          upvotes: 0,
+          downvotes: 0,
+        });
+        await prisma.communityRecommendation.create({
+          data: {
+            restaurant_id: restaurant.id,
+            source: pick.source,
+            post_url: pick.postUrl,
+            summary: pick.summary,
+            source_upvotes: pick.redditScore,
+          },
+        });
+      }
+    }
+  }
+  return { created, skipped };
+}
+
 async function upsertRestaurant(city: string, name: string, placeData?: PlaceDetails) {
   const canonicalName = placeData?.name ?? name;
 
@@ -43,14 +139,19 @@ async function upsertRestaurant(city: string, name: string, placeData?: PlaceDet
 }
 
 export async function POST(request: NextRequest) {
-  let body: { city?: string; query?: string };
+  const internalToken = process.env.INTERNAL_API_TOKEN;
+  if (internalToken && request.headers.get('x-internal-token') !== internalToken) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  let body: { city?: string; q?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  let { city, query } = body;
+  let { city, q: query } = body;
 
   // RULE_06: fall back to DEFAULT_CITY if caller omits city
   if (!city) {
@@ -79,56 +180,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    console.log(`[scrape] city=${city} query=${query}`);
-
-    let created = 0;
-    let skipped = 0;
     let state: ScrapeState = 'PENDING';
+    const advance = (next: ScrapeState) => {
+      assertValidTransition(state, next);
+      state = next;
+    };
 
-    // PENDING → PARSING
-    assertValidTransition(state, 'PARSING');
-    state = 'PARSING';
-    const terms = (await parseQuery(query)).terms;
-    console.log(`[scrape] terms=${terms}`);
+    const { results: redditResults, empty } = await fetchWithFallback(city, query, state, advance);
+    if (empty) return NextResponse.json({ success: true, created: 0, skipped: 0 });
 
-    // PARSING → FETCHING
-    assertValidTransition(state, 'FETCHING');
-    state = 'FETCHING';
-
-    // Step 1: Fetch real Reddit posts for this city + query
-    let redditResults: ExtractedRestaurant[] = await scrapeRedditForRestaurants(city, query);
-    console.log(`[scrape] reddit posts=${redditResults.length}`, redditResults.map(r => r.name));
-
-    // Step 2: Fall back to LLM if Reddit returned nothing
-    if (redditResults.length === 0) {
-      // FETCHING → FALLBACK
-      assertValidTransition(state, 'FALLBACK');
-      state = 'FALLBACK';
-      console.log(`[scrape] no reddit results, falling back to LLM`);
-      const llmRecs = await getRedditRecommendations(query, city, terms);
-      if (llmRecs.length === 0) {
-        assertValidTransition(state, 'FAILED');
-        state = 'FAILED';
-        return NextResponse.json({ success: true, created, skipped });
-      }
-      redditResults = llmRecs.map(r => ({
-        name: r.name,
-        postUrl: `reddit-llm://${encodeURIComponent(query)}`,
-        summary: r.summary,
-        source: 'reddit-llm',
-        redditScore: 0,
-      }));
-    }
-
-    // FETCHING/FALLBACK → EXTRACTING
-    assertValidTransition(state, 'EXTRACTING');
-    state = 'EXTRACTING';
-
-    // Step 3: Enrich with Google Places in parallel
+    // Enrich with Google Places in parallel (EXTRACTING → VALIDATING)
     // Include terms in the query so Google Places validates the place serves the right food type
-    // EXTRACTING → VALIDATING
-    assertValidTransition(state, 'VALIDATING');
-    state = 'VALIDATING';
+    const terms = (await parseQuery(query)).terms;
+    advance('VALIDATING');
     const enriched = await Promise.all(
       redditResults.map(async (rec) => {
         const placeQuery = terms ? `${rec.name} ${terms}` : rec.name;
@@ -137,83 +201,16 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const confirmed = enriched.filter(({ place }) => place != null);
+    const confirmed = enriched.filter((e): e is { rec: ExtractedRestaurant; place: PlaceDetails } => e.place != null);
     if (confirmed.length === 0) {
-      assertValidTransition(state, 'FAILED');
-      state = 'FAILED';
-      return NextResponse.json({ success: true, created, skipped });
+      advance('FAILED');
+      return NextResponse.json({ success: true, created: 0, skipped: enriched.length });
     }
 
-    // VALIDATING → ENRICHING
-    assertValidTransition(state, 'ENRICHING');
-    state = 'ENRICHING';
+    advance('ENRICHING');
+    const { created, skipped } = await enrichAndUpsert(confirmed, city);
 
-    // Step 4: Upsert restaurants and fetch community picks specifically about each restaurant
-    // Skip any result Google Places couldn't confirm as a real food venue
-    for (const { rec, place } of enriched) {
-      if (!place) {
-        console.log(`[scrape] skipping "${rec.name}" — not found in Google Places`);
-        skipped++;
-        continue;
-      }
-
-      validateRestaurantInput({
-        name: place.name ?? rec.name,
-        city,
-        address: place.address ?? null,
-        phone: place.phone ?? null,
-        website: place.website ?? null,
-        hours: place.hours ?? null,
-        price_range: place.price_range ?? null,
-        service_options: place.service_options ?? [],
-        status: RestaurantStatus.UNREVIEWED,
-        photo_url: place.photo_url ?? null,
-        upvotes: 0,
-        downvotes: 0,
-      } as unknown as Record<string, unknown>);
-
-      const { restaurant, wasCreated } = await upsertRestaurant(city, rec.name, place);
-      if (wasCreated) created++; else skipped++;
-
-      // Search Reddit specifically for this restaurant and store relevant posts/comments.
-      // Use the original extracted name (rec.name) since that's what Reddit users write,
-      // not the full Google Places canonical name which may include location suffixes.
-      const picks = await fetchCommunityPicksForRestaurant(city, rec.name);
-      console.log(`[scrape] community picks for "${rec.name}": ${picks.length}`);
-
-      for (const pick of picks) {
-        const existingRec = await prisma.communityRecommendation.findFirst({
-          where: { restaurant_id: restaurant.id, post_url: pick.postUrl },
-        });
-        if (!existingRec) {
-          validateCommunityRecommendationInput({
-            restaurant_id: restaurant.id,
-            source: pick.source,
-            post_url: pick.postUrl,
-            summary: pick.summary,
-            mention_count: 1,
-            source_upvotes: pick.redditScore,
-            upvotes: 0,
-            downvotes: 0,
-          } as unknown as Record<string, unknown>);
-
-          await prisma.communityRecommendation.create({
-            data: {
-              restaurant_id: restaurant.id,
-              source: pick.source,
-              post_url: pick.postUrl,
-              summary: pick.summary,
-              source_upvotes: pick.redditScore,
-            },
-          });
-        }
-      }
-    }
-
-    // ENRICHING → COMPLETE
-    assertValidTransition(state, 'COMPLETE');
-    state = 'COMPLETE';
-
+    advance('COMPLETE');
     return NextResponse.json({ success: true, created, skipped });
   } catch (error) {
     console.error('Scrape error:', error);

@@ -105,7 +105,6 @@ export async function searchGooglePlaces(
   if (!apiKey || !city.trim()) return [];
 
   const textQuery = `${query} in ${city}`;
-  console.log(`[google-places] textQuery="${textQuery}"`);
 
   try {
     const response = await fetch(`${GOOGLE_PLACES_BASE}/places:searchText`, {
@@ -147,7 +146,7 @@ export async function searchGooglePlaces(
       .map((place: Record<string, unknown>) => buildPlaceDetails(place, apiKey))
       .filter((details) => {
         try {
-          validatePlaceDetails(details as unknown as Record<string, unknown>);
+          validatePlaceDetails(details);
           return true;
         } catch {
           return false;

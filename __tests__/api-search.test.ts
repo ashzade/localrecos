@@ -11,7 +11,7 @@ vi.mock('@/lib/openrouter', () => ({
 }));
 
 vi.mock('@/lib/geo', () => ({
-  detect_city: vi.fn(),
+  detectCityFromIp: vi.fn(),
   extractIp: vi.fn().mockReturnValue('1.2.3.4'),
 }));
 
@@ -27,12 +27,12 @@ vi.stubGlobal('fetch', mockFetch);
 
 import { GET } from '@/app/api/search/route';
 import { parseQuery, searchRestaurants, groupRestaurantsByName } from '@/lib/search';
-import { detect_city } from '@/lib/geo';
+import { detectCityFromIp } from '@/lib/geo';
 
 const mockParseQuery = vi.mocked(parseQuery);
 const mockSearchRestaurants = vi.mocked(searchRestaurants);
 const mockGroupRestaurantsByName = vi.mocked(groupRestaurantsByName);
-const mockDetectCity = vi.mocked(detect_city);
+const mockDetectCity = vi.mocked(detectCityFromIp);
 
 function makeRequest(q?: string): NextRequest {
   const url = q !== undefined

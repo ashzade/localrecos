@@ -4,7 +4,7 @@ import prisma from '@/lib/db';
 import RecommendationCard from '@/components/RecommendationCard';
 import RestaurantFeedbackButton from '@/components/RestaurantFeedbackButton';
 import { isOpenNow } from '@/lib/hours';
-import { groupRestaurantsByName } from '@/lib/search';
+import { findRestaurantGroup } from '@/lib/search';
 
 interface RestaurantPageProps {
   params: { id: string };
@@ -50,17 +50,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
 
   if (!restaurant) notFound();
 
-  // Fetch all restaurants in this city to run the same grouping logic as search results
-  const cityRestaurants = await prisma.restaurant.findMany({
-    where: { city: { equals: restaurant.city, mode: 'insensitive' } },
-    include: { recommendations: true },
-  });
-
-  const cityGroups = groupRestaurantsByName(
-    cityRestaurants.map((r) => ({ ...r, total_net_votes: r.upvotes - r.downvotes }))
-  );
-
-  const myGroup = cityGroups.find((g) => g.locations.some((l) => l.id === params.id));
+  const myGroup = await findRestaurantGroup(params.id, restaurant.city, restaurant.name);
   const allLocations = myGroup?.locations ?? [
     { id: restaurant.id, address: restaurant.address, phone: restaurant.phone, website: restaurant.website, hours: restaurant.hours, upvotes: restaurant.upvotes, downvotes: restaurant.downvotes },
   ];

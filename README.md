@@ -29,16 +29,20 @@ How user input is interpreted, sent to RedditAPI, GooglePlacesAPI, OpenRouterAPI
 ```mermaid
 flowchart TD
     subgraph Sources["📥 Content Sources"]
-        RedditAPI["RedditAPI\nreal community Reddit posts and comments"]
-        GooglePlacesAPI["GooglePlacesAPI\nplace details, hours, and photos"]
-        OpenRouterAPI["OpenRouterAPI\nLLM-powered natural language parsing"]
+        RedditAPI["RedditAPI
+real community Reddit posts a…"]
+        GooglePlacesAPI["GooglePlacesAPI
+place details, hours, and pho…"]
+        OpenRouterAPI["OpenRouterAPI
+LLM-powered natural language …"]
     end
-    Ingest[/"📄 Document\nquery received, scrape not yet triggered"/]
+    Ingest[/"📄 Document
+query received, scrape not ye…"/]
     subgraph Knowledge["🗂️ Structured Knowledge"]
-        ParsedQueryIM[("Parsed Query (in-memory)")]
-        RedditPostIM[("Reddit Post (in-memory)")]
-        ExtractedRestaurantIM[("Extracted Restaurant (in-memory)")]
-        PlaceDetailsIM[("Place Details (in-memory)")]
+        ParsedQuery (in-memory)[("Parsed Query (in-memory)")]
+        RedditPost (in-memory)[("Reddit Post (in-memory)")]
+        ExtractedRestaurant (in-memory)[("Extracted Restaurant (in-memory)")]
+        PlaceDetails (in-memory)[("Place Details (in-memory)")]
         Restaurant[("Restaurant")]
         CommunityRecommendation[("Community Recommendation")]
         RestaurantVote[("Restaurant Vote")]
@@ -47,10 +51,10 @@ flowchart TD
     RedditAPI --> Ingest
     GooglePlacesAPI --> Ingest
     OpenRouterAPI --> Ingest
-    Ingest --> ParsedQueryIM
-    Ingest --> RedditPostIM
-    Ingest --> ExtractedRestaurantIM
-    Ingest --> PlaceDetailsIM
+    Ingest --> ParsedQuery (in-memory)
+    Ingest --> RedditPost (in-memory)
+    Ingest --> ExtractedRestaurant (in-memory)
+    Ingest --> PlaceDetails (in-memory)
     Ingest --> Restaurant
     Ingest --> CommunityRecommendation
     Ingest --> RestaurantVote
@@ -64,7 +68,7 @@ States a parsed query (in-memory) moves through from creation to completion.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING
+    [*] --> COMPLETE
     PENDING --> PARSING: query submitted by user
     PARSING --> FETCHING: city and terms extracted from query
     FETCHING --> EXTRACTING: Reddit posts retrieved and food-filte…

@@ -1,0 +1,171 @@
+{
+  "batch": "design_coherence",
+  "batch_index": 17,
+  "assessments": {
+    "design_coherence": 62.0
+  },
+  "dimension_notes": {
+    "design_coherence": {
+      "evidence": [
+        "app/api/scrape/route.ts: The POST handler is a 180-line function mixing HTTP parsing, state-machine orchestration, Reddit scraping, Google Places enrichment, DB upsert, and community-pick insertion. It has 5 distinct responsibility clusters in a single function body.",
+        "components/LoadMoreButton.tsx: 213-line component mixing data-fetching (fetch call), data transformation (groupByName, shouldMerge, normalizeWebsite), client-side state management, and JSX rendering. groupByName/shouldMerge/normalizeWebsite are duplicated verbatim from lib/search.ts.",
+        "app/restaurant/[id]/page.tsx: mixes DB access (two separate prisma queries), grouping logic (groupRestaurantsByName call), date serialization, and full page rendering. The groupRestaurantsByName call fetches ALL city restaurants just to find the group for one restaurant — a performance design issue embedded in the rendering layer.",
+        "components/TrendingSection.tsx: The useEffect callback is 30+ lines mixing geolocation API, two different fetch paths (geo+IP fallback), and local-storage writes. High cyclomatic complexity (>15 branches) is correctly flagged.",
+        "lib/google-places.ts: searchGooglePlaces mixes API call, type-filtering, validation, and photo-URL resolution (an additional async network call) in one function. The resolvePhotoUrl call inside the main function creates an unexpected network round-trip not visible from the function signature.",
+        "app/api/geo/route.ts: Small file (36 LOC) that is correctly focused — handles coordinate-based and IP-based geo. Flagged as orphaned (Next.js API routes have no static importers) but has a coherent single responsibility. DISMISS orphaned concern.",
+        "app/api/vote/route.ts: The POST handler mixes validation, duplicate-check, DB transaction, and state-transition logic. At 96 LOC this is dense but has a coherent single responsibility (process a recommendation vote). The complexity is inherent to the domain.",
+        "app/api/restaurant-vote/route.ts: Structurally identical to vote/route.ts — same pattern, same shape. The boilerplate duplication signal is valid but the two handlers serve genuinely different entities (restaurant vs recommendation vote).",
+        "components/RestaurantFeedbackButton.tsx and VoteButton.tsx: The `cast` function is duplicated verbatim (optimistic update → fetch → reconcile/revert). The only differences are the API endpoint and storage key prefix. Extraction is warranted.",
+        "prisma/seed.ts: A script, not a module. Used via `npx prisma db seed`. The orphaned signal is a false positive for seed files. The 18x hardcoded URL smell is expected for seed data.",
+        "lib/reddit.ts: isValidRestaurantName, extractRestaurantName, and isPostRelevantToQuery are well-focused single-purpose functions. scrapeRedditForRestaurants coordinates them with clear flow.",
+        "lib/search.ts: groupRestaurantsByName and shouldMergeGroups are cohesive — the merging logic is complex but belongs together."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "design_coherence": {
+      "dimension_character": "The lib layer is mostly well-structured with focused functions, but the API route handlers and components show a recurring pattern of mixing too many responsibilities in single functions. The scrape route is the clearest violation: it is a 180-line orchestration function with no sub-function extraction. LoadMoreButton duplicates the grouping algorithm from lib/search.ts rather than calling it server-side, creating a design split where the same logic runs in two different environments. The VoteButton/RestaurantFeedbackButton duplication is the most actionable design defect — nearly identical components differing only by API endpoint and storage key.",
+      "score_rationale": "Score of 62 reflects that roughly half the codebase follows good design practices (lib functions are focused, state-machine and validate modules are clean) while the high-signal files (scrape route, LoadMoreButton, TrendingSection useEffect) have genuine multi-responsibility problems that would confuse a new developer. The duplicated grouping algorithm between LoadMoreButton and lib/search.ts is a significant design coherence failure — the same structural logic lives in two places with different implementations, which is exactly the kind of pattern the dimension targets."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "design_coherence",
+      "identifier": "scrape_route_monolith",
+      "summary": "scrape/route.ts POST handler is a 180-line function with 5 distinct responsibility clusters",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "Single POST function mixes: HTTP body parsing, state-machine orchestration, Reddit scraping coordination, Google Places enrichment loop, restaurant upsert loop, community-pick insertion loop.",
+        "The enrichment and upsert sections (lines 130-210) are each 30-40 lines of sequential DB operations that could be extracted to named helper functions.",
+        "Monster function signal confirmed: smells detector flagged 1x Monster function (>150 LOC) and 2x High cyclomatic complexity (>15 branches)."
+      ],
+      "suggestion": "Extract `enrichAndUpsertResults(enriched, city)` to handle the upsert+community-picks loop, and `runFetchAndFallback(city, query, terms)` to handle the Reddit→LLM fallback logic. The POST handler should read as pure orchestration of named steps.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "orchestration_monolith",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "ddf8529afa7d4684"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "loadmore_grouping_duplication",
+      "summary": "LoadMoreButton re-implements groupByName/shouldMerge/normalizeWebsite already in lib/search.ts",
+      "related_files": ["components/LoadMoreButton.tsx", "lib/search.ts"],
+      "evidence": [
+        "LoadMoreButton.tsx lines 57-145 contain normalizeWebsite, shouldMerge, and groupByName — all functionally identical to lib/search.ts normalizeWebsite, shouldMergeGroups, groupRestaurantsByName.",
+        "The client-side implementations differ subtly: normalizeWebsite in LoadMoreButton strips trailing slash but doesn't strip path; lib/search.ts strips only the hostname. These divergences will produce different grouping results.",
+        "Confirmed by boilerplate_duplication signal and structural signal (large file: mixed jsx_rendering, data_fetching, data_transforms)."
+      ],
+      "suggestion": "Move the grouping logic to a shared utility (e.g. lib/group.ts) that can be imported by both the server-side search.ts and the client component. Alternatively, make the /api/search-more endpoint return pre-grouped results, eliminating the need for client-side grouping entirely.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "duplication_across_environments",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "c1b0086c4daaa17a"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "vote_button_duplication",
+      "summary": "VoteButton and RestaurantFeedbackButton share identical cast() logic duplicated verbatim",
+      "related_files": ["components/VoteButton.tsx", "components/RestaurantFeedbackButton.tsx"],
+      "evidence": [
+        "Both components implement the same optimistic-update pattern: increment state → fetch → reconcile from server response or revert on error.",
+        "The cast() function body is >20 lines and differs only in the API endpoint string (/api/vote vs /api/restaurant-vote) and storage key prefix.",
+        "boilerplate_duplication signal: 'Boilerplate block repeated across 2 files (window 10 lines): components/RestaurantFeedbackButton.tsx:37, components/VoteButton.tsx:38' (fingerprint: 616191946bfa168e)."
+      ],
+      "suggestion": "Extract a useOptimisticVote(apiEndpoint, storageKeyPrefix, initialUpvotes, initialDownvotes) hook that owns the cast logic. Both components become thin wrappers that differ only in their rendered UI (RestaurantFeedbackButton shows 'Helpful?' label; VoteButton shows numeric counts).",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "component_duplication",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "616191946bfa168e"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "trending_useeffect_complexity",
+      "summary": "TrendingSection useEffect mixes geolocation, IP fallback, and localStorage in one 30-line callback",
+      "related_files": ["components/TrendingSection.tsx"],
+      "evidence": [
+        "The useEffect callback contains: geolocation.getCurrentPosition branch, IP-fallback fetch branch, localStorage read, and data-fetching — all interleaved.",
+        "High cyclomatic complexity signal confirmed (>15 branches).",
+        "fetchIpFallback is a nested function inside the effect — it could be extracted to the component scope for clarity."
+      ],
+      "suggestion": "Extract a `useCityDetection()` hook that returns the resolved city string. TrendingSection useEffect then has one responsibility: fetch trending data for the resolved city.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "5a6bab2a47d60169"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "restaurant_page_full_city_load",
+      "summary": "Restaurant detail page fetches all city restaurants to compute grouping for a single restaurant",
+      "related_files": ["app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "Lines 54-63: `prisma.restaurant.findMany({ where: { city: ... } })` fetches the entire city dataset, then runs groupRestaurantsByName on all of it, just to find the group that contains `params.id`.",
+        "For a city with 500 restaurants this is an unbounded full-table scan on every page load.",
+        "The design mixes a data-access concern (find my group) with a rendering concern in the page component."
+      ],
+      "suggestion": "Add a `findRestaurantGroup(restaurantId, city)` function in lib/search.ts that queries only restaurants with matching name prefix or shared website, or store group membership explicitly. The page component should call a focused API rather than loading all city data.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "c1f1352f2a1de81c"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Grouping algorithm was developed server-side in lib/search.ts but copied into the client component when load-more pagination was added, rather than moving it to a shared boundary",
+      "Vote handling pattern was implemented twice for two entity types without extracting a shared hook",
+      "Scrape route grew organically as new steps were added to the pipeline without extracting sub-functions"
+    ],
+    "likely_symptoms": ["scrape_route_monolith", "loadmore_grouping_duplication", "vote_button_duplication"],
+    "possible_false_positives": [
+      "Orphaned signals for Next.js API routes and page components are false positives — these are entry points consumed by the Next.js router, not by import statements"
+    ]
+  },
+  "context_updates": {
+    "design_coherence": {
+      "add": [
+        {
+          "header": "Next.js API routes flagged orphaned by static import analysis",
+          "description": "All app/api/* route files and app/*/page.tsx files have zero static importers because Next.js discovers them via filesystem routing. The orphaned detector cannot distinguish these entry points from genuinely dead code.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "prisma/seed.ts is a CLI script, not an importable module",
+          "description": "seed.ts is invoked via `npx prisma db seed` and correctly has no importers. The orphaned and test_coverage signals are false positives. The hardcoded URLs are expected seed data.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Grouping algorithm duplicated between server and client",
+          "description": "groupRestaurantsByName in lib/search.ts and groupByName in components/LoadMoreButton.tsx implement the same merging logic with subtly different normalizeWebsite implementations. This creates a correctness risk where server and client produce different grouping results for the same data.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Vote component optimistic-update pattern duplicated verbatim",
+          "description": "VoteButton and RestaurantFeedbackButton share identical cast() logic. The duplication is not intentional variation — both implement the same fetch-then-reconcile pattern differing only by endpoint URL and storage key.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "lib layer functions are well-focused",
+          "description": "lib/validate.ts, lib/state-machine.ts, lib/fingerprint.ts, lib/rules.ts, and lib/geo.ts are all focused single-responsibility modules with no mixing of concerns. This is a positive pattern worth preserving.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

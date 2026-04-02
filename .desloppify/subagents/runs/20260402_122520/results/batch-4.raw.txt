@@ -1,0 +1,120 @@
+{
+  "batch": "error_consistency",
+  "batch_index": 4,
+  "assessments": {
+    "error_consistency": 68.0
+  },
+  "dimension_notes": {
+    "error_consistency": {
+      "evidence": [
+        "lib/ error strategy is mixed: validate.ts and state-machine.ts throw typed errors (ValidationError, InvalidTransitionError); geo.ts, hours.ts, google-places.ts return null; openrouter.ts uses try/catch and returns fallback values; reddit.ts is mixed (returns [] on failures, but warns on skipped posts via console.warn without propagation)",
+        "app/api/ routes all use try/catch and return NextResponse.json error objects — consistent within the HTTP layer",
+        "components/ error strategy: returns_null for RestaurantCard/PersistCity, mixed for LoadMoreButton/SearchPoller/VoteButton/RestaurantFeedbackButton",
+        "Critical pattern: lib/reddit.ts scrapeRedditForRestaurants and fetchCommunityPicksForRestaurant swallow individual restaurant extraction failures with console.warn (lines 327, 348 approx) without propagating — errors in the core scrape data path are silently skipped",
+        "lib/openrouter.ts getRedditRecommendations catch block returns [] silently after logging — callers cannot distinguish 'no results found' from 'API call failed'",
+        "app/api/vote/route.ts calls tryTransitionToVerified OUTSIDE the transaction (line 83) — if the state transition fails it throws uncaught, but the vote has already been committed. The outer try/catch at line 60 would return a 500 error even though the vote succeeded.",
+        "lib/google-places.ts validatePlaceDetails is called in a filter with a try/catch that silently drops failed places — validation errors are not surfaced",
+        "components/LoadMoreButton.tsx loadMore() has a try/finally but no catch — if fetch fails, setLoading(false) runs but the error is unhandled (no user feedback, no revert)",
+        "components/RestaurantFeedbackButton.tsx and VoteButton.tsx both revert optimistic updates on error — consistent error recovery pattern within sibling vote components",
+        "lib/rules.ts tryTransitionToVerified: if checkRule01 throws (DB error), the error propagates uncaught to the caller — but callers (vote routes) do not catch this separately from other errors"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "error_consistency": {
+      "dimension_character": "The HTTP boundary (app/api/) has consistent try/catch + JSON error response handling. The domain layer (lib/) has genuinely mixed strategies: some modules throw typed errors, others return null, and several silently swallow errors after logging — making it impossible to predict from the call site whether a failure will propagate or be absorbed. The most consequential inconsistency is in the vote flow, where tryTransitionToVerified is called outside a transaction and its failure would return a 500 even though the underlying vote write already committed.",
+      "score_rationale": "The 68 reflects that a developer writing against these lib/ functions cannot rely on the error contract — they must read each implementation to know whether a failure will throw, return null, or disappear into a console.warn. The vote/transition sequencing bug is a concrete behavioral problem, not just a style inconsistency. This places the codebase in the 60-70 range: error behavior is not catastrophically opaque, but it is unreliable enough that a developer must read each module to understand failure modes."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_transition_outside_transaction",
+      "summary": "tryTransitionToVerified is called after the transaction completes in vote routes; a transition failure returns 500 even though the vote was committed",
+      "related_files": ["app/api/vote/route.ts", "app/api/restaurant-vote/route.ts", "lib/rules.ts"],
+      "evidence": [
+        "app/api/vote/route.ts: prisma.$transaction (lines 60-80) commits the vote and recommendation update; tryTransitionToVerified (line 83) is called after the transaction closes",
+        "app/api/restaurant-vote/route.ts: same pattern — transaction on lines 60-80, tryTransitionToVerified on line 83",
+        "lib/rules.ts tryTransitionToVerified does a prisma.restaurant.findUnique and prisma.restaurant.update — if either throws (DB transient error), the error propagates to the route handler's outer try/catch which returns 500",
+        "The vote has already been durably written; returning 500 misleads the client into believing the vote failed and causes it to revert the optimistic update incorrectly"
+      ],
+      "suggestion": "Wrap the tryTransitionToVerified call in its own try/catch in each route handler, and swallow or log the error without returning a non-2xx status. The transition is a best-effort side effect — the vote is the primary outcome. Example: `try { await tryTransitionToVerified(id); } catch (e) { console.error('transition failed', e); }` placed after the transaction.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "side_effect_error_boundary"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_openrouter_silent_failure",
+      "summary": "lib/openrouter.ts getRedditRecommendations returns [] on API failure, making no-results and failure indistinguishable to callers",
+      "related_files": ["lib/openrouter.ts", "app/api/scrape/route.ts"],
+      "evidence": [
+        "lib/openrouter.ts getRedditRecommendations: catch block at line 136 logs and returns []",
+        "app/api/scrape/route.ts line 108: `const llmRecs = await getRedditRecommendations(...)` — if the call returns [] due to a network error vs. genuinely no recommendations, the route treats both as 'nothing found' and transitions to FAILED state",
+        "A transient API outage causes the scrape to report FAILED rather than a retriable error"
+      ],
+      "suggestion": "Have getRedditRecommendations throw on non-retriable failures (non-200 status) and return [] only for the success-but-empty case. Alternatively, return a discriminated result type like `{ ok: true; results: RedditRecommendation[] } | { ok: false; reason: string }` so callers can distinguish the failure mode. The scrape route could then surface a retriable error rather than silently failing.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "silent_null_return"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_loadmore_unhandled_fetch_error",
+      "summary": "LoadMoreButton.tsx loadMore() has no catch clause; a fetch failure produces no user feedback and leaves hasMore in an inconsistent state",
+      "related_files": ["components/LoadMoreButton.tsx"],
+      "evidence": [
+        "components/LoadMoreButton.tsx loadMore() (lines 165-190): try/finally with no catch block",
+        "If fetch() throws (network error) or res.json() throws, the finally block runs setLoading(false) but setHasMore, setGroups, setOffset are not updated — the component shows the 'More' button with no indication of failure",
+        "Sibling pattern in RestaurantFeedbackButton.tsx has a catch block that reverts the optimistic update — the LoadMore case is inconsistent with that pattern"
+      ],
+      "suggestion": "Add a catch block to loadMore() that sets an error state or at minimum sets setHasMore(false) to prevent infinite retry attempts. A minimal fix: `catch { setHasMore(false); }` prevents the spinner getting stuck while keeping the change small.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "silent_null_return"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The lib/ layer has no documented error contract — each module author chose independently between throw, return null, and swallow+log",
+      "The tryTransitionToVerified side-effect was added as an afterthought after the transaction pattern was already established, and was placed outside the transaction without considering the failure implications"
+    ],
+    "likely_symptoms": [
+      "ec_openrouter_silent_failure — the scrape FAILED state on transient API errors is a symptom of the no-results-vs-error conflation",
+      "ec_loadmore_unhandled_fetch_error — the missing catch is a local symptom of the broader mixed error strategy"
+    ],
+    "possible_false_positives": [
+      "lib/geo.ts returning null on all failures is intentional — geolocation is best-effort and null signals 'unknown city' cleanly to callers"
+    ]
+  },
+  "context_updates": {
+    "error_consistency": {
+      "add": [
+        {
+          "header": "HTTP layer has consistent try/catch + JSON error pattern",
+          "description": "All app/api/ route handlers use try/catch and return NextResponse.json with error fields and appropriate status codes. This layer is consistent even though the lib/ layer it calls is not.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Vote component siblings have consistent error recovery",
+          "description": "RestaurantFeedbackButton.tsx and VoteButton.tsx both implement optimistic update with catch-based revert. The pattern is consistent within this sibling pair.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "lib/ has no unified error contract across modules",
+          "description": "validate.ts throws, geo.ts returns null, openrouter.ts returns fallback values, reddit.ts silently skips individual failures. Callers must read each implementation to predict failure behavior.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

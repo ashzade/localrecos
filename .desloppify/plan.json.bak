@@ -1,0 +1,2262 @@
+{
+  "version": 8,
+  "created": "2026-04-02T12:14:31+00:00",
+  "updated": "2026-04-02T14:46:29+00:00",
+  "queue_order": [
+    "review::.::holistic::abstraction_fitness::search_groupby_unsafe_cast",
+    "review::.::holistic::ai_generated_debt::lib_validate_ts_repeats_identical_null_u",
+    "review::.::holistic::ai_generated_debt::validateextractedrestaurant_is_called_in",
+    "review::.::holistic::api_surface_coherence::get_api_search_and_get_api_search_more",
+    "review::.::holistic::api_surface_coherence::lib_geo_ts_lib_search_ts_and_lib_reddi",
+    "review::.::holistic::authorization_consistency::internal_api_token_check_on_api_scrape",
+    "review::.::holistic::convention_outlier::price_order_constant_defined_identically",
+    "review::.::holistic::cross_module_architecture::ip_extraction_logic_duplicated_between_l",
+    "review::.::holistic::cross_module_architecture::lib_search_ts_re_exports_lib_restaurant",
+    "review::.::holistic::error_consistency::getredditrecommendations_returns_on_a",
+    "review::.::holistic::error_consistency::validateredditpost_and_validateextracted",
+    "review::.::holistic::high_level_elegance::scrape_route_acts_as_both_http_handler_a",
+    "review::.::holistic::initialization_coupling::reddit_module_scope_env_reads",
+    "review::.::holistic::low_level_elegance::validate_inconsistent_loop_vs_manual",
+    "review::.::holistic::mid_level_elegance::fetchwithfallback_advance_callback_mutation",
+    "review::.::holistic::naming_quality::lib_rules_ts_functions_named_after_opaqu",
+    "review::.::holistic::naming_quality::searchpoller_tsx_is_named_as_a_passive_p",
+    "review::.::holistic::package_organization::lib_is_flat_with_12_files_spanning_thre",
+    "review::.::holistic::test_strategy::rules_db_logic_never_exercised",
+    "review::.::holistic::abstraction_fitness::state_machine_dead_private_functions",
+    "review::.::holistic::contract_coherence::validate_direction_redundant_call",
+    "review::.::holistic::contract_coherence::validate_interfaces_weaker_than_runtime",
+    "review::.::holistic::convention_outlier::status_badge_display_map_uses_different",
+    "review::.::holistic::cross_module_architecture::parsequery_called_twice_per_scrape_trigg",
+    "review::.::holistic::design_coherence::restaurant_card_duplicated_maps_url",
+    "review::.::holistic::design_coherence::state_machine_dead_private_functions",
+    "review::.::holistic::error_consistency::loadmorebutton_loadmore_sets_hasmore_f",
+    "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_w",
+    "review::.::holistic::high_level_elegance::scrape_triggered_both_server_side_in_api",
+    "review::.::holistic::initialization_coupling::reddit_mutable_token_cache",
+    "review::.::holistic::logic_clarity::count_search_results_redundant_async",
+    "review::.::holistic::logic_clarity::fetch_with_fallback_dead_state_param",
+    "review::.::holistic::low_level_elegance::reddit_duplicate_validate_trycatch",
+    "review::.::holistic::mid_level_elegance::search_scrape_no_deduplication",
+    "review::.::holistic::test_strategy::scrape_route_no_coverage",
+    "review::.::holistic::type_safety::restaurant_status_type_divergence",
+    "review::.::holistic::type_safety::validate_interfaces_optionality_mismatch"
+  ],
+  "deferred": [],
+  "skipped": {
+    "review::.::holistic::authorization_consistency::unauthenticated_vote_endpoints": {
+      "issue_id": "review::.::holistic::authorization_consistency::unauthenticated_vote_endpoints",
+      "kind": "permanent",
+      "reason": null,
+      "note": "Intentional product decision: votes are anonymous, deduplication is enforced via fingerprinting (RULE_03 / RULE_05). Adding session auth would require user accounts, which is out of scope. Rate limiting is deferred to the hosting layer (Vercel).",
+      "attestation": "I have actually reviewed the vote routes (app/api/vote/route.ts and app/api/restaurant-vote/route.ts) and I am not gaming the score by resolving without fixing. The fingerprint-based dedup is the intended anti-spam mechanism for an anonymous voting system.",
+      "created_at": "2026-04-02T12:48:22+00:00",
+      "review_after": null,
+      "skipped_at_scan": 5
+    }
+  },
+  "active_cluster": null,
+  "overrides": {
+    "logs::app/api/scrape/route.ts::scrape": {
+      "issue_id": "logs::app/api/scrape/route.ts::scrape",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/logs",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "logs::lib/google-places.ts::google-places": {
+      "issue_id": "logs::lib/google-places.ts::google-places",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/logs",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "logs::lib/openrouter.ts::openrouter": {
+      "issue_id": "logs::lib/openrouter.ts::openrouter",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/logs",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/SortBar.tsx::untested_module": {
+      "issue_id": "test_coverage::components/SortBar.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/scrape/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/scrape/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/rules.ts::untested_module": {
+      "issue_id": "test_coverage::lib/rules.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::prisma/seed.ts::untested_module": {
+      "issue_id": "test_coverage::prisma/seed.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/search-more/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/search-more/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/geo/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/geo/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/trending/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/trending/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/page.tsx::untested_module": {
+      "issue_id": "test_coverage::app/page.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/layout.tsx::untested_module": {
+      "issue_id": "test_coverage::app/layout.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/RestaurantFeedbackButton.tsx::untested_module": {
+      "issue_id": "test_coverage::components/RestaurantFeedbackButton.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/search/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/search/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/restaurant-vote/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/restaurant-vote/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/RestaurantCard.tsx::untested_module": {
+      "issue_id": "test_coverage::components/RestaurantCard.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/VoteButton.tsx::untested_module": {
+      "issue_id": "test_coverage::components/VoteButton.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/SearchPoller.tsx::untested_module": {
+      "issue_id": "test_coverage::components/SearchPoller.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/api/vote/route.ts::untested_module": {
+      "issue_id": "test_coverage::app/api/vote/route.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/restaurant/[id]/page.tsx::untested_module": {
+      "issue_id": "test_coverage::app/restaurant/[id]/page.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/RecommendationCard.tsx::untested_module": {
+      "issue_id": "test_coverage::components/RecommendationCard.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::app/search/page.tsx::untested_module": {
+      "issue_id": "test_coverage::app/search/page.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/CategoryPills.tsx::untested_module": {
+      "issue_id": "test_coverage::components/CategoryPills.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/SearchBar.tsx::untested_module": {
+      "issue_id": "test_coverage::components/SearchBar.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/LoadMoreButton.tsx::untested_module": {
+      "issue_id": "test_coverage::components/LoadMoreButton.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/PersistCity.tsx::untested_module": {
+      "issue_id": "test_coverage::components/PersistCity.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::components/TrendingSection.tsx::untested_module": {
+      "issue_id": "test_coverage::components/TrendingSection.tsx::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/hours.ts::untested_module": {
+      "issue_id": "test_coverage::lib/hours.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/reddit.ts::untested_module": {
+      "issue_id": "test_coverage::lib/reddit.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/geo.ts::untested_module": {
+      "issue_id": "test_coverage::lib/geo.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/fingerprint.ts::untested_module": {
+      "issue_id": "test_coverage::lib/fingerprint.ts::untested_module",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-untested_module",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/db.ts::transitive_only": {
+      "issue_id": "test_coverage::lib/db.ts::transitive_only",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-transitive_only",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/openrouter.ts::transitive_only": {
+      "issue_id": "test_coverage::lib/openrouter.ts::transitive_only",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-transitive_only",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/state-machine.ts::shallow::state-machine.test.ts": {
+      "issue_id": "test_coverage::lib/state-machine.ts::shallow::state-machine.test.ts",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-shallow_tests",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "test_coverage::lib/google-places.ts::shallow::state-machine.test.ts": {
+      "issue_id": "test_coverage::lib/google-places.ts::shallow::state-machine.test.ts",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/test_coverage-shallow_tests",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::abstraction_fitness": {
+      "issue_id": "subjective::abstraction_fitness",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::ai_generated_debt": {
+      "issue_id": "subjective::ai_generated_debt",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::api_surface_coherence": {
+      "issue_id": "subjective::api_surface_coherence",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::authorization_consistency": {
+      "issue_id": "subjective::authorization_consistency",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::contract_coherence": {
+      "issue_id": "subjective::contract_coherence",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::convention_outlier": {
+      "issue_id": "subjective::convention_outlier",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::cross_module_architecture": {
+      "issue_id": "subjective::cross_module_architecture",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::dependency_health": {
+      "issue_id": "subjective::dependency_health",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::design_coherence": {
+      "issue_id": "subjective::design_coherence",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::error_consistency": {
+      "issue_id": "subjective::error_consistency",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::high_level_elegance": {
+      "issue_id": "subjective::high_level_elegance",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::incomplete_migration": {
+      "issue_id": "subjective::incomplete_migration",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::initialization_coupling": {
+      "issue_id": "subjective::initialization_coupling",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::logic_clarity": {
+      "issue_id": "subjective::logic_clarity",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::low_level_elegance": {
+      "issue_id": "subjective::low_level_elegance",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::mid_level_elegance": {
+      "issue_id": "subjective::mid_level_elegance",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::naming_quality": {
+      "issue_id": "subjective::naming_quality",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::package_organization": {
+      "issue_id": "subjective::package_organization",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::test_strategy": {
+      "issue_id": "subjective::test_strategy",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    },
+    "subjective::type_safety": {
+      "issue_id": "subjective::type_safety",
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "cluster": "auto/initial-review",
+      "updated_at": "2026-04-02T12:14:31+00:00"
+    }
+  },
+  "clusters": {
+    "auto/logs": {
+      "name": "auto/logs",
+      "description": "Remove 3 logs issues",
+      "issue_ids": [
+        "logs::app/api/scrape/route.ts::scrape",
+        "logs::lib/google-places.ts::google-places",
+        "logs::lib/openrouter.ts::openrouter"
+      ],
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "updated_at": "2026-04-02T12:14:31+00:00",
+      "auto": true,
+      "cluster_key": "auto::logs",
+      "action": "desloppify autofix debug-logs --dry-run",
+      "execution_status": "active",
+      "user_modified": false,
+      "action_type": "auto_fix",
+      "execution_policy": "ephemeral_autopromote"
+    },
+    "auto/test_coverage-untested_module": {
+      "name": "auto/test_coverage-untested_module",
+      "description": "Fix 28 test coverage issues",
+      "issue_ids": [
+        "test_coverage::components/SortBar.tsx::untested_module",
+        "test_coverage::app/api/scrape/route.ts::untested_module",
+        "test_coverage::lib/rules.ts::untested_module",
+        "test_coverage::prisma/seed.ts::untested_module",
+        "test_coverage::app/api/search-more/route.ts::untested_module",
+        "test_coverage::app/api/geo/route.ts::untested_module",
+        "test_coverage::app/api/trending/route.ts::untested_module",
+        "test_coverage::app/page.tsx::untested_module",
+        "test_coverage::app/layout.tsx::untested_module",
+        "test_coverage::components/RestaurantFeedbackButton.tsx::untested_module",
+        "test_coverage::app/api/search/route.ts::untested_module",
+        "test_coverage::app/api/restaurant-vote/route.ts::untested_module",
+        "test_coverage::components/RestaurantCard.tsx::untested_module",
+        "test_coverage::components/VoteButton.tsx::untested_module",
+        "test_coverage::components/SearchPoller.tsx::untested_module",
+        "test_coverage::app/api/vote/route.ts::untested_module",
+        "test_coverage::app/restaurant/[id]/page.tsx::untested_module",
+        "test_coverage::components/RecommendationCard.tsx::untested_module",
+        "test_coverage::app/search/page.tsx::untested_module",
+        "test_coverage::components/CategoryPills.tsx::untested_module",
+        "test_coverage::components/SearchBar.tsx::untested_module",
+        "test_coverage::components/LoadMoreButton.tsx::untested_module",
+        "test_coverage::components/PersistCity.tsx::untested_module",
+        "test_coverage::components/TrendingSection.tsx::untested_module",
+        "test_coverage::lib/hours.ts::untested_module",
+        "test_coverage::lib/reddit.ts::untested_module",
+        "test_coverage::lib/geo.ts::untested_module",
+        "test_coverage::lib/fingerprint.ts::untested_module"
+      ],
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "updated_at": "2026-04-02T12:14:31+00:00",
+      "auto": true,
+      "cluster_key": "detector::test_coverage::untested_module",
+      "action": "review test coverage gaps",
+      "execution_status": "review",
+      "user_modified": false,
+      "action_type": "refactor",
+      "execution_policy": "planned_only"
+    },
+    "auto/test_coverage-transitive_only": {
+      "name": "auto/test_coverage-transitive_only",
+      "description": "Fix 2 test coverage issues",
+      "issue_ids": [
+        "test_coverage::lib/db.ts::transitive_only",
+        "test_coverage::lib/openrouter.ts::transitive_only"
+      ],
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "updated_at": "2026-04-02T12:14:31+00:00",
+      "auto": true,
+      "cluster_key": "detector::test_coverage::transitive_only",
+      "action": "review test coverage gaps",
+      "execution_status": "review",
+      "user_modified": false,
+      "action_type": "refactor",
+      "execution_policy": "planned_only"
+    },
+    "auto/test_coverage-shallow_tests": {
+      "name": "auto/test_coverage-shallow_tests",
+      "description": "Fix 2 test coverage issues",
+      "issue_ids": [
+        "test_coverage::lib/state-machine.ts::shallow::state-machine.test.ts",
+        "test_coverage::lib/google-places.ts::shallow::state-machine.test.ts"
+      ],
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "updated_at": "2026-04-02T12:14:31+00:00",
+      "auto": true,
+      "cluster_key": "detector::test_coverage::shallow_tests",
+      "action": "review test coverage gaps",
+      "execution_status": "review",
+      "user_modified": false,
+      "action_type": "refactor",
+      "execution_policy": "planned_only"
+    },
+    "auto/initial-review": {
+      "name": "auto/initial-review",
+      "description": "Initial review of 20 unscored subjective dimensions",
+      "issue_ids": [
+        "subjective::abstraction_fitness",
+        "subjective::ai_generated_debt",
+        "subjective::api_surface_coherence",
+        "subjective::authorization_consistency",
+        "subjective::contract_coherence",
+        "subjective::convention_outlier",
+        "subjective::cross_module_architecture",
+        "subjective::dependency_health",
+        "subjective::design_coherence",
+        "subjective::error_consistency",
+        "subjective::high_level_elegance",
+        "subjective::incomplete_migration",
+        "subjective::initialization_coupling",
+        "subjective::logic_clarity",
+        "subjective::low_level_elegance",
+        "subjective::mid_level_elegance",
+        "subjective::naming_quality",
+        "subjective::package_organization",
+        "subjective::test_strategy",
+        "subjective::type_safety"
+      ],
+      "created_at": "2026-04-02T12:14:31+00:00",
+      "updated_at": "2026-04-02T12:14:31+00:00",
+      "auto": true,
+      "cluster_key": "subjective::unscored",
+      "action": "desloppify review --prepare --dimensions abstraction_fitness,ai_generated_debt,api_surface_coherence,authorization_consistency,contract_coherence,convention_outlier,cross_module_architecture,dependency_health,design_coherence,error_consistency,high_level_elegance,incomplete_migration,initialization_coupling,logic_clarity,low_level_elegance,mid_level_elegance,naming_quality,package_organization,test_strategy,type_safety",
+      "execution_status": "review",
+      "user_modified": false,
+      "action_type": "manual_fix",
+      "execution_policy": "planned_only"
+    }
+  },
+  "superseded": {},
+  "promoted_ids": [],
+  "plan_start_scores": {
+    "strict": 67.6,
+    "overall": 67.9,
+    "objective": 58.2,
+    "verified": 58.2
+  },
+  "refresh_state": {
+    "_subjective_migration_pruned": true,
+    "lifecycle_phase": "execute",
+    "subjective_review_completed_at_scan_count": 14,
+    "postflight_scan_completed_at_scan_count": 13
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-04-02T12:14:31+00:00",
+      "action": "sync_subjective",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "changes": true
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:14:31+00:00",
+      "action": "auto_cluster",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "changes": true
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:14:31+00:00",
+      "action": "sync_lifecycle_phase",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "phase": "review_initial"
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:14:31+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:20:37+00:00",
+      "action": "sync_lifecycle_phase",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "phase": "execute"
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:20:37+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:33:10+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::abstraction_fitness::detect_city_dual_alias",
+          "review::.::holistic::abstraction_fitness::food_query_identity_function",
+          "review::.::holistic::abstraction_fitness::loadmore_duplicated_grouping",
+          "review::.::holistic::abstraction_fitness::validate_type_erasure",
+          "review::.::holistic::ai_generated_debt::debug_logs_in_scrape_flow",
+          "review::.::holistic::ai_generated_debt::duplicated_grouping_logic",
+          "review::.::holistic::ai_generated_debt::foodquery_noop_wrapper",
+          "review::.::holistic::api_surface_coherence::api_param_naming_inconsistency",
+          "review::.::holistic::api_surface_coherence::geo_dual_name_export",
+          "review::.::holistic::authorization_consistency::unauthenticated_scrape_endpoint",
+          "review::.::holistic::authorization_consistency::unauthenticated_vote_endpoints",
+          "review::.::holistic::contract_coherence::detect_city_alias_confusion",
+          "review::.::holistic::contract_coherence::foodquery_noop",
+          "review::.::holistic::contract_coherence::openrouter_stale_model_doc",
+          "review::.::holistic::convention_outlier::co_detect_city_snake_case",
+          "review::.::holistic::convention_outlier::co_reddit_mid_file_import",
+          "review::.::holistic::convention_outlier::co_votebuttton_dead_sibling",
+          "review::.::holistic::cross_module_architecture::cma_geo_alias_boundary_split",
+          "review::.::holistic::cross_module_architecture::cma_grouping_duplication",
+          "review::.::holistic::dependency_health::prisma_client_in_devdeps",
+          "review::.::holistic::design_coherence::loadmore_grouping_duplication",
+          "review::.::holistic::design_coherence::restaurant_page_full_city_load",
+          "review::.::holistic::design_coherence::scrape_route_monolith",
+          "review::.::holistic::design_coherence::trending_useeffect_complexity",
+          "review::.::holistic::design_coherence::vote_button_duplication",
+          "review::.::holistic::error_consistency::ec_loadmore_unhandled_fetch_error",
+          "review::.::holistic::error_consistency::ec_openrouter_silent_failure",
+          "review::.::holistic::error_consistency::ec_transition_outside_transaction",
+          "review::.::holistic::high_level_elegance::hle_scrape_route_orchestration",
+          "review::.::holistic::high_level_elegance::hle_status_badge_fragmentation",
+          "review::.::holistic::incomplete_migration::geo_snake_case_alias_not_retired",
+          "review::.::holistic::initialization_coupling::reddit_env_snapshot",
+          "review::.::holistic::logic_clarity::identity_function_foodquery",
+          "review::.::holistic::logic_clarity::redundant_nullish_coalesce_typed_props",
+          "review::.::holistic::logic_clarity::restaurant_page_redundant_nullish",
+          "review::.::holistic::low_level_elegance::scrape_handler_monolith",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_guard_style",
+          "review::.::holistic::mid_level_elegance::scrape_trigger_no_deduplication",
+          "review::.::holistic::mid_level_elegance::search_more_returns_ungrouped",
+          "review::.::holistic::naming_quality::nq_foodquery_noop",
+          "review::.::holistic::package_organization::lib_flat_mixed_concerns",
+          "review::.::holistic::test_strategy::hours_parser_untested",
+          "review::.::holistic::test_strategy::openrouter_regex_fallback_untested",
+          "review::.::holistic::test_strategy::reddit_extractor_untested",
+          "review::.::holistic::test_strategy::rules_untested_directly",
+          "review::.::holistic::type_safety::fetch_response_cast_without_guard",
+          "review::.::holistic::type_safety::status_enum_bypass",
+          "review::.::holistic::type_safety::validate_type_erasure"
+        ],
+        "added_to_queue": [
+          "review::.::holistic::abstraction_fitness::detect_city_dual_alias",
+          "review::.::holistic::abstraction_fitness::food_query_identity_function",
+          "review::.::holistic::abstraction_fitness::loadmore_duplicated_grouping",
+          "review::.::holistic::abstraction_fitness::validate_type_erasure",
+          "review::.::holistic::ai_generated_debt::debug_logs_in_scrape_flow",
+          "review::.::holistic::ai_generated_debt::duplicated_grouping_logic",
+          "review::.::holistic::ai_generated_debt::foodquery_noop_wrapper",
+          "review::.::holistic::api_surface_coherence::api_param_naming_inconsistency",
+          "review::.::holistic::api_surface_coherence::geo_dual_name_export",
+          "review::.::holistic::authorization_consistency::unauthenticated_scrape_endpoint",
+          "review::.::holistic::authorization_consistency::unauthenticated_vote_endpoints",
+          "review::.::holistic::contract_coherence::detect_city_alias_confusion",
+          "review::.::holistic::contract_coherence::foodquery_noop",
+          "review::.::holistic::contract_coherence::openrouter_stale_model_doc",
+          "review::.::holistic::convention_outlier::co_detect_city_snake_case",
+          "review::.::holistic::convention_outlier::co_reddit_mid_file_import",
+          "review::.::holistic::convention_outlier::co_votebuttton_dead_sibling",
+          "review::.::holistic::cross_module_architecture::cma_geo_alias_boundary_split",
+          "review::.::holistic::cross_module_architecture::cma_grouping_duplication",
+          "review::.::holistic::dependency_health::prisma_client_in_devdeps",
+          "review::.::holistic::design_coherence::loadmore_grouping_duplication",
+          "review::.::holistic::design_coherence::restaurant_page_full_city_load",
+          "review::.::holistic::design_coherence::scrape_route_monolith",
+          "review::.::holistic::design_coherence::trending_useeffect_complexity",
+          "review::.::holistic::design_coherence::vote_button_duplication",
+          "review::.::holistic::error_consistency::ec_loadmore_unhandled_fetch_error",
+          "review::.::holistic::error_consistency::ec_openrouter_silent_failure",
+          "review::.::holistic::error_consistency::ec_transition_outside_transaction",
+          "review::.::holistic::high_level_elegance::hle_scrape_route_orchestration",
+          "review::.::holistic::high_level_elegance::hle_status_badge_fragmentation",
+          "review::.::holistic::incomplete_migration::geo_snake_case_alias_not_retired",
+          "review::.::holistic::initialization_coupling::reddit_env_snapshot",
+          "review::.::holistic::logic_clarity::identity_function_foodquery",
+          "review::.::holistic::logic_clarity::redundant_nullish_coalesce_typed_props",
+          "review::.::holistic::logic_clarity::restaurant_page_redundant_nullish",
+          "review::.::holistic::low_level_elegance::scrape_handler_monolith",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_guard_style",
+          "review::.::holistic::mid_level_elegance::scrape_trigger_no_deduplication",
+          "review::.::holistic::mid_level_elegance::search_more_returns_ungrouped",
+          "review::.::holistic::naming_quality::nq_foodquery_noop",
+          "review::.::holistic::package_organization::lib_flat_mixed_concerns",
+          "review::.::holistic::test_strategy::hours_parser_untested",
+          "review::.::holistic::test_strategy::openrouter_regex_fallback_untested",
+          "review::.::holistic::test_strategy::reddit_extractor_untested",
+          "review::.::holistic::test_strategy::rules_untested_directly",
+          "review::.::holistic::type_safety::fetch_response_cast_without_guard",
+          "review::.::holistic::type_safety::status_enum_bypass",
+          "review::.::holistic::type_safety::validate_type_erasure"
+        ],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 48,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 20,
+        "stale_pruned_from_queue": [
+          "logs::app/api/scrape/route.ts::scrape",
+          "logs::lib/google-places.ts::google-places",
+          "logs::lib/openrouter.ts::openrouter"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::abstraction_fitness",
+          "subjective::ai_generated_debt",
+          "subjective::api_surface_coherence",
+          "subjective::authorization_consistency",
+          "subjective::contract_coherence",
+          "subjective::convention_outlier",
+          "subjective::cross_module_architecture",
+          "subjective::dependency_health",
+          "subjective::design_coherence",
+          "subjective::error_consistency",
+          "subjective::high_level_elegance",
+          "subjective::incomplete_migration",
+          "subjective::initialization_coupling",
+          "subjective::logic_clarity",
+          "subjective::low_level_elegance",
+          "subjective::mid_level_elegance",
+          "subjective::naming_quality",
+          "subjective::package_organization",
+          "subjective::test_strategy",
+          "subjective::type_safety"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:33:25+00:00",
+      "action": "clear_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:33:25+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 4
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:36:01+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:36:01+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 5
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:38:01+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::detect_city_dual_alias"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Renamed detect_city to detectCityFromIp (idiomatic camelCase), removed the alias export. Updated all callers in search/route.ts, trending/route.ts, and the three test files.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:38:01+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::detect_city_dual_alias"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Renamed detect_city to detectCityFromIp (idiomatic camelCase), removed the alias export. Updated all callers in search/route.ts, trending/route.ts, and the three test files.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Renamed detect_city to detectCityFromIp (idiomatic camelCase), removed the alias export. Updated all callers in search/route.ts, trending/route.ts, and the three test files. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:38:31+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::food_query_identity_function"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed foodQuery identity function. Inlined encodeURIComponent(query) directly at the call site in fetchSubredditPosts.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:38:31+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::food_query_identity_function"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed foodQuery identity function. Inlined encodeURIComponent(query) directly at the call site in fetchSubredditPosts.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Removed foodQuery identity function. Inlined encodeURIComponent(query) directly at the call site in fetchSubredditPosts. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:40:56+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::loadmore_duplicated_grouping"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted shared grouping logic into lib/restaurant-grouping.ts (GroupableRestaurant, RestaurantGroup, RestaurantLocation interfaces + groupRestaurantsByName with optional excludeNames param). lib/search.ts and LoadMoreButton.tsx both import from it. Removed ~100 lines of duplicated code from LoadMoreButton.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:40:56+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::loadmore_duplicated_grouping"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted shared grouping logic into lib/restaurant-grouping.ts (GroupableRestaurant, RestaurantGroup, RestaurantLocation interfaces + groupRestaurantsByName with optional excludeNames param). lib/search.ts and LoadMoreButton.tsx both import from it. Removed ~100 lines of duplicated code from LoadMoreButton.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Extracted shared grouping logic into lib/restaurant-grouping.ts (GroupableRestaurant, RestaurantGroup, RestaurantLocation interfaces + groupRestaurantsByName with optional excludeNames param). lib/search.ts and LoadMoreButton.tsx both import from it. Removed ~100 lines of duplicated code from LoadMoreButton. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:45:03+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::validate_type_erasure"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Changed all validator function signatures from Record<string,unknown> to typed interfaces with optional/nullable fields (ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails, RestaurantInput, etc.). Removed all as-unknown-as-Record casts at 8 call sites. Interfaces are defined locally in validate.ts to avoid circular imports.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:45:03+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::validate_type_erasure"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Changed all validator function signatures from Record<string,unknown> to typed interfaces with optional/nullable fields (ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails, RestaurantInput, etc.). Removed all as-unknown-as-Record casts at 8 call sites. Interfaces are defined locally in validate.ts to avoid circular imports.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Changed all validator function signatures from Record<string,unknown> to typed interfaces with optional/nullable fields (ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails, RestaurantInput, etc.). Removed all as-unknown-as-Record casts at 8 call sites. Interfaces are defined locally in validate.ts to avoid circular imports. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:46:13+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::debug_logs_in_scrape_flow"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed all 8 debug console.log calls: 1 from lib/google-places.ts, 1 from lib/openrouter.ts, 6 from app/api/scrape/route.ts (entry, terms, reddit count, fallback, skipping, community picks).",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:46:13+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::debug_logs_in_scrape_flow"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed all 8 debug console.log calls: 1 from lib/google-places.ts, 1 from lib/openrouter.ts, 6 from app/api/scrape/route.ts (entry, terms, reddit count, fallback, skipping, community picks).",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Removed all 8 debug console.log calls: 1 from lib/google-places.ts, 1 from lib/openrouter.ts, 6 from app/api/scrape/route.ts (entry, terms, reddit count, fallback, skipping, community picks). and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:46:23+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::duplicated_grouping_logic"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: extracted shared logic into lib/restaurant-grouping.ts (groupRestaurantsByName, normalizeWebsite, etc.). Both lib/search.ts and LoadMoreButton.tsx now import from it. No duplicate code remains.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:46:24+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::duplicated_grouping_logic"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: extracted shared logic into lib/restaurant-grouping.ts (groupRestaurantsByName, normalizeWebsite, etc.). Both lib/search.ts and LoadMoreButton.tsx now import from it. No duplicate code remains.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: extracted shared logic into lib/restaurant-grouping.ts (groupRestaurantsByName, normalizeWebsite, etc.). Both lib/search.ts and LoadMoreButton.tsx now import from it. No duplicate code remains. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:46:33+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::foodquery_noop_wrapper"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: removed foodQuery() function from lib/reddit.ts and inlined encodeURIComponent(query) directly at the call site.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:46:33+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::foodquery_noop_wrapper"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: removed foodQuery() function from lib/reddit.ts and inlined encodeURIComponent(query) directly at the call site.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: removed foodQuery() function from lib/reddit.ts and inlined encodeURIComponent(query) directly at the call site. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:47:20+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::api_surface_coherence::api_param_naming_inconsistency"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Renamed 'query' \u2192 'q' in /api/scrape POST body to match the user-facing parameter name used by /api/search. Updated triggerScrape() in search/route.ts to send { city, q } instead of { city, query }. Internal variable name preserved.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:47:20+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::api_surface_coherence::api_param_naming_inconsistency"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Renamed 'query' \u2192 'q' in /api/scrape POST body to match the user-facing parameter name used by /api/search. Updated triggerScrape() in search/route.ts to send { city, q } instead of { city, query }. Internal variable name preserved.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Renamed 'query' \u2192 'q' in /api/scrape POST body to match the user-facing parameter name used by /api/search. Updated triggerScrape() in search/route.ts to send { city, q } instead of { city, query }. Internal variable name preserved. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:47:28+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::api_surface_coherence::geo_dual_name_export"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed detect_city to detectCityFromIp (the canonical name) and removed the alias. All callers updated.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:47:28+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::api_surface_coherence::geo_dual_name_export"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed detect_city to detectCityFromIp (the canonical name) and removed the alias. All callers updated.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: renamed detect_city to detectCityFromIp (the canonical name) and removed the alias. All callers updated. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:48:10+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::authorization_consistency::unauthenticated_scrape_endpoint"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added X-Internal-Token header check to POST /api/scrape: reads INTERNAL_API_TOKEN env var; if set, rejects requests that don't include it as x-internal-token header (403). Updated triggerScrape() in search/route.ts to send the header when the env var is set. Guards are opt-in \u2014 if env var is unset, endpoint behaves as before (suitable for local dev).",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:48:10+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::authorization_consistency::unauthenticated_scrape_endpoint"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added X-Internal-Token header check to POST /api/scrape: reads INTERNAL_API_TOKEN env var; if set, rejects requests that don't include it as x-internal-token header (403). Updated triggerScrape() in search/route.ts to send the header when the env var is set. Guards are opt-in \u2014 if env var is unset, endpoint behaves as before (suitable for local dev).",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Added X-Internal-Token header check to POST /api/scrape: reads INTERNAL_API_TOKEN env var; if set, rejects requests that don't include it as x-internal-token header (403). Updated triggerScrape() in search/route.ts to send the header when the env var is set. Guards are opt-in \u2014 if env var is unset, endpoint behaves as before (suitable for local dev). and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:48:22+00:00",
+      "action": "skip",
+      "issue_ids": [
+        "review::.::holistic::authorization_consistency::unauthenticated_vote_endpoints"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Intentional product decision: votes are anonymous, deduplication is enforced via fingerprinting (RULE_03 / RULE_05). Adding session auth would require user accounts, which is out of scope. Rate limiting is deferred to the hosting layer (Vercel).",
+      "detail": {
+        "kind": "permanent",
+        "reason": null
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:48:30+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::detect_city_alias_confusion"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed the primary function from detect_city to detectCityFromIp and removed the alias entirely. All 3 import sites updated.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:48:30+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::detect_city_alias_confusion"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed the primary function from detect_city to detectCityFromIp and removed the alias entirely. All 3 import sites updated.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: renamed the primary function from detect_city to detectCityFromIp and removed the alias entirely. All 3 import sites updated. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:48:39+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::foodquery_noop"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: removed foodQuery() and inlined encodeURIComponent(query) directly.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:48:39+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::foodquery_noop"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: removed foodQuery() and inlined encodeURIComponent(query) directly.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: removed foodQuery() and inlined encodeURIComponent(query) directly. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:49:15+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::openrouter_stale_model_doc"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Updated JSDoc in lib/openrouter.ts and lib/search.ts: replaced 'using Gemini Flash' with 'using an LLM via OpenRouter' to accurately describe the behavior without hardcoding a model name.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:49:15+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::openrouter_stale_model_doc"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Updated JSDoc in lib/openrouter.ts and lib/search.ts: replaced 'using Gemini Flash' with 'using an LLM via OpenRouter' to accurately describe the behavior without hardcoding a model name.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Updated JSDoc in lib/openrouter.ts and lib/search.ts: replaced 'using Gemini Flash' with 'using an LLM via OpenRouter' to accurately describe the behavior without hardcoding a model name. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:49:24+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::convention_outlier::co_detect_city_snake_case"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed detect_city to detectCityFromIp (camelCase) and removed the alias. No snake_case exports remain in lib/geo.ts.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:49:24+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::convention_outlier::co_detect_city_snake_case"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed detect_city to detectCityFromIp (camelCase) and removed the alias. No snake_case exports remain in lib/geo.ts.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: renamed detect_city to detectCityFromIp (camelCase) and removed the alias. No snake_case exports remain in lib/geo.ts. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:50:08+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::convention_outlier::co_reddit_mid_file_import"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Moved the import statement for validateRedditPost and validateExtractedRestaurant from line 52 (mid-file, after function definitions) to the very top of lib/reddit.ts.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:50:08+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::convention_outlier::co_reddit_mid_file_import"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Moved the import statement for validateRedditPost and validateExtractedRestaurant from line 52 (mid-file, after function definitions) to the very top of lib/reddit.ts.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Moved the import statement for validateRedditPost and validateExtractedRestaurant from line 52 (mid-file, after function definitions) to the very top of lib/reddit.ts. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:50:36+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::convention_outlier::co_votebuttton_dead_sibling"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Deleted components/VoteButton.tsx \u2014 confirmed no importers in the codebase.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:50:37+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::convention_outlier::co_votebuttton_dead_sibling"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Deleted components/VoteButton.tsx \u2014 confirmed no importers in the codebase.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Deleted components/VoteButton.tsx \u2014 confirmed no importers in the codebase. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:50:47+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::cross_module_architecture::cma_geo_alias_boundary_split"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed primary function to detectCityFromIp, removed detect_city alias. All callers updated.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:50:47+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::cross_module_architecture::cma_geo_alias_boundary_split"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: renamed primary function to detectCityFromIp, removed detect_city alias. All callers updated.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: renamed primary function to detectCityFromIp, removed detect_city alias. All callers updated. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:50:56+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::cross_module_architecture::cma_grouping_duplication"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: extracted into lib/restaurant-grouping.ts. Both lib/search.ts and LoadMoreButton.tsx import groupRestaurantsByName from the shared module.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:50:56+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::cross_module_architecture::cma_grouping_duplication"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: extracted into lib/restaurant-grouping.ts. Both lib/search.ts and LoadMoreButton.tsx import groupRestaurantsByName from the shared module.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: extracted into lib/restaurant-grouping.ts. Both lib/search.ts and LoadMoreButton.tsx import groupRestaurantsByName from the shared module. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:51:16+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::dependency_health::prisma_client_in_devdeps"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Moved @prisma/client from devDependencies to dependencies in package.json. The prisma CLI remains in devDependencies (build-time only).",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:51:16+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::dependency_health::prisma_client_in_devdeps"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Moved @prisma/client from devDependencies to dependencies in package.json. The prisma CLI remains in devDependencies (build-time only).",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Moved @prisma/client from devDependencies to dependencies in package.json. The prisma CLI remains in devDependencies (build-time only). and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:51:27+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::loadmore_grouping_duplication"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: extracted into lib/restaurant-grouping.ts. Both lib/search.ts and LoadMoreButton.tsx import groupRestaurantsByName from the shared module.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:51:27+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::loadmore_grouping_duplication"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Already fixed: extracted into lib/restaurant-grouping.ts. Both lib/search.ts and LoadMoreButton.tsx import groupRestaurantsByName from the shared module.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Already fixed: extracted into lib/restaurant-grouping.ts. Both lib/search.ts and LoadMoreButton.tsx import groupRestaurantsByName from the shared module. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:52:33+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::restaurant_page_full_city_load"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added findRestaurantGroup(restaurantId, city, name) to lib/search.ts: queries only restaurants with matching name prefix (5-char contains), groups them, and returns the group for the given ID. Updated app/restaurant/[id]/page.tsx to call this instead of loading all city restaurants.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:52:33+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::restaurant_page_full_city_load"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added findRestaurantGroup(restaurantId, city, name) to lib/search.ts: queries only restaurants with matching name prefix (5-char contains), groups them, and returns the group for the given ID. Updated app/restaurant/[id]/page.tsx to call this instead of loading all city restaurants.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Added findRestaurantGroup(restaurantId, city, name) to lib/search.ts: queries only restaurants with matching name prefix (5-char contains), groups them, and returns the group for the given ID. Updated app/restaurant/[id]/page.tsx to call this instead of loading all city restaurants. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T12:53:36+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::scrape_route_monolith"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted two helper functions from the 180-line POST handler: fetchWithFallback (Reddit\u2192LLM fallback logic with state advances) and enrichAndUpsert (upsert+community-picks loop). POST handler now reads as pure orchestration.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T12:53:36+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::scrape_route_monolith"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted two helper functions from the 180-line POST handler: fetchWithFallback (Reddit\u2192LLM fallback logic with state advances) and enrichAndUpsert (upsert+community-picks loop). POST handler now reads as pure orchestration.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually Extracted two helper functions from the 180-line POST handler: fetchWithFallback (Reddit\u2192LLM fallback logic with state advances) and enrichAndUpsert (upsert+community-picks loop). POST handler now reads as pure orchestration. and I am not gaming the score."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T13:03:23+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::abstraction_fitness::search_grouping_wrapper_unsafe_cast",
+          "review::.::holistic::abstraction_fitness::state_machine_dead_api_surface",
+          "review::.::holistic::ai_generated_debt::stop_words_duplicated",
+          "review::.::holistic::ai_generated_debt::validate_ts_mechanical_repetition",
+          "review::.::holistic::api_surface_coherence::search_vs_search_more_envelope_mismatch",
+          "review::.::holistic::api_surface_coherence::sync_async_mixed_lib_modules",
+          "review::.::holistic::authorization_consistency::geo_route_ip_leak_in_debug",
+          "review::.::holistic::contract_coherence::dual_parsed_query_interface",
+          "review::.::holistic::contract_coherence::extract_ip_unknown_sentinel",
+          "review::.::holistic::contract_coherence::find_restaurant_group_missing_annotation",
+          "review::.::holistic::convention_outlier::co_price_order_duplication",
+          "review::.::holistic::cross_module_architecture::cma_ip_extraction_duplication",
+          "review::.::holistic::cross_module_architecture::cma_search_grouping_shim",
+          "review::.::holistic::design_coherence::price_order_duplication",
+          "review::.::holistic::design_coherence::scrape_double_parse",
+          "review::.::holistic::design_coherence::status_badge_triplication",
+          "review::.::holistic::design_coherence::trending_section_overloaded",
+          "review::.::holistic::error_consistency::ec_loadmore_no_catch",
+          "review::.::holistic::error_consistency::ec_openrouter_silent_empty",
+          "review::.::holistic::error_consistency::ec_reddit_validation_swallowed",
+          "review::.::holistic::error_consistency::ec_try_transition_post_commit",
+          "review::.::holistic::high_level_elegance::hle_double_scrape_trigger",
+          "review::.::holistic::high_level_elegance::hle_scrape_route_orchestrator",
+          "review::.::holistic::high_level_elegance::hle_status_badge_duplication",
+          "review::.::holistic::initialization_coupling::reddit_env_module_scope",
+          "review::.::holistic::initialization_coupling::reddit_mutable_module_singleton",
+          "review::.::holistic::logic_clarity::dead_scrape_finished_ref",
+          "review::.::holistic::logic_clarity::direction_guard_duplicated",
+          "review::.::holistic::logic_clarity::fetch_with_fallback_dead_return_state",
+          "review::.::holistic::low_level_elegance::scrape_route_double_parse",
+          "review::.::holistic::low_level_elegance::search_duplicate_condition_builder",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_iteration",
+          "review::.::holistic::mid_level_elegance::scrape_route_mutable_state_callback",
+          "review::.::holistic::mid_level_elegance::scrape_trigger_no_deduplication",
+          "review::.::holistic::mid_level_elegance::search_more_ungrouped_response",
+          "review::.::holistic::naming_quality::nq_rule_code_names",
+          "review::.::holistic::naming_quality::nq_search_poller_misnomer",
+          "review::.::holistic::package_organization::lib_flat_mixed_concerns",
+          "review::.::holistic::test_strategy::hours_zero_coverage",
+          "review::.::holistic::test_strategy::reddit_extraction_zero_coverage",
+          "review::.::holistic::test_strategy::regex_fallback_zero_coverage",
+          "review::.::holistic::test_strategy::restaurant_grouping_zero_coverage",
+          "review::.::holistic::test_strategy::rules_db_logic_untested",
+          "review::.::holistic::type_safety::restaurant_status_enum_bypass",
+          "review::.::holistic::type_safety::search_grouping_unknown_cast",
+          "review::.::holistic::type_safety::unnecessary_null_guard_prisma_nonnull",
+          "review::.::holistic::type_safety::vote_direction_not_narrowed"
+        ],
+        "added_to_queue": [
+          "review::.::holistic::abstraction_fitness::search_grouping_wrapper_unsafe_cast",
+          "review::.::holistic::abstraction_fitness::state_machine_dead_api_surface",
+          "review::.::holistic::ai_generated_debt::stop_words_duplicated",
+          "review::.::holistic::ai_generated_debt::validate_ts_mechanical_repetition",
+          "review::.::holistic::api_surface_coherence::search_vs_search_more_envelope_mismatch",
+          "review::.::holistic::api_surface_coherence::sync_async_mixed_lib_modules",
+          "review::.::holistic::authorization_consistency::geo_route_ip_leak_in_debug",
+          "review::.::holistic::contract_coherence::dual_parsed_query_interface",
+          "review::.::holistic::contract_coherence::extract_ip_unknown_sentinel",
+          "review::.::holistic::contract_coherence::find_restaurant_group_missing_annotation",
+          "review::.::holistic::convention_outlier::co_price_order_duplication",
+          "review::.::holistic::cross_module_architecture::cma_ip_extraction_duplication",
+          "review::.::holistic::cross_module_architecture::cma_search_grouping_shim",
+          "review::.::holistic::design_coherence::price_order_duplication",
+          "review::.::holistic::design_coherence::scrape_double_parse",
+          "review::.::holistic::design_coherence::status_badge_triplication",
+          "review::.::holistic::design_coherence::trending_section_overloaded",
+          "review::.::holistic::error_consistency::ec_loadmore_no_catch",
+          "review::.::holistic::error_consistency::ec_openrouter_silent_empty",
+          "review::.::holistic::error_consistency::ec_reddit_validation_swallowed",
+          "review::.::holistic::error_consistency::ec_try_transition_post_commit",
+          "review::.::holistic::high_level_elegance::hle_double_scrape_trigger",
+          "review::.::holistic::high_level_elegance::hle_scrape_route_orchestrator",
+          "review::.::holistic::high_level_elegance::hle_status_badge_duplication",
+          "review::.::holistic::initialization_coupling::reddit_env_module_scope",
+          "review::.::holistic::initialization_coupling::reddit_mutable_module_singleton",
+          "review::.::holistic::logic_clarity::dead_scrape_finished_ref",
+          "review::.::holistic::logic_clarity::direction_guard_duplicated",
+          "review::.::holistic::logic_clarity::fetch_with_fallback_dead_return_state",
+          "review::.::holistic::low_level_elegance::scrape_route_double_parse",
+          "review::.::holistic::low_level_elegance::search_duplicate_condition_builder",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_iteration",
+          "review::.::holistic::mid_level_elegance::scrape_route_mutable_state_callback",
+          "review::.::holistic::mid_level_elegance::search_more_ungrouped_response",
+          "review::.::holistic::naming_quality::nq_rule_code_names",
+          "review::.::holistic::naming_quality::nq_search_poller_misnomer",
+          "review::.::holistic::test_strategy::hours_zero_coverage",
+          "review::.::holistic::test_strategy::reddit_extraction_zero_coverage",
+          "review::.::holistic::test_strategy::regex_fallback_zero_coverage",
+          "review::.::holistic::test_strategy::restaurant_grouping_zero_coverage",
+          "review::.::holistic::test_strategy::rules_db_logic_untested",
+          "review::.::holistic::type_safety::restaurant_status_enum_bypass",
+          "review::.::holistic::type_safety::search_grouping_unknown_cast",
+          "review::.::holistic::type_safety::unnecessary_null_guard_prisma_nonnull",
+          "review::.::holistic::type_safety::vote_direction_not_narrowed"
+        ],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 45,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 43,
+        "stale_pruned_from_queue": [
+          "review::.::holistic::design_coherence::trending_useeffect_complexity",
+          "review::.::holistic::design_coherence::vote_button_duplication",
+          "review::.::holistic::error_consistency::ec_loadmore_unhandled_fetch_error",
+          "review::.::holistic::error_consistency::ec_openrouter_silent_failure",
+          "review::.::holistic::error_consistency::ec_transition_outside_transaction",
+          "review::.::holistic::high_level_elegance::hle_scrape_route_orchestration",
+          "review::.::holistic::high_level_elegance::hle_status_badge_fragmentation",
+          "review::.::holistic::incomplete_migration::geo_snake_case_alias_not_retired",
+          "review::.::holistic::initialization_coupling::reddit_env_snapshot",
+          "review::.::holistic::logic_clarity::identity_function_foodquery",
+          "review::.::holistic::logic_clarity::redundant_nullish_coalesce_typed_props",
+          "review::.::holistic::logic_clarity::restaurant_page_redundant_nullish",
+          "review::.::holistic::low_level_elegance::scrape_handler_monolith",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_guard_style",
+          "review::.::holistic::mid_level_elegance::search_more_returns_ungrouped",
+          "review::.::holistic::naming_quality::nq_foodquery_noop",
+          "review::.::holistic::test_strategy::hours_parser_untested",
+          "review::.::holistic::test_strategy::openrouter_regex_fallback_untested",
+          "review::.::holistic::test_strategy::reddit_extractor_untested",
+          "review::.::holistic::test_strategy::rules_untested_directly",
+          "review::.::holistic::type_safety::fetch_response_cast_without_guard",
+          "review::.::holistic::type_safety::status_enum_bypass",
+          "review::.::holistic::type_safety::validate_type_erasure"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::abstraction_fitness",
+          "subjective::ai_generated_debt",
+          "subjective::api_surface_coherence",
+          "subjective::authorization_consistency",
+          "subjective::contract_coherence",
+          "subjective::convention_outlier",
+          "subjective::cross_module_architecture",
+          "subjective::dependency_health",
+          "subjective::design_coherence",
+          "subjective::error_consistency",
+          "subjective::high_level_elegance",
+          "subjective::incomplete_migration",
+          "subjective::initialization_coupling",
+          "subjective::logic_clarity",
+          "subjective::low_level_elegance",
+          "subjective::mid_level_elegance",
+          "subjective::naming_quality",
+          "subjective::package_organization",
+          "subjective::test_strategy",
+          "subjective::type_safety"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    },
+    {
+      "timestamp": "2026-04-02T13:03:40+00:00",
+      "action": "clear_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T13:03:40+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 7
+      }
+    },
+    {
+      "timestamp": "2026-04-02T13:46:53+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::abstraction_fitness::search_groupby_unsafe_cast",
+          "review::.::holistic::abstraction_fitness::state_machine_speculative_exports",
+          "review::.::holistic::ai_generated_debt::lib_validate_ts_repeats_identical_null_u",
+          "review::.::holistic::ai_generated_debt::validateextractedrestaurant_is_called_in",
+          "review::.::holistic::api_surface_coherence::get_api_search_and_get_api_search_more",
+          "review::.::holistic::api_surface_coherence::lib_geo_ts_lib_search_ts_and_lib_reddi",
+          "review::.::holistic::authorization_consistency::get_api_geo_returns_raw_client_ip_and_f",
+          "review::.::holistic::authorization_consistency::internal_api_token_check_on_api_scrape",
+          "review::.::holistic::contract_coherence::state_machine_dead_exports",
+          "review::.::holistic::contract_coherence::try_transition_to_verified_post_commit_throw",
+          "review::.::holistic::convention_outlier::price_order_constant_defined_identically",
+          "review::.::holistic::convention_outlier::status_badge_display_map_uses_three_diff",
+          "review::.::holistic::cross_module_architecture::app_api_scrape_route_ts_calls_parsequery",
+          "review::.::holistic::cross_module_architecture::ip_extraction_logic_duplicated_between_l",
+          "review::.::holistic::cross_module_architecture::lib_search_ts_re_exports_lib_restaurant",
+          "review::.::holistic::design_coherence::high_cyclomatic_complexity_systemic",
+          "review::.::holistic::design_coherence::restaurant_card_google_maps_url_hardcoded",
+          "review::.::holistic::design_coherence::scrape_route_double_parsequery",
+          "review::.::holistic::design_coherence::status_badge_map_duplicated",
+          "review::.::holistic::design_coherence::trending_section_cyclomatic_complexity",
+          "review::.::holistic::error_consistency::getredditrecommendations_returns_on_a",
+          "review::.::holistic::error_consistency::loadmorebutton_loadmore_has_no_catch_o",
+          "review::.::holistic::error_consistency::trytransitiontoverified_called_after_tra",
+          "review::.::holistic::error_consistency::validateredditpost_and_validateextracted",
+          "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_a",
+          "review::.::holistic::high_level_elegance::scrape_is_triggered_both_server_side_in",
+          "review::.::holistic::high_level_elegance::scrape_route_acts_as_both_http_handler_a",
+          "review::.::holistic::initialization_coupling::reddit_module_scope_env_reads",
+          "review::.::holistic::initialization_coupling::reddit_shared_mutable_token_cache",
+          "review::.::holistic::logic_clarity::trending_section_hardcoded_ottawa_fallback",
+          "review::.::holistic::low_level_elegance::scrape_route_double_parsequery",
+          "review::.::holistic::low_level_elegance::search_where_condition_duplication",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_loop_vs_manual",
+          "review::.::holistic::mid_level_elegance::fetchwithfallback_advance_callback_mutation",
+          "review::.::holistic::mid_level_elegance::search_more_ungrouped_response",
+          "review::.::holistic::mid_level_elegance::search_scrape_no_ratelimit",
+          "review::.::holistic::naming_quality::lib_rules_ts_functions_named_after_opaqu",
+          "review::.::holistic::naming_quality::searchpoller_tsx_is_named_as_a_passive_p",
+          "review::.::holistic::package_organization::lib_is_flat_with_12_files_spanning_thre",
+          "review::.::holistic::test_strategy::reddit_filter_functions_untested",
+          "review::.::holistic::test_strategy::rules_db_logic_never_exercised",
+          "review::.::holistic::type_safety::parallel_parsedquery_interface_definitions",
+          "review::.::holistic::type_safety::search_ts_double_cast_structural_mismatch",
+          "review::.::holistic::type_safety::vote_routes_enum_bypass"
+        ],
+        "added_to_queue": [
+          "review::.::holistic::abstraction_fitness::search_groupby_unsafe_cast",
+          "review::.::holistic::abstraction_fitness::state_machine_speculative_exports",
+          "review::.::holistic::ai_generated_debt::lib_validate_ts_repeats_identical_null_u",
+          "review::.::holistic::ai_generated_debt::validateextractedrestaurant_is_called_in",
+          "review::.::holistic::api_surface_coherence::get_api_search_and_get_api_search_more",
+          "review::.::holistic::api_surface_coherence::lib_geo_ts_lib_search_ts_and_lib_reddi",
+          "review::.::holistic::authorization_consistency::get_api_geo_returns_raw_client_ip_and_f",
+          "review::.::holistic::authorization_consistency::internal_api_token_check_on_api_scrape",
+          "review::.::holistic::contract_coherence::state_machine_dead_exports",
+          "review::.::holistic::contract_coherence::try_transition_to_verified_post_commit_throw",
+          "review::.::holistic::convention_outlier::price_order_constant_defined_identically",
+          "review::.::holistic::convention_outlier::status_badge_display_map_uses_three_diff",
+          "review::.::holistic::cross_module_architecture::app_api_scrape_route_ts_calls_parsequery",
+          "review::.::holistic::cross_module_architecture::ip_extraction_logic_duplicated_between_l",
+          "review::.::holistic::cross_module_architecture::lib_search_ts_re_exports_lib_restaurant",
+          "review::.::holistic::design_coherence::high_cyclomatic_complexity_systemic",
+          "review::.::holistic::design_coherence::restaurant_card_google_maps_url_hardcoded",
+          "review::.::holistic::design_coherence::scrape_route_double_parsequery",
+          "review::.::holistic::design_coherence::status_badge_map_duplicated",
+          "review::.::holistic::design_coherence::trending_section_cyclomatic_complexity",
+          "review::.::holistic::error_consistency::getredditrecommendations_returns_on_a",
+          "review::.::holistic::error_consistency::loadmorebutton_loadmore_has_no_catch_o",
+          "review::.::holistic::error_consistency::trytransitiontoverified_called_after_tra",
+          "review::.::holistic::error_consistency::validateredditpost_and_validateextracted",
+          "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_a",
+          "review::.::holistic::high_level_elegance::scrape_is_triggered_both_server_side_in",
+          "review::.::holistic::high_level_elegance::scrape_route_acts_as_both_http_handler_a",
+          "review::.::holistic::initialization_coupling::reddit_module_scope_env_reads",
+          "review::.::holistic::initialization_coupling::reddit_shared_mutable_token_cache",
+          "review::.::holistic::logic_clarity::trending_section_hardcoded_ottawa_fallback",
+          "review::.::holistic::low_level_elegance::scrape_route_double_parsequery",
+          "review::.::holistic::low_level_elegance::search_where_condition_duplication",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_loop_vs_manual",
+          "review::.::holistic::mid_level_elegance::fetchwithfallback_advance_callback_mutation",
+          "review::.::holistic::mid_level_elegance::search_scrape_no_ratelimit",
+          "review::.::holistic::naming_quality::lib_rules_ts_functions_named_after_opaqu",
+          "review::.::holistic::naming_quality::searchpoller_tsx_is_named_as_a_passive_p",
+          "review::.::holistic::package_organization::lib_is_flat_with_12_files_spanning_thre",
+          "review::.::holistic::test_strategy::reddit_filter_functions_untested",
+          "review::.::holistic::test_strategy::rules_db_logic_never_exercised",
+          "review::.::holistic::type_safety::parallel_parsedquery_interface_definitions",
+          "review::.::holistic::type_safety::search_ts_double_cast_structural_mismatch",
+          "review::.::holistic::type_safety::vote_routes_enum_bypass"
+        ],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 43,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 66,
+        "stale_pruned_from_queue": [
+          "review::.::holistic::abstraction_fitness::search_grouping_wrapper_unsafe_cast",
+          "review::.::holistic::abstraction_fitness::state_machine_dead_api_surface",
+          "review::.::holistic::ai_generated_debt::stop_words_duplicated",
+          "review::.::holistic::ai_generated_debt::validate_ts_mechanical_repetition",
+          "review::.::holistic::api_surface_coherence::search_vs_search_more_envelope_mismatch",
+          "review::.::holistic::api_surface_coherence::sync_async_mixed_lib_modules",
+          "review::.::holistic::authorization_consistency::geo_route_ip_leak_in_debug",
+          "review::.::holistic::contract_coherence::dual_parsed_query_interface",
+          "review::.::holistic::contract_coherence::extract_ip_unknown_sentinel",
+          "review::.::holistic::contract_coherence::find_restaurant_group_missing_annotation",
+          "review::.::holistic::convention_outlier::co_price_order_duplication",
+          "review::.::holistic::cross_module_architecture::cma_ip_extraction_duplication",
+          "review::.::holistic::cross_module_architecture::cma_search_grouping_shim",
+          "review::.::holistic::design_coherence::price_order_duplication",
+          "review::.::holistic::design_coherence::scrape_double_parse",
+          "review::.::holistic::design_coherence::status_badge_triplication",
+          "review::.::holistic::design_coherence::trending_section_overloaded",
+          "review::.::holistic::error_consistency::ec_loadmore_no_catch",
+          "review::.::holistic::error_consistency::ec_openrouter_silent_empty",
+          "review::.::holistic::error_consistency::ec_reddit_validation_swallowed",
+          "review::.::holistic::error_consistency::ec_try_transition_post_commit",
+          "review::.::holistic::high_level_elegance::hle_double_scrape_trigger",
+          "review::.::holistic::high_level_elegance::hle_scrape_route_orchestrator",
+          "review::.::holistic::high_level_elegance::hle_status_badge_duplication",
+          "review::.::holistic::initialization_coupling::reddit_env_module_scope",
+          "review::.::holistic::initialization_coupling::reddit_mutable_module_singleton",
+          "review::.::holistic::logic_clarity::dead_scrape_finished_ref",
+          "review::.::holistic::logic_clarity::direction_guard_duplicated",
+          "review::.::holistic::logic_clarity::fetch_with_fallback_dead_return_state",
+          "review::.::holistic::low_level_elegance::scrape_route_double_parse",
+          "review::.::holistic::low_level_elegance::search_duplicate_condition_builder",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_iteration",
+          "review::.::holistic::mid_level_elegance::scrape_route_mutable_state_callback",
+          "review::.::holistic::mid_level_elegance::scrape_trigger_no_deduplication",
+          "review::.::holistic::naming_quality::nq_rule_code_names",
+          "review::.::holistic::naming_quality::nq_search_poller_misnomer",
+          "review::.::holistic::package_organization::lib_flat_mixed_concerns",
+          "review::.::holistic::test_strategy::hours_zero_coverage",
+          "review::.::holistic::test_strategy::reddit_extraction_zero_coverage",
+          "review::.::holistic::test_strategy::regex_fallback_zero_coverage",
+          "review::.::holistic::test_strategy::restaurant_grouping_zero_coverage",
+          "review::.::holistic::test_strategy::rules_db_logic_untested",
+          "review::.::holistic::type_safety::restaurant_status_enum_bypass",
+          "review::.::holistic::type_safety::search_grouping_unknown_cast",
+          "review::.::holistic::type_safety::unnecessary_null_guard_prisma_nonnull",
+          "review::.::holistic::type_safety::vote_direction_not_narrowed"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::abstraction_fitness",
+          "subjective::ai_generated_debt",
+          "subjective::api_surface_coherence",
+          "subjective::authorization_consistency",
+          "subjective::contract_coherence",
+          "subjective::convention_outlier",
+          "subjective::cross_module_architecture",
+          "subjective::dependency_health",
+          "subjective::design_coherence",
+          "subjective::error_consistency",
+          "subjective::high_level_elegance",
+          "subjective::incomplete_migration",
+          "subjective::initialization_coupling",
+          "subjective::logic_clarity",
+          "subjective::low_level_elegance",
+          "subjective::mid_level_elegance",
+          "subjective::naming_quality",
+          "subjective::package_organization",
+          "subjective::test_strategy",
+          "subjective::type_safety"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    },
+    {
+      "timestamp": "2026-04-02T13:47:10+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T13:47:10+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 9
+      }
+    },
+    {
+      "timestamp": "2026-04-02T14:10:56+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::authorization_consistency::get_api_geo_returns_raw_client_ip_and_f"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed all debug fields from /api/geo responses \u2014 only city is returned now, no IP or Nominatim address data.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:10:57+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::logic_clarity::trending_section_hardcoded_ottawa_fallback"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Replaced hardcoded 'Ottawa' fallback in TrendingSection.tsx with 'your area' so the UI is accurate for all users.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:10:59+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::error_consistency::trytransitiontoverified_called_after_tra"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Wrapped tryTransitionToVerified in try-catch in both app/api/vote/route.ts and app/api/restaurant-vote/route.ts so a DB error does not return 500 after vote is committed.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:00+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::contract_coherence::try_transition_to_verified_post_commit_throw"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Wrapped tryTransitionToVerified in try-catch in both vote routes so post-commit errors are logged but do not propagate as 500.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:02+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::design_coherence::scrape_route_double_parsequery"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "fetchWithFallback now includes terms in its return value; the POST handler uses the returned terms instead of calling parseQuery a second time.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:03+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::low_level_elegance::scrape_route_double_parsequery"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "fetchWithFallback now includes terms in its return value; the POST handler uses the returned terms instead of calling parseQuery a second time.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:05+00:00",
+      "action": "done",
+      "issue_ids": [
+        "holistic::design_coherence::status_badge_map_duplicated"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted RESTAURANT_STATUS_BADGE constant to lib/restaurant-grouping.ts; both TrendingSection.tsx and RestaurantCard.tsx now import from it.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:36+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::authorization_consistency::get_api_geo_returns_raw_client_ip_and_f"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed all debug fields from /api/geo responses \u2014 only city is returned now, no IP or Nominatim address data.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:37+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::logic_clarity::trending_section_hardcoded_ottawa_fallback"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Replaced hardcoded 'Ottawa' fallback in TrendingSection.tsx with 'your area' so the UI is accurate for all users.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:38+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::error_consistency::trytransitiontoverified_called_after_tra"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Wrapped tryTransitionToVerified in try-catch in both vote routes so post-commit errors are logged but do not propagate as 500.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:40+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::try_transition_to_verified_post_commit_throw"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Wrapped tryTransitionToVerified in try-catch in both vote routes so post-commit errors are logged but do not propagate as 500.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:41+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::scrape_route_double_parsequery"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "fetchWithFallback now includes terms in its return value; the POST handler uses the returned terms instead of calling parseQuery a second time.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:42+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::low_level_elegance::scrape_route_double_parsequery"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "fetchWithFallback now includes terms in its return value; the POST handler uses the returned terms instead of calling parseQuery a second time.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:11:44+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::design_coherence::status_badge_map_duplicated"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted RESTAURANT_STATUS_BADGE constant to lib/restaurant-grouping.ts; both TrendingSection.tsx and RestaurantCard.tsx now import from it.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:12:26+00:00",
+      "action": "clear_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:12:26+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 10
+      }
+    },
+    {
+      "timestamp": "2026-04-02T14:12:55+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:12:55+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 11
+      }
+    },
+    {
+      "timestamp": "2026-04-02T14:18:52+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::abstraction_fitness::state_machine_speculative_exports"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed export keyword from isValidTransition and validNextStates in lib/state-machine.ts; they have zero production callers and tests now use assertValidTransition only.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:18:53+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::contract_coherence::state_machine_dead_exports"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Removed export keyword from isValidTransition and validNextStates; no production callers existed.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:18:54+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::ai_generated_debt::lib_validate_ts_repeats_identical_null_u"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted requireString and requirePresent helpers in lib/validate.ts; all 8 validators now use them consistently instead of repeating manual null/empty pairs.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:18:55+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::low_level_elegance::validate_inconsistent_loop_vs_manual"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "All validators in lib/validate.ts now use shared requireString/requirePresent helpers; the loop vs manual inconsistency is gone.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:18:56+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::authorization_consistency::internal_api_token_check_on_api_scrape"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added comment clarifying that omitting INTERNAL_API_TOKEN is only safe in local dev; the conditional guard is intentional and documented.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:18:57+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::low_level_elegance::search_where_condition_duplication"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Extracted buildWhereCondition helper in lib/search.ts; searchRestaurants and countSearchResults both call it instead of duplicating the ~40 LOC where-condition.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:21:20+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::test_strategy::reddit_filter_functions_untested"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Exported isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName from lib/reddit.ts and added 22 tests in __tests__/reddit-filters.test.ts covering all three functions.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:21:21+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::error_consistency::loadmorebutton_loadmore_has_no_catch_o"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Added catch block in LoadMoreButton.tsx loadMore() that sets hasMore to false on network/parse failure so offset and hasMore do not remain stale.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:21:50+00:00",
+      "action": "clear_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:21:50+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 12
+      }
+    },
+    {
+      "timestamp": "2026-04-02T14:25:02+00:00",
+      "action": "done",
+      "issue_ids": [
+        "review::.::holistic::mid_level_elegance::search_more_ungrouped_response"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Moved groupRestaurantsByName into /api/search-more route; it now accepts seenNames as a comma-separated query param and returns RestaurantGroup[] with a nextOffset. LoadMoreButton no longer imports or calls groupRestaurantsByName.",
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:25:03+00:00",
+      "action": "resolve",
+      "issue_ids": [
+        "review::.::holistic::mid_level_elegance::search_more_ungrouped_response"
+      ],
+      "cluster_name": null,
+      "actor": "user",
+      "note": "Moved groupRestaurantsByName into /api/search-more route; it now accepts seenNames as a comma-separated query param and returns RestaurantGroup[] with a nextOffset. LoadMoreButton no longer imports or calls groupRestaurantsByName.",
+      "detail": {
+        "status": "fixed",
+        "attestation": "I have actually made the code change described and I am not gaming the score by resolving without fixing."
+      }
+    },
+    {
+      "timestamp": "2026-04-02T14:26:50+00:00",
+      "action": "seed_start_scores",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {}
+    },
+    {
+      "timestamp": "2026-04-02T14:26:50+00:00",
+      "action": "complete_postflight_scan",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "scan_count": 13
+      }
+    },
+    {
+      "timestamp": "2026-04-02T14:46:29+00:00",
+      "action": "review_import_sync",
+      "issue_ids": [],
+      "cluster_name": null,
+      "actor": "system",
+      "note": null,
+      "detail": {
+        "trigger": "review_import",
+        "new_ids": [
+          "review::.::holistic::abstraction_fitness::search_groupby_unsafe_cast",
+          "review::.::holistic::abstraction_fitness::state_machine_dead_private_functions",
+          "review::.::holistic::ai_generated_debt::lib_validate_ts_repeats_identical_null_u",
+          "review::.::holistic::ai_generated_debt::validateextractedrestaurant_is_called_in",
+          "review::.::holistic::api_surface_coherence::get_api_search_and_get_api_search_more",
+          "review::.::holistic::api_surface_coherence::lib_geo_ts_lib_search_ts_and_lib_reddi",
+          "review::.::holistic::authorization_consistency::internal_api_token_check_on_api_scrape",
+          "review::.::holistic::contract_coherence::validate_direction_redundant_call",
+          "review::.::holistic::contract_coherence::validate_interfaces_weaker_than_runtime",
+          "review::.::holistic::convention_outlier::price_order_constant_defined_identically",
+          "review::.::holistic::convention_outlier::status_badge_display_map_uses_different",
+          "review::.::holistic::cross_module_architecture::ip_extraction_logic_duplicated_between_l",
+          "review::.::holistic::cross_module_architecture::lib_search_ts_re_exports_lib_restaurant",
+          "review::.::holistic::cross_module_architecture::parsequery_called_twice_per_scrape_trigg",
+          "review::.::holistic::design_coherence::restaurant_card_duplicated_maps_url",
+          "review::.::holistic::design_coherence::state_machine_dead_private_functions",
+          "review::.::holistic::error_consistency::getredditrecommendations_returns_on_a",
+          "review::.::holistic::error_consistency::loadmorebutton_loadmore_sets_hasmore_f",
+          "review::.::holistic::error_consistency::validateredditpost_and_validateextracted",
+          "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_w",
+          "review::.::holistic::high_level_elegance::scrape_route_acts_as_both_http_handler_a",
+          "review::.::holistic::high_level_elegance::scrape_triggered_both_server_side_in_api",
+          "review::.::holistic::initialization_coupling::reddit_module_scope_env_reads",
+          "review::.::holistic::initialization_coupling::reddit_mutable_token_cache",
+          "review::.::holistic::logic_clarity::count_search_results_redundant_async",
+          "review::.::holistic::logic_clarity::fetch_with_fallback_dead_state_param",
+          "review::.::holistic::low_level_elegance::reddit_duplicate_validate_trycatch",
+          "review::.::holistic::low_level_elegance::validate_inconsistent_loop_vs_manual",
+          "review::.::holistic::mid_level_elegance::fetchwithfallback_advance_callback_mutation",
+          "review::.::holistic::mid_level_elegance::search_scrape_no_deduplication",
+          "review::.::holistic::naming_quality::lib_rules_ts_functions_named_after_opaqu",
+          "review::.::holistic::naming_quality::searchpoller_tsx_is_named_as_a_passive_p",
+          "review::.::holistic::package_organization::lib_is_flat_with_12_files_spanning_thre",
+          "review::.::holistic::test_strategy::rules_db_logic_never_exercised",
+          "review::.::holistic::test_strategy::scrape_route_no_coverage",
+          "review::.::holistic::type_safety::restaurant_status_type_divergence",
+          "review::.::holistic::type_safety::validate_interfaces_optionality_mismatch"
+        ],
+        "added_to_queue": [
+          "review::.::holistic::abstraction_fitness::state_machine_dead_private_functions",
+          "review::.::holistic::contract_coherence::validate_direction_redundant_call",
+          "review::.::holistic::contract_coherence::validate_interfaces_weaker_than_runtime",
+          "review::.::holistic::convention_outlier::status_badge_display_map_uses_different",
+          "review::.::holistic::cross_module_architecture::parsequery_called_twice_per_scrape_trigg",
+          "review::.::holistic::design_coherence::restaurant_card_duplicated_maps_url",
+          "review::.::holistic::design_coherence::state_machine_dead_private_functions",
+          "review::.::holistic::error_consistency::loadmorebutton_loadmore_sets_hasmore_f",
+          "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_w",
+          "review::.::holistic::high_level_elegance::scrape_triggered_both_server_side_in_api",
+          "review::.::holistic::initialization_coupling::reddit_mutable_token_cache",
+          "review::.::holistic::logic_clarity::count_search_results_redundant_async",
+          "review::.::holistic::logic_clarity::fetch_with_fallback_dead_state_param",
+          "review::.::holistic::low_level_elegance::reddit_duplicate_validate_trycatch",
+          "review::.::holistic::mid_level_elegance::search_scrape_no_deduplication",
+          "review::.::holistic::test_strategy::scrape_route_no_coverage",
+          "review::.::holistic::type_safety::restaurant_status_type_divergence",
+          "review::.::holistic::type_safety::validate_interfaces_optionality_mismatch"
+        ],
+        "workflow_injected_ids": [],
+        "triage_injected": false,
+        "triage_injected_ids": [],
+        "triage_deferred": false,
+        "diff_new": 18,
+        "diff_reopened": 0,
+        "diff_auto_resolved": 44,
+        "stale_pruned_from_queue": [
+          "review::.::holistic::abstraction_fitness::state_machine_speculative_exports",
+          "review::.::holistic::authorization_consistency::get_api_geo_returns_raw_client_ip_and_f",
+          "review::.::holistic::contract_coherence::state_machine_dead_exports",
+          "review::.::holistic::contract_coherence::try_transition_to_verified_post_commit_throw",
+          "review::.::holistic::convention_outlier::status_badge_display_map_uses_three_diff",
+          "review::.::holistic::cross_module_architecture::app_api_scrape_route_ts_calls_parsequery",
+          "review::.::holistic::design_coherence::high_cyclomatic_complexity_systemic",
+          "review::.::holistic::design_coherence::restaurant_card_google_maps_url_hardcoded",
+          "review::.::holistic::design_coherence::scrape_route_double_parsequery",
+          "review::.::holistic::design_coherence::status_badge_map_duplicated",
+          "review::.::holistic::design_coherence::trending_section_cyclomatic_complexity",
+          "review::.::holistic::error_consistency::loadmorebutton_loadmore_has_no_catch_o",
+          "review::.::holistic::error_consistency::trytransitiontoverified_called_after_tra",
+          "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_a",
+          "review::.::holistic::high_level_elegance::scrape_is_triggered_both_server_side_in",
+          "review::.::holistic::initialization_coupling::reddit_shared_mutable_token_cache",
+          "review::.::holistic::logic_clarity::trending_section_hardcoded_ottawa_fallback",
+          "review::.::holistic::low_level_elegance::scrape_route_double_parsequery",
+          "review::.::holistic::low_level_elegance::search_where_condition_duplication",
+          "review::.::holistic::mid_level_elegance::search_scrape_no_ratelimit",
+          "review::.::holistic::test_strategy::reddit_filter_functions_untested",
+          "review::.::holistic::type_safety::parallel_parsedquery_interface_definitions",
+          "review::.::holistic::type_safety::search_ts_double_cast_structural_mismatch",
+          "review::.::holistic::type_safety::vote_routes_enum_bypass"
+        ],
+        "covered_subjective_pruned_from_queue": [],
+        "covered_subjective": [
+          "subjective::abstraction_fitness",
+          "subjective::ai_generated_debt",
+          "subjective::api_surface_coherence",
+          "subjective::authorization_consistency",
+          "subjective::contract_coherence",
+          "subjective::convention_outlier",
+          "subjective::cross_module_architecture",
+          "subjective::dependency_health",
+          "subjective::design_coherence",
+          "subjective::error_consistency",
+          "subjective::high_level_elegance",
+          "subjective::incomplete_migration",
+          "subjective::initialization_coupling",
+          "subjective::logic_clarity",
+          "subjective::low_level_elegance",
+          "subjective::mid_level_elegance",
+          "subjective::naming_quality",
+          "subjective::package_organization",
+          "subjective::test_strategy",
+          "subjective::type_safety"
+        ],
+        "stale_sync_injected": [],
+        "stale_sync_pruned": [],
+        "auto_cluster_changes": 0,
+        "import_scores_injected": [],
+        "import_scores_pruned": [],
+        "sync_status": "synced",
+        "sync_message": null
+      }
+    }
+  ],
+  "epic_triage_meta": {},
+  "commit_log": [],
+  "uncommitted_issues": [
+    "review::.::holistic::abstraction_fitness::detect_city_dual_alias",
+    "review::.::holistic::abstraction_fitness::food_query_identity_function",
+    "review::.::holistic::abstraction_fitness::loadmore_duplicated_grouping",
+    "review::.::holistic::abstraction_fitness::validate_type_erasure",
+    "review::.::holistic::ai_generated_debt::debug_logs_in_scrape_flow",
+    "review::.::holistic::ai_generated_debt::duplicated_grouping_logic",
+    "review::.::holistic::ai_generated_debt::foodquery_noop_wrapper",
+    "review::.::holistic::api_surface_coherence::api_param_naming_inconsistency",
+    "review::.::holistic::api_surface_coherence::geo_dual_name_export",
+    "review::.::holistic::authorization_consistency::unauthenticated_scrape_endpoint",
+    "review::.::holistic::contract_coherence::detect_city_alias_confusion",
+    "review::.::holistic::contract_coherence::foodquery_noop",
+    "review::.::holistic::contract_coherence::openrouter_stale_model_doc",
+    "review::.::holistic::convention_outlier::co_detect_city_snake_case",
+    "review::.::holistic::convention_outlier::co_reddit_mid_file_import",
+    "review::.::holistic::convention_outlier::co_votebuttton_dead_sibling",
+    "review::.::holistic::cross_module_architecture::cma_geo_alias_boundary_split",
+    "review::.::holistic::cross_module_architecture::cma_grouping_duplication",
+    "review::.::holistic::dependency_health::prisma_client_in_devdeps",
+    "review::.::holistic::design_coherence::loadmore_grouping_duplication",
+    "review::.::holistic::design_coherence::restaurant_page_full_city_load",
+    "review::.::holistic::design_coherence::scrape_route_monolith",
+    "review::.::holistic::mid_level_elegance::search_more_ungrouped_response"
+  ],
+  "commit_tracking_branch": null,
+  "scan_count_at_plan_start": 13
+}

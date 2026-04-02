@@ -2,9 +2,7 @@
 
 import { useState } from 'react';
 import RestaurantCard from './RestaurantCard';
-import type { RestaurantGroup } from '@/lib/restaurant-grouping';
-
-const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
+import { PRICE_ORDER, type RestaurantGroup } from '@/lib/restaurant-grouping';
 const BATCH = 30; // fetch enough raw rows to produce ~10 grouped results
 
 interface LoadMoreButtonProps {

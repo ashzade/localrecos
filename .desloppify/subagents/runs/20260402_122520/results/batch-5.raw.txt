@@ -1,0 +1,84 @@
+{
+  "batch": "naming_quality",
+  "batch_index": 5,
+  "assessments": {
+    "naming_quality": 83.0
+  },
+  "dimension_notes": {
+    "naming_quality": {
+      "evidence": [
+        "Domain vocabulary is precise and consistent: parseQuery, searchRestaurants, groupRestaurantsByName, computeFingerprint, validateParsedQuery, assertValidTransition, isOpenNow — all predict behavior without reading the implementation",
+        "Rule naming is explicit: checkRule01, checkRule03, checkRule05, tryTransitionToVerified — RULE_ prefix links directly to the business rule catalog",
+        "lib/reddit.ts foodQuery function (line 100-102) just returns its input unchanged: `function foodQuery(query: string): string { return query; }` — the name implies transformation that does not happen; it is a no-op with a misleading name",
+        "lib/reddit.ts extractRestaurantName exports publicly but the function name accurately describes behavior — it extracts a name from a text string using heuristics",
+        "lib/search.ts parseWords is accurate: it parses a terms string into filtered word tokens",
+        "lib/search.ts shouldMergeGroups is accurate and descriptive; lib/LoadMoreButton.tsx calls the same concept shouldMerge — minor brevity divergence, not a problem",
+        "app/api/scrape/route.ts local function upsertRestaurant accurately names the find-or-create pattern",
+        "components/TrendingSection.tsx fetchTrending is defined as an inner function — the name correctly describes behavior",
+        "lib/geo.ts detect_city / detectCityFromIp: two names for the same function (covered in cross_module_architecture and convention_outlier). From a naming quality lens: detectCityFromIp is more precise than detect_city because it specifies the input source",
+        "Prefix vocabulary (from review_context): validate (8), is (6), parse (5), get (4), build (4), fetch (3), check (3) — all are domain-aligned action verbs, no generic 'handle', 'process', 'do', 'run', 'manage' in lib/",
+        "components/ sibling_conventions includes 'handle' (1) and 'run' (1) — these are framework event handler names (onClick handlers), consistent with framework convention"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "lib/reddit.ts foodQuery is a publicly-named function that is a no-op, creating a false impression of transformation. The detect_city vs detectCityFromIp naming split for the same function is a mild vocabulary inconsistency at the boundary."
+    }
+  },
+  "dimension_judgment": {
+    "naming_quality": {
+      "dimension_character": "Naming quality is strong throughout lib/ — domain terms are precise, prefixes are consistent, and a developer can predict function behavior from the name in almost all cases. The one concrete outlier is foodQuery in lib/reddit.ts, which is named as a transformation but is actually an identity function. The get/build/parse/validate/is/check prefix taxonomy is well-established and used uniformly.",
+      "score_rationale": "The 83 reflects a codebase where naming is reliable and a developer would rarely need to open an implementation just to understand what a function does. The score is held from 90 by the foodQuery no-op name (a developer would open it expecting to see query preprocessing and find nothing), and the minor detect_city/detectCityFromIp vocabulary split. Neither is codebase-wide, making this a spot issue rather than a systemic problem."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "naming_quality",
+      "identifier": "nq_foodquery_noop",
+      "summary": "lib/reddit.ts foodQuery() is named as a transformation but is a no-op that returns its input unchanged",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "lib/reddit.ts lines 100-102: `function foodQuery(query: string): string { return query; }` — the function body is `return query` with no transformation",
+        "The function is called at line 108: `const encodedQuery = encodeURIComponent(foodQuery(query))` — the caller expects query preprocessing (e.g. appending 'food' or 'restaurant'), but none occurs",
+        "A developer reading fetchSubredditPosts would assume foodQuery enriches the query for food relevance and not investigate further — the name creates a false assumption about the data flowing into the Reddit search"
+      ],
+      "suggestion": "Either: (a) delete foodQuery and inline the query directly: `const encodedQuery = encodeURIComponent(query)`, which makes the intent clear; or (b) implement the intended transformation (e.g. appending domain terms) and keep the name. The current state — a named function that does nothing — is the worst option.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "foodQuery was likely a placeholder created for a query enrichment step that was never implemented; the placeholder name remained after the decision to skip enrichment"
+    ],
+    "likely_symptoms": [],
+    "possible_false_positives": [
+      "detect_city snake_case is primarily a convention_outlier issue, not a naming_quality issue — the name itself is accurate, just wrongly cased for the codebase convention"
+    ]
+  },
+  "context_updates": {
+    "naming_quality": {
+      "add": [
+        {
+          "header": "Precise domain-aligned prefix taxonomy in lib/",
+          "description": "lib/ uses validate, is, parse, get, build, fetch, check, assert prefixes consistently. No generic process/handle/do/run verbs appear in domain code. A developer can predict behavior from names in nearly all cases.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Rule function names link directly to spec",
+          "description": "checkRule01, checkRule03, checkRule05, tryTransitionToVerified use the RULE_ catalog numbering, giving new engineers immediate traceability between code and requirements.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "foodQuery no-op placeholder in lib/reddit.ts",
+          "description": "foodQuery() is named as a transformation function but returns its input unchanged. The name misleads readers about whether query enrichment is happening in the Reddit search path.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

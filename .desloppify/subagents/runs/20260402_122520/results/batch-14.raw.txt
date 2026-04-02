@@ -1,0 +1,83 @@
+{
+  "batch": "incomplete_migration",
+  "batch_index": 14,
+  "assessments": {
+    "incomplete_migration": 80.0
+  },
+  "dimension_notes": {
+    "incomplete_migration": {
+      "evidence": [
+        "lib/geo.ts line 40: `export const detectCityFromIp = detect_city;` with comment 'Alias for backward compatibility' — this is a compatibility shim between a snake_case original and a camelCase alias. Both names are actively called in production code (detect_city in trending/route.ts and search/route.ts; detectCityFromIp in geo/route.ts), making the migration incomplete rather than a clean rename.",
+        "No mixed JS/TS files found — the entire codebase is TypeScript (.ts/.tsx), no incomplete JS-to-TS migration",
+        "No @deprecated or DEPRECATED markers found in any file",
+        "No TODO/FIXME comments referencing 'migrate', 'legacy', 'old api', or 'remove after' found anywhere in app/, lib/, or components/",
+        "No moment/dayjs or axios/fetch coexistence — the project uses native fetch throughout",
+        "No class-to-functional component migration in progress — all React components are functional",
+        "migration_signals from scan evidence is empty: {}",
+        "The codebase is a new Next.js 14 project with Prisma — there is no meaningful legacy surface to migrate from",
+        "The 'Alias for backward compatibility' comment on detectCityFromIp suggests a rename was started (or planned) but not completed — the old name detect_city was not removed after introducing the camelCase version"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "The detectCityFromIp alias shim is a genuine incomplete migration — the old snake_case name detect_city was not retired after the camelCase alias was introduced, and both names are actively used in sibling routes. This prevents a higher score even though it is a single isolated instance."
+    }
+  },
+  "dimension_judgment": {
+    "incomplete_migration": {
+      "dimension_character": "This codebase has essentially no migration debt — no JS/TS mixing, no deprecated symbols, no stale TODOs referencing legacy patterns, no coexisting old/new library choices. The single exception is the geo.ts alias shim (detectCityFromIp = detect_city) where a backward-compatibility alias was added but the original snake_case export was never removed, leaving both names active and in use across sibling routes. The project is young and clean.",
+      "score_rationale": "At 80, the dimension is solid but has one genuine incomplete migration artifact: the geo.ts dual-export that has both the original (detect_city) and its alias (detectCityFromIp) live in production. A score above 85 would require zero stale shims or dual-pattern coexistence. The single instance is isolated and low-risk but is a real incomplete migration per the rubric definition."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "geo_snake_case_alias_not_retired",
+      "summary": "detect_city alias marked 'backward compatibility' but original snake_case export still actively used in sibling routes",
+      "related_files": [
+        "lib/geo.ts",
+        "app/api/trending/route.ts",
+        "app/api/search/route.ts",
+        "app/api/geo/route.ts"
+      ],
+      "evidence": [
+        "lib/geo.ts line 6: exports `detect_city` as the primary function (snake_case)",
+        "lib/geo.ts line 40: exports `detectCityFromIp = detect_city` with comment 'Alias for backward compatibility'",
+        "app/api/trending/route.ts line 3: `import { detect_city, extractIp } from '@/lib/geo'` — uses the original name",
+        "app/api/search/route.ts line 4: `import { detect_city, extractIp } from '@/lib/geo'` — uses the original name",
+        "app/api/geo/route.ts line 2: `import { detectCityFromIp, extractIp } from '@/lib/geo'` — uses the alias"
+      ],
+      "suggestion": "Complete the rename: make detectCityFromIp the canonical export (or rename back to detect_city if snake_case was intentional per spec). Update app/api/trending/route.ts and app/api/search/route.ts to import the camelCase name. Remove the alias export. This is a 3-file change: update the two import sites and remove the alias line from geo.ts.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The geo.ts function was originally named with snake_case (detect_city matching the spec's GeoDetector.detect_city reference), then a camelCase alias was added for TypeScript convention alignment, but the original was never cleaned up and callers diverged"
+    ],
+    "likely_symptoms": [
+      "geo_snake_case_alias_not_retired"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "incomplete_migration": {
+      "add": [
+        {
+          "header": "Codebase is new with no migration debt",
+          "description": "No JS/TS mixing, no deprecated symbols, no legacy library coexistence (axios/fetch, moment/dayjs), and no migration TODOs found. The project is a fresh Next.js 14 + Prisma stack with no meaningful legacy surface.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Single incomplete rename on geo.ts detect_city",
+          "description": "lib/geo.ts has both detect_city (snake_case original) and detectCityFromIp (camelCase alias) actively exported and used by different sibling routes — the rename was started but not completed.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

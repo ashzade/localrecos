@@ -1,0 +1,99 @@
+{
+  "batch": "high_level_elegance",
+  "batch_index": 2,
+  "assessments": {
+    "high_level_elegance": 84.0
+  },
+  "dimension_notes": {
+    "high_level_elegance": {
+      "evidence": [
+        "Top-level package decomposition is domain-aligned: lib/ holds all domain logic and external integrations, app/api/ holds HTTP handlers per domain capability (search, scrape, vote, restaurant-vote, geo, trending), components/ holds UI building blocks",
+        "Ownership is predictable — a new engineer can follow the data: search query → /api/search → lib/search → lib/openrouter/lib/geo → db; scrape trigger → /api/scrape → lib/reddit → lib/google-places → db",
+        "The scrape pipeline (app/api/scrape/route.ts) carries significant orchestration weight — 225 LOC, explicit state machine usage, inline upsertRestaurant helper, validation calls, and Reddit + Google Places integration all in one handler. This concentrates responsibility at the API boundary rather than in lib/",
+        "lib/validate.ts is a runtime validator module (9 importers) that enforces manifest constraints. It is consumed via as unknown as Record<string, unknown> casts throughout — the typed inputs are deliberately weakened to call a function that checks known fields. This is a friction point in the type-to-validation story.",
+        "STATUS_LABELS / STATUS_BADGE / STATUS_INFO are three separate local constants in RestaurantCard.tsx, LoadMoreButton.tsx (implicitly), and app/restaurant/[id]/page.tsx — same domain concept represented three times with slightly different shapes (STATUS_INFO has a description field the others lack)",
+        "lib/rules.ts clearly maps to named business rules (RULE_01, RULE_03, RULE_05) giving new engineers a direct link between code and documented rules",
+        "README or contract documentation not visible in the read files; the manifest.json reference in validate.ts docstring suggests specs exist but they are not in scope"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "medium",
+      "issues_preventing_higher_score": "The scrape route concentrates orchestration logic that belongs in lib/ (upsertRestaurant helper, multi-step pipeline coordination), and the status badge map is fragmented across three files instead of a single shared source."
+    }
+  },
+  "dimension_judgment": {
+    "high_level_elegance": {
+      "dimension_character": "The top-level decomposition is domain-aligned and a new engineer can trace any user action to its responsible module without confusion. The lib/ layer is cohesive and the API routes follow a predictable pattern. The primary decomposition weakness is that the scrape route acts as both an HTTP handler and a pipeline orchestrator — the upsertRestaurant function, state machine transitions, validation calls, and multi-source coordination all live inside the route handler rather than in a focused lib/ module. A secondary weakness is the status badge concept replicated with minor variations across three files.",
+      "score_rationale": "The overall structure is solid and a new engineer would have a reliable mental model within an hour. The score sits at 84 rather than 90 because the scrape route's dual responsibility (HTTP + orchestration) is a recurring pattern that a team member would notice immediately and find friction with — it is not a catastrophic ownership failure but it is a predictable change-hazard. The status badge fragmentation is a smaller but similarly predictable friction point."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "hle_scrape_route_orchestration",
+      "summary": "Scrape route acts as both HTTP handler and pipeline orchestrator; orchestration logic belongs in lib/",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "app/api/scrape/route.ts (225 LOC) contains upsertRestaurant() as a local async helper (lines 13-43), state machine transition assertions inline, validation calls, and the full multi-source coordination logic",
+        "The upsertRestaurant function (find-or-create a restaurant with Google Places data) is domain logic that belongs in lib/search.ts or a dedicated lib/restaurants.ts alongside searchRestaurants/groupRestaurantsByName",
+        "No lib/ function encapsulates the scrape pipeline — the API route is the only entry point, making the pipeline untestable without HTTP machinery"
+      ],
+      "suggestion": "Extract upsertRestaurant and the pipeline coordination into lib/scrape.ts or lib/restaurants.ts. The POST handler in app/api/scrape/route.ts should parse the request body, call a lib function like runScrapePipeline(city, query), and return the result. This localizes change — adding a new data source or validation step only modifies lib/, not the route.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "orchestration_in_handler"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "hle_status_badge_fragmentation",
+      "summary": "Restaurant status badge map duplicated across three files with inconsistent shapes",
+      "related_files": ["components/RestaurantCard.tsx", "components/TrendingSection.tsx", "app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "RestaurantCard.tsx defines STATUS_LABELS: Record<string, {label, className}> at line 51",
+        "TrendingSection.tsx defines STATUS_BADGE: Record<string, {label, className}> at line 19 — identical shape, different variable name",
+        "app/restaurant/[id]/page.tsx defines STATUS_INFO: Record<string, {label, className, description}> — adds a description field the others lack",
+        "All three map the same three states (VERIFIED, UNREVIEWED, INCOMPLETE) to similar but not identical label/class pairs"
+      ],
+      "suggestion": "Define a shared STATUS_BADGE constant in a new file like lib/status.ts or components/status.ts and export it. The description field in STATUS_INFO can remain local to the detail page if it is only used there. The label and className values should come from the shared source to avoid drift.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "shared_concept_fragmentation"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The scrape route grew organically as the pipeline was built — the path of least resistance was adding steps to the existing handler rather than extracting a lib module",
+      "Status badge constants were defined locally per component and never promoted to a shared location as the component count grew"
+    ],
+    "likely_symptoms": [
+      "hle_status_badge_fragmentation — the description field divergence in STATUS_INFO is a symptom of ungoverned local copies"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "high_level_elegance": {
+      "add": [
+        {
+          "header": "Domain-aligned lib/ layer with named rules",
+          "description": "lib/ maps cleanly to domain capabilities: db, geo, search, reddit, google-places, hours, rules, validate, state-machine, fingerprint. lib/rules.ts directly references RULE_01/03/05 from the spec, making traceability immediate.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Predictable API route-to-lib mapping",
+          "description": "Each app/api/ route imports from lib/ only; the handler-to-domain mapping is consistent and a new engineer can trace any API call to its lib module without ambiguity.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Scrape route doubles as orchestrator",
+          "description": "app/api/scrape/route.ts contains the full pipeline coordination and a local upsertRestaurant helper that belong in lib/. This is the one route where HTTP and domain logic are not separated.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

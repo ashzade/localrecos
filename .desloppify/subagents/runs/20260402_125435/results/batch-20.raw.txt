@@ -1,0 +1,136 @@
+{
+  "batch": "type_safety",
+  "batch_index": 20,
+  "assessments": {"type_safety": 72.0},
+  "dimension_notes": {
+    "type_safety": {
+      "evidence": [
+        "lib/google-places.ts `buildPlaceDetails(place: Record<string, unknown>, apiKey: string)`: the entire function body casts fields with `as string`, `as Record<string, string> | undefined`, `as Array<Record<string, string>> | undefined`, etc. The input type `Record<string, unknown>` is a deliberate boundary type for external API responses — this is appropriate and expected at API boundaries.",
+        "lib/openrouter.ts lines 130-132: `.filter((r: unknown) => r && typeof (r as Record<string, unknown>).name === 'string' && ...)` and `.map((r: Record<string, unknown>) => ...)` — typed inline with casts. Again an external API response boundary, appropriate.",
+        "lib/search.ts `groupRestaurantsByName` wrapper: `return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[])` — casts the input through `unknown`. The function takes `RestaurantWithRecommendations[]` but the inner function expects `GroupableRestaurant[]`. RestaurantWithRecommendations is structurally compatible with GroupableRestaurant (both have the same fields) but TypeScript can't verify this without explicit structural assignment. The cast silences a type error that should be resolved by making the types explicitly compatible.",
+        "lib/validate.ts: All interface definitions use optional fields (`field?: string | null`) even though the validate functions assert those fields are required. This means the validate function input types are more permissive than necessary — they accept types where fields are missing, which is the point for pre-validation, but it means `validateParsedQuery` accepts an object where terms might not exist, throwing at runtime rather than being caught by TypeScript. This is intentional design (documented in the file header) but is a type safety trade-off.",
+        "app/api/vote/route.ts line 11: `let body: { recommendation_id?: string; direction?: string }` — both fields are optional in the type. Then lines 20-22 manually check `if (!recommendation_id || !direction)`. TypeScript knows these are optional, so the narrowing is explicit. However the direction is `string | undefined` after this check — lines 56 compares `direction === 'up'` to produce VoteDirection which works at runtime but `direction` is still typed as `string` (not 'up' | 'down') after the guard check. The ternary on line 56 has no type error because `direction` is string, not the narrowed Literal type.",
+        "app/api/restaurant-vote/route.ts: same pattern as vote route — direction is `string` not `'up' | 'down'` at the point of VoteDirection assignment.",
+        "app/api/scrape/route.ts line 147: `let body: { city?: string; q?: string }` — then destructured and used. Both fields optional in type, validated manually. Consistent with other routes.",
+        "components/RestaurantCard.tsx `Restaurant` interface: `status: string` — the RestaurantStatus enum exists in @prisma/client with values VERIFIED, UNREVIEWED, INCOMPLETE. The component uses this status to index STATUS_LABELS with `STATUS_LABELS[r.status] ?? STATUS_LABELS.UNREVIEWED`. Typing status as `string` instead of `RestaurantStatus` bypasses enum safety — a restaurant with an unexpected status string would silently fall back to UNREVIEWED.",
+        "components/TrendingSection.tsx `TrendingRestaurant` interface: `status: string` — same enum bypass pattern. Status is compared against the STATUS_BADGE Record keys without type safety.",
+        "app/restaurant/[id]/page.tsx: uses `prisma.restaurant.findUnique` which returns Prisma's typed restaurant — but then destructures to a local shape with `upvotes: restaurant.upvotes ?? 0` even though the Prisma type has upvotes as non-nullable Int. The `?? 0` fallback is an unnecessary null guard on a value the schema guarantees is non-null.",
+        "lib/rules.ts: all functions are well-typed. No issues.",
+        "lib/state-machine.ts: the ScrapeState union type and VALID_TRANSITIONS Record are properly typed. No issues.",
+        "lib/fingerprint.ts: `computeFingerprint(request: NextRequest): string` — well typed and simple.",
+        "lib/geo.ts: `extractIp(headers: Headers): string` — the 'unknown' sentinel is a runtime contract not expressed in the type (covered under contract_coherence). From a type_safety perspective, returning string instead of string | null is the issue.",
+        "lib/reddit.ts `fetchPostComments` return type inferred as `Promise<string[]>` — TypeScript infers this correctly. The `.map((c: { data?: { body?: string } }) => c.data?.body || '')` cast is appropriate for external Reddit API data.",
+        "No `@ts-ignore` or `@ts-expect-error` comments found in the codebase.",
+        "No TypedDict fields marked Required but accessed via .get() — this is TypeScript, no such pattern.",
+        "Prisma-generated types are used correctly throughout lib/rules.ts, lib/search.ts, app/api routes."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "RestaurantStatus enum is defined in Prisma but components use string for status fields, bypassing enum safety. The search.ts wrapper casts through unknown to silence a structural compatibility error. The vote direction is validated as string at runtime but never narrowed to a Literal type."
+    }
+  },
+  "dimension_judgment": {
+    "type_safety": {
+      "dimension_character": "The codebase has solid type safety at the lib layer — Prisma types flow correctly through service functions, no ts-ignore suppression, and external API boundary casts are appropriate. The main weaknesses are in the component layer where RestaurantStatus enum values are typed as plain string in interface definitions, causing silent fallback behavior instead of type errors for unexpected statuses, and a structural compatibility cast in lib/search.ts that bypasses TypeScript's structural type checking without explanation.",
+      "score_rationale": "The absence of ts-ignore comments and correct Prisma type usage are meaningful positives. The enum bypass pattern in components (string instead of RestaurantStatus) is a genuine safety gap — components can silently misbehave with unexpected status values. The `as unknown as GroupableRestaurant[]` cast in search.ts is a type lie that hides a real structural compatibility question. These are real but not critical defects in a relatively small codebase."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "type_safety",
+      "identifier": "restaurant_status_enum_bypass",
+      "summary": "RestaurantStatus enum bypassed with string type in component interfaces",
+      "related_files": ["components/RestaurantCard.tsx", "components/TrendingSection.tsx", "app/search/page.tsx"],
+      "evidence": [
+        "components/RestaurantCard.tsx line 39: `status: string` in Restaurant interface — RestaurantStatus enum values are VERIFIED, UNREVIEWED, INCOMPLETE",
+        "components/TrendingSection.tsx line 14: `status: string` in TrendingRestaurant interface",
+        "Both components index their STATUS_BADGE/STATUS_LABELS maps with the status string — an unexpected status value silently falls back to UNREVIEWED instead of being caught at compile time",
+        "Prisma's generated RestaurantStatus enum is available in @prisma/client and is correctly used in lib/rules.ts and app/api routes"
+      ],
+      "suggestion": "Import RestaurantStatus from '@prisma/client' and type the status field as RestaurantStatus in both component interfaces. This makes unexpected status values a type error rather than a silent fallback. The ?? STATUS_LABELS.UNREVIEWED fallback can then be removed as it would be unreachable.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "enum_bypass_patterns"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "search_grouping_unknown_cast",
+      "summary": "groupRestaurantsByName wrapper casts through unknown to silence structural type mismatch",
+      "related_files": ["lib/search.ts"],
+      "evidence": [
+        "lib/search.ts line 61: `return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[])`",
+        "The input type is RestaurantWithRecommendations[] but _groupRestaurantsByName expects GroupableRestaurant[]",
+        "Both interfaces share the same fields — the cast silences TypeScript rather than making the structural compatibility explicit",
+        "This hides whether the types are actually compatible at the field level"
+      ],
+      "suggestion": "Make RestaurantWithRecommendations structurally extend GroupableRestaurant, or directly declare `restaurants: GroupableRestaurant[]` as the parameter type for this wrapper. The `as unknown as` double cast is a red flag that should be resolved by proper type alignment.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "vote_direction_not_narrowed",
+      "summary": "Vote direction validated as string at runtime but type never narrowed to literal union",
+      "related_files": ["app/api/vote/route.ts", "app/api/restaurant-vote/route.ts"],
+      "evidence": [
+        "app/api/vote/route.ts line 11: `let body: { recommendation_id?: string; direction?: string }` — direction is string",
+        "Lines 27-30: guard checks direction !== 'up' && direction !== 'down' — this narrows the runtime value but TypeScript still sees direction as `string | undefined` after the guard",
+        "Line 56: `const voteDirection = direction === 'up' ? VoteDirection.up : VoteDirection.down` — ternary on an unnarrowed string; if somehow direction is undefined here (defensive guard was satisfied by other means), this would silently produce VoteDirection.down"
+      ],
+      "suggestion": "Type the body as `{ recommendation_id?: string; direction?: 'up' | 'down' }` from the start, or use a type assertion after the guard: `const dir = direction as 'up' | 'down'`. Then the VoteDirection mapping is type-safe and the compiler can verify all cases are covered.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "unnecessary_null_guard_prisma_nonnull",
+      "summary": "Null guard on Prisma non-nullable fields suggests type distrust",
+      "related_files": ["app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "Line 65: `const totalNetVotes = (restaurant.upvotes ?? 0) - (restaurant.downvotes ?? 0)`",
+        "Prisma schema defines upvotes and downvotes as Int @default(0) — they are non-nullable in the TypeScript types",
+        "The ?? 0 fallback is unreachable according to the Prisma type; it suggests the developer was uncertain about the nullability"
+      ],
+      "suggestion": "Remove the `?? 0` fallbacks. The Prisma-generated type guarantees upvotes and downvotes are numbers. If defensive coding is desired here, add a comment explaining why.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Components define their own Restaurant interfaces (to avoid importing server-only Prisma types into client components) — a legitimate architectural constraint that leads to typing status as string rather than the Prisma enum",
+      "The groupRestaurantsByName wrapper was added as a convenience re-export without taking time to properly align the types"
+    ],
+    "likely_symptoms": ["restaurant_status_enum_bypass", "search_grouping_unknown_cast"],
+    "possible_false_positives": ["lib/google-places.ts Record<string, unknown> casts — these are appropriate external API boundary patterns, not type safety defects"]
+  },
+  "context_updates": {
+    "type_safety": {
+      "add": [
+        {
+          "header": "Components define local interfaces to avoid server-only imports",
+          "description": "Next.js client components cannot import from server-only modules. Components define their own Restaurant/Recommendation interfaces that mirror Prisma types — this is why RestaurantStatus enum is not used in component interfaces. The workaround is valid but loses enum safety.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "No ts-ignore suppression anywhere in the codebase",
+          "description": "A search of all TypeScript files confirms zero @ts-ignore or @ts-expect-error comments. Type errors are either resolved properly or (in the one case) worked around with an explicit unknown cast.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "External API boundaries use appropriate Record<string, unknown> casts",
+          "description": "lib/google-places.ts and lib/openrouter.ts correctly type external JSON responses as Record<string, unknown> and cast individual fields inline. This is the appropriate TypeScript pattern for untyped external APIs.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

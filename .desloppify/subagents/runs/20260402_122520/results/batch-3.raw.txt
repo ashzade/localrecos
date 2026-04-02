@@ -1,0 +1,115 @@
+{
+  "batch": "convention_outlier",
+  "batch_index": 3,
+  "assessments": {
+    "convention_outlier": 74.0
+  },
+  "dimension_notes": {
+    "convention_outlier": {
+      "evidence": [
+        "lib/ naming: camelCase is the dominant convention (48 camelCase names) with one snake_case outlier: detect_city in lib/geo.ts. All other lib functions use camelCase (parseQuery, searchRestaurants, computeFingerprint, validateRedditPost, assertValidTransition, isOpenNow, etc.)",
+        "components/ exports: all 11 components use default export — a consistent pattern",
+        "app/ module patterns: default_export for pages (layout.tsx, page.tsx), named_export for some API route helpers — consistent with Next.js conventions",
+        "lib/ module patterns: named_export for 8 files, class_based for 2 (validate.ts with ValidationError class, state-machine.ts with InvalidTransitionError class), default_export for 1 (db.ts) — the mixed named/default is driven by the db.ts singleton pattern, an intentional Next.js idiom",
+        "VoteButton.tsx and RestaurantFeedbackButton.tsx are sibling voting components with structurally identical logic (cast(), optimistic update, localStorage, revert on error) but VoteButton is flagged as orphaned (zero importers) suggesting it is a dead sibling that was replaced by RestaurantFeedbackButton without deletion",
+        "components/TrendingSection.tsx defines STATUS_BADGE with the same keys as RestaurantCard's STATUS_LABELS but different variable names and identical shapes — naming drift within sibling components",
+        "lib/reddit.ts has a mid-file import statement at line 52: `import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate'` placed after module-level constants and function definitions — all other files put imports at the top",
+        "Boilerplate duplication signals: RestaurantFeedbackButton.tsx appears 4 times in the duplicate cluster list (windows of 10, 6, 20, 17 lines) paired with VoteButton.tsx and RestaurantCard.tsx — the optimistic vote update pattern is copy-pasted rather than shared"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "convention_outlier": {
+      "dimension_character": "The codebase is largely convention-consistent within each directory, but has several well-defined outliers: the snake_case detect_city function in an otherwise uniformly camelCase lib/ directory, a mid-file import in lib/reddit.ts that breaks the universal top-of-file import pattern, and a dead VoteButton.tsx sibling whose replacement (RestaurantFeedbackButton.tsx) duplicates its core logic with minor variations. The status badge naming drift (STATUS_LABELS vs STATUS_BADGE for identical shapes) is a smaller friction point. None of these rise to style-island level, but they are concentrated in the most-trafficked files.",
+      "score_rationale": "The 74 reflects that a developer learning patterns from one file will encounter one or two surprises in siblings — the naming drift between STATUS_LABELS and STATUS_BADGE, the detect_city vs detectCityFromIp split, and the dead VoteButton competing with its replacement are all concrete points where a developer would say 'why is this different?' The codebase is not fragmented at the 60-level but it has enough visible outliers to sit below 80."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "convention_outlier",
+      "identifier": "co_detect_city_snake_case",
+      "summary": "lib/geo.ts exports detect_city in snake_case, violating camelCase convention for all other lib functions",
+      "related_files": ["lib/geo.ts"],
+      "evidence": [
+        "lib/ has 48 camelCase function names and 1 snake_case: detect_city (line 6)",
+        "The function comment says 'Alias: detect_city (used by GeoDetector.detect_city in the spec)' — this is a spec alias, not a code convention",
+        "All sibling functions in lib/ use camelCase: extractIp, computeFingerprint, parseQuery, validateRedditPost, assertValidTransition, isOpenNow, etc."
+      ],
+      "suggestion": "Rename detect_city to detectCity (matching camelCase convention) and update app/api/search/route.ts which imports it as detect_city. The spec alias can be preserved as a JSDoc @alias tag rather than a live export. The detectCityFromIp alias in the same file should be cleaned up as part of the same pass (see cross_module_architecture issue).",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "naming_convention_drift"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "co_reddit_mid_file_import",
+      "summary": "lib/reddit.ts has an import statement at line 52 inside the file body, breaking the universal top-of-file import convention",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "lib/reddit.ts lines 1-43 define module-level constants (SUBREDDIT_MAP, getSubreddits) before any import",
+        "Line 52: `import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate'` — placed after function definitions",
+        "Every other file in the codebase places all imports at the top before any module code"
+      ],
+      "suggestion": "Move the import statement for validateRedditPost and validateExtractedRestaurant to the top of lib/reddit.ts with the other imports. This is a single-line move.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "co_votebuttton_dead_sibling",
+      "summary": "VoteButton.tsx is a dead sibling of RestaurantFeedbackButton.tsx with zero importers; the duplicate vote logic creates convention confusion",
+      "related_files": ["components/VoteButton.tsx", "components/RestaurantFeedbackButton.tsx"],
+      "evidence": [
+        "VoteButton.tsx has 0 importers (107 LOC) — it is not rendered anywhere in the application",
+        "RestaurantFeedbackButton.tsx implements the same optimistic vote pattern (cast(), localStorage, revert) for restaurant-level votes",
+        "A new engineer browsing components/ will find two vote components and be unable to determine which is canonical without checking importers"
+      ],
+      "suggestion": "Delete VoteButton.tsx. If recommendation-level voting (as distinct from restaurant-level voting) needs a client component in the future, create it then. The dead file currently signals a pattern without an owner.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "detect_city was named to match a spec alias rather than the codebase convention — the spec alignment took priority over naming uniformity",
+      "VoteButton.tsx was likely replaced by RestaurantFeedbackButton.tsx during a refactor and never deleted",
+      "The mid-file import in lib/reddit.ts is likely a residue of iterative development where the import was added after the constants were already written"
+    ],
+    "likely_symptoms": [
+      "co_votebuttton_dead_sibling — the boilerplate duplication signals for RestaurantFeedbackButton are partly explained by its similarity to the dead VoteButton"
+    ],
+    "possible_false_positives": [
+      "The boilerplate_duplication cluster signals pointing to RestaurantFeedbackButton 4 times — the duplicated pattern (optimistic vote update) is a deliberate copy of the component protocol, not a naming/convention outlier"
+    ]
+  },
+  "context_updates": {
+    "convention_outlier": {
+      "add": [
+        {
+          "header": "camelCase dominant in lib/ with one snake_case outlier",
+          "description": "lib/ uses camelCase for all 48 named exports except detect_city which was named to match a spec alias. The outlier is not a style island — it is a single function in an otherwise consistent module.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Consistent default export pattern in components/",
+          "description": "All 11 component files use default export — no named-vs-default mixing in the component layer.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Optimistic vote pattern duplicated in dead and live sibling",
+          "description": "VoteButton.tsx (0 importers) and RestaurantFeedbackButton.tsx implement the same optimistic update/revert protocol with different API endpoints. The dead file creates convention ambiguity.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "batch": "convention_outlier",
+  "batch_index": 3,
+  "assessments": {
+    "convention_outlier": 78.0
+  },
+  "dimension_notes": {
+    "convention_outlier": {
+      "evidence": [
+        "lib/ is uniformly camelCase (50 camelCase function/variable names, 0 PascalCase for non-types) — consistent convention.",
+        "components/ has 10 PascalCase component files and 7 camelCase helper/util names — this is correct TypeScript/React convention: files and component functions in PascalCase, helper functions in camelCase.",
+        "All lib/ modules use named exports exclusively — no default exports in lib/. components/ uses default exports exclusively for components — both patterns are internally consistent.",
+        "The three previously resolved convention issues (snake_case detect_city, mid-file import in reddit.ts, dead VoteButton.tsx) are confirmed fixed.",
+        "PRICE_ORDER constant is defined independently in both components/LoadMoreButton.tsx and app/search/page.tsx. This is the same value (`{ '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 }`) duplicated verbatim — a sibling behavioral inconsistency.",
+        "lib/reddit.ts foodQuery() issue remains open per batch prompt — verified: there is no `foodQuery` function in lib/reddit.ts. The file was reviewed in full; this function does not exist. The open issue may refer to a function that has since been removed.",
+        "boilerplate_duplication signals in scan evidence point to RestaurantFeedbackButton.tsx (multiple times), RestaurantCard.tsx, LoadMoreButton.tsx, app/api/restaurant-vote/route.ts, app/restaurant/[id]/page.tsx. On inspection: RestaurantFeedbackButton.tsx has repeated if/else vote rollback logic (direction === 'up' branches mirrored for rollback on error and on HTTP failure). RestaurantCard.tsx and TrendingSection.tsx both define STATUS_BADGE/STATUS_LABELS maps independently.",
+        "app/api/vote/route.ts and app/api/restaurant-vote/route.ts are sibling routes that follow near-identical structure (same imports, same body parsing, same auth pattern, same duplicate-vote-check pattern, same transaction pattern) — both are internally consistent with each other, which is a positive signal for sibling behavioral protocol.",
+        "signature finding (1): not visible in current scan evidence detail — no outlier function signatures identified during code review.",
+        "naming_by_directory shows scrape/ with mixed camelCase and PascalCase — this directory contains the single file app/api/scrape/route.ts which exports both a default-export-style POST handler (function, not named) and camelCase helpers. The 'PascalCase 1' entry likely refers to ScrapeState type usage, which is correct."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "convention_outlier": {
+      "dimension_character": "The codebase is highly consistent in naming and export conventions — lib/ is uniformly camelCase named exports, components/ is uniformly PascalCase default exports, and sibling API routes follow the same structural protocol. The main outlier is the PRICE_ORDER constant duplicated verbatim in two files, and the status badge maps duplicated across three files (primarily a high_level_elegance issue but also a convention concern). There are no style islands or convention drift.",
+      "score_rationale": "The score sits at 78: the codebase demonstrates disciplined convention adherence that a new engineer would find reassuring. The duplicated PRICE_ORDER constant is a clear convention outlier (same value, same shape, defined twice) that belongs under this dimension. The status badge duplication is cross-cutting but less severe here since it has shape divergence (a design issue) rather than pure duplication."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "convention_outlier",
+      "identifier": "co_price_order_duplication",
+      "summary": "PRICE_ORDER constant defined identically in two sibling files; one should import from the other or a shared constant",
+      "related_files": ["components/LoadMoreButton.tsx", "app/search/page.tsx"],
+      "evidence": [
+        "components/LoadMoreButton.tsx line 7: `const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };`",
+        "app/search/page.tsx: `const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };`",
+        "Both definitions are byte-for-byte identical; there is no shared source"
+      ],
+      "suggestion": "Define PRICE_ORDER once — either in lib/restaurant-grouping.ts (where price_range is a field on RestaurantGroup) or in a shared constants file — and import it in both LoadMoreButton.tsx and app/search/page.tsx.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Small constants like PRICE_ORDER were defined locally when first needed and not revisited when a second consumer was added"
+    ],
+    "likely_symptoms": ["co_price_order_duplication"],
+    "possible_false_positives": [
+      "lib/reddit.ts foodQuery() open issue — function does not exist in current codebase; likely removed; issue should be marked resolved"
+    ]
+  },
+  "context_updates": {
+    "convention_outlier": {
+      "add": [
+        {
+          "header": "Consistent named exports in lib, default exports in components",
+          "description": "lib/ uses exclusively named exports; components/ uses exclusively default exports. This division is consistent across all 22 files in those two directories and matches TypeScript/React conventions.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "PRICE_ORDER constant duplicated in two consumer files",
+          "description": "Both components/LoadMoreButton.tsx and app/search/page.tsx define identical PRICE_ORDER maps locally rather than sharing from a single source. Arose from independent local definitions without a subsequent consolidation pass.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Sibling vote routes follow identical structural protocol",
+          "description": "app/api/vote/route.ts and app/api/restaurant-vote/route.ts mirror each other in structure (body parse, fingerprint, duplicate check, transaction, state transition) — a positive behavioral consistency signal.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

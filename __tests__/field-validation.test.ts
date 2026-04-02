@@ -4,6 +4,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+
+// Cast helper for adversarial tests that deliberately supply invalid field values.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const bad = (x: unknown): any => x;
+
 import {
   validateParsedQuery,
   validateRedditPost,
@@ -21,27 +26,27 @@ import {
 describe('ParsedQuery field validation', () => {
   // T01
   it('T01: rejects when terms is null', () => {
-    expect(() => validateParsedQuery({ terms: null, raw: 'pizza ottawa' }))
+    expect(() => validateParsedQuery(bad({ terms: null, raw: 'pizza ottawa', city: null })))
       .toThrow(ValidationError);
-    expect(() => validateParsedQuery({ terms: null, raw: 'pizza ottawa' }))
+    expect(() => validateParsedQuery(bad({ terms: null, raw: 'pizza ottawa', city: null })))
       .toThrow("Field 'terms' is required on ParsedQuery (in-memory).");
   });
 
   // T02
   it('T02: rejects when terms is empty string', () => {
-    expect(() => validateParsedQuery({ terms: '', raw: 'pizza ottawa' }))
+    expect(() => validateParsedQuery(bad({ terms: '', raw: 'pizza ottawa', city: null })))
       .toThrow("Field 'terms' must not be empty.");
   });
 
   // T03
   it('T03: rejects when raw is null', () => {
-    expect(() => validateParsedQuery({ terms: 'pizza', raw: null }))
+    expect(() => validateParsedQuery(bad({ terms: 'pizza', raw: null, city: null })))
       .toThrow("Field 'raw' is required on ParsedQuery (in-memory).");
   });
 
   // T04
   it('T04: rejects when raw is empty string', () => {
-    expect(() => validateParsedQuery({ terms: 'pizza', raw: '' }))
+    expect(() => validateParsedQuery(bad({ terms: 'pizza', raw: '', city: null })))
       .toThrow("Field 'raw' must not be empty.");
   });
 

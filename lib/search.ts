@@ -151,7 +151,7 @@ export async function searchRestaurants(
 /**
  * Count restaurants in a city matching the search terms.
  */
-export async function countSearchResults(city: string, terms: string): Promise<number> {
+export function countSearchResults(city: string, terms: string): Promise<number> {
   const normalizedCity = city.trim();
   const words = parseWords(terms);
   return prisma.restaurant.count({ where: buildWhereCondition(normalizedCity, words) });

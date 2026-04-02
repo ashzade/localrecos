@@ -1,0 +1,104 @@
+{
+  "batch": "package_organization",
+  "batch_index": 15,
+  "assessments": {
+    "package_organization": 82.0
+  },
+  "dimension_notes": {
+    "package_organization": {
+      "evidence": [
+        "Directory structure: app/ (2 files, root pages), app/api/* (7 route handlers in own subdirs), app/search/ (1 page), app/restaurant/[id]/ (1 page), components/ (11 files), lib/ (11 files), prisma/ (seed + schema) — clear three-layer split: pages, components, library",
+        "lib/ directory: 11 files, avg_fan_in 4.4 — high cohesion, files are well-imported across the codebase. Top importers: db.ts (9), validate.ts (9), search.ts (8), geo.ts (6) — these are genuine core files, not stragglers",
+        "components/ directory: 11 files, avg_fan_in 1.3, avg_fan_out 0.5 — most components are lightly reused. LoadMoreButton.tsx is single-use (213 LOC, only imported by app/search/page.tsx) — a strong candidate for inlining or co-location but within scope per skip rules (not a straggler root, framework layout)",
+        "coupling_matrix shows only 2 edges: app/→components/ (3) and components/→lib/ (2) — no cross-directory cycles, correct layering direction maintained throughout",
+        "lib/ contains files of notably different concerns bundled together: db.ts (database client), geo.ts (IP geolocation), reddit.ts (Reddit scraping, 436 LOC), openrouter.ts (LLM), google-places.ts (Google API), hours.ts (hours parsing), fingerprint.ts (hashing), state-machine.ts (state logic), validate.ts (validation), rules.ts (business rules), search.ts (search orchestration) — all 11 files flat in one directory",
+        "No straggler root-level files — all production .ts/.tsx files are under their appropriate directories",
+        "flat_dir_issues not flagged for lib/ (11 files is at the threshold) — however the lib/ files span at least 4 distinct concern domains: external API clients (geo, reddit, openrouter, google-places), data access (db), business logic (rules, validate, state-machine, search), and utilities (fingerprint, hours)",
+        "package_size_census shows components/ has 90.7% of LOC — this is because components/LoadMoreButton.tsx is 213 LOC and contains server-replicating grouping logic, inflating the package",
+        "No ambiguous folder naming — app/, components/, lib/ clearly communicate their roles",
+        "app/api/* subdirectory-per-route pattern (geo/, search/, vote/, etc.) is idiomatic Next.js and adds good navigability"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "medium",
+      "issues_preventing_higher_score": "lib/ bundles 4 distinct concern domains (external API clients, data access, business logic, pure utilities) into a single flat directory of 11 files without subdirectory grouping. A developer looking for the Reddit client must scan past db.ts, fingerprint.ts, and hours.ts to find it. At 11 files this is borderline and debatable, but the mixed concerns are real."
+    }
+  },
+  "dimension_judgment": {
+    "package_organization": {
+      "dimension_character": "The codebase has a clear and correct three-layer structure (pages, components, library) with no straggler root files, no directory cycles, and correct import direction throughout. lib/ is the one area where structure could improve: it is a flat collection of 11 files spanning external API clients, data access, business logic, and utilities without subdirectory grouping. At this project size the flat structure is defensible, but a developer looking for a specific concern (e.g. external integrations) must scan the entire lib/ listing.",
+      "score_rationale": "At 82, the codebase is solid — the layering is correct, naming is clear, and the Next.js app directory structure is idiomatic. What prevents a higher score is the undifferentiated lib/ directory that mixes fundamentally different concerns: a developer cannot navigate to 'external integrations' or 'business rules' without already knowing the file names. This is a moderate friction point at 11 files but would become a real problem as the project grows."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "package_organization",
+      "identifier": "lib_flat_mixed_concerns",
+      "summary": "lib/ bundles 4 distinct concern domains in a flat directory with no subdirectory grouping",
+      "related_files": [
+        "lib/db.ts",
+        "lib/geo.ts",
+        "lib/reddit.ts",
+        "lib/openrouter.ts",
+        "lib/google-places.ts",
+        "lib/hours.ts",
+        "lib/fingerprint.ts",
+        "lib/state-machine.ts",
+        "lib/validate.ts",
+        "lib/rules.ts",
+        "lib/search.ts"
+      ],
+      "evidence": [
+        "lib/ has 11 files with avg_fan_in 4.4 — a well-used shared directory, but flat",
+        "External API clients: geo.ts (IP API), reddit.ts (Reddit API), openrouter.ts (LLM API), google-places.ts (Google Places API) — four integration files mixed with business logic",
+        "Data access: db.ts (Prisma client singleton)",
+        "Business logic: rules.ts (voting rules), validate.ts (validators), state-machine.ts (scrape state), search.ts (search orchestration)",
+        "Utilities: fingerprint.ts (hashing), hours.ts (hours parsing)",
+        "A developer looking for 'where do we call Google Places?' must scan 11 files; with subdirectories they would go to lib/integrations/"
+      ],
+      "suggestion": "Staged reorg: (1) Create lib/integrations/ and move geo.ts, reddit.ts, openrouter.ts, google-places.ts into it; (2) Create lib/domain/ and move rules.ts, validate.ts, state-machine.ts, search.ts into it; (3) Leave db.ts, fingerprint.ts, hours.ts in lib/ as they are genuinely shared utilities. Update all @/lib/* imports to @/lib/integrations/* or @/lib/domain/* as appropriate. Run `npx tsc --noEmit` to validate. This is 4 file moves for integrations and 4 for domain, with import updates across app/api/* and components/.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The lib/ flat structure likely reflects incremental growth — each file was added one at a time without reconsidering the directory shape. At a small project size this is natural but the grouping opportunity is now clear."
+    ],
+    "likely_symptoms": [
+      "lib_flat_mixed_concerns"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "package_organization": {
+      "add": [
+        {
+          "header": "Three-layer app/components/lib structure is correct",
+          "description": "The top-level directory layout maps cleanly to pages, UI components, and shared library code with no cycles and correct import direction throughout. The coupling_matrix shows only two edges: app→components and components→lib, both in the right direction.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Next.js api/ subdirectory-per-route is well-organized",
+          "description": "Each API route lives in its own subdirectory (geo/, vote/, scrape/, etc.) following idiomatic Next.js App Router conventions, making routes independently navigable.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "lib/ directory mixes four distinct concern domains flat",
+          "description": "lib/ contains external API clients (geo, reddit, openrouter, google-places), data access (db), business logic (rules, validate, state-machine, search), and utilities (fingerprint, hours) all in one flat directory with no subdirectory grouping.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "No straggler root-level production files",
+          "description": "All production TypeScript files are under their appropriate directories. Root-level files are config only (next.config.js, tsconfig.json, etc.).",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

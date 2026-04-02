@@ -1,0 +1,102 @@
+{
+  "batch": "naming_quality",
+  "batch_index": 5,
+  "assessments": {
+    "naming_quality": 80.0
+  },
+  "dimension_notes": {
+    "naming_quality": {
+      "evidence": [
+        "OPEN ISSUE INVESTIGATED: lib/reddit.ts foodQuery() — function does not exist in the current codebase. A full review of lib/reddit.ts confirms no function named foodQuery. This issue should be marked resolved/stale.",
+        "lib/ function names are descriptive and domain-aligned: detectCityFromIp, extractIp, computeFingerprint, groupRestaurantsByName, normalizeWebsite, isOpenNow, parseQueryWithLLM, getRedditRecommendations, scrapeRedditForRestaurants, fetchCommunityPicksForRestaurant, tryTransitionToVerified, assertValidTransition, isValidTransition, validNextStates.",
+        "lib/reddit.ts internal helpers are well-named: isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName, extractRestaurantName, buildSummary, extractRelevantSentences — each name accurately describes the boolean predicate or transformation.",
+        "lib/rules.ts function names include rule identifiers: checkRule01, checkRule03, checkRule05 — this is a minor vocabulary divergence. The names describe the mechanics (check + rule code) rather than the domain intent (hasRecommendation, noDuplicateVote, noDuplicateRestaurantVote). A new engineer would need to cross-reference the rule codes.",
+        "lib/search.ts: parseWords() is a private helper. The name is accurate but generic for a function that also filters stop words and minimum length — parseSearchTerms or extractSearchTerms would better communicate the filtering intent.",
+        "components/SearchPoller.tsx: the component is named SearchPoller but its behavior is actually a scrape trigger + result refresher. It fires a scrape POST and then polls via router.refresh(). The name implies passive polling but it actively initiates the scrape — ScrapeAndPoll or ScrapeTrigger would be more accurate.",
+        "app/api/scrape/route.ts: fetchWithFallback() name is accurate — it fetches from Reddit and falls back to LLM. enrichAndUpsert() is accurate. upsertRestaurant() is accurate.",
+        "lib/openrouter.ts: regexFallback() is a well-named private function describing its role as a fallback strategy.",
+        "components/RestaurantFeedbackButton.tsx: cast() as the vote-casting function — a short but domain-specific verb that is unambiguous in context.",
+        "lib/restaurant-grouping.ts: shouldMerge() and buildGroup() are accurate. normalizeWebsite() is accurate.",
+        "lib/state-machine.ts: all exported names are clear — assertValidTransition, isValidTransition, validNextStates, InvalidTransitionError.",
+        "lib/validate.ts: all validators follow validateXxx naming — validateParsedQuery, validateRedditPost, validateExtractedRestaurant, validatePlaceDetails, validateRestaurantInput, validateCommunityRecommendationInput, validateVoteInput, validateRestaurantVoteInput. Consistent and descriptive."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "checkRule01/03/05 use opaque rule-code names rather than intent-communicating names; SearchPoller.tsx name understates its active scrape-trigger role. These are minor but real naming quality defects."
+    }
+  },
+  "dimension_judgment": {
+    "naming_quality": {
+      "dimension_character": "Naming across this codebase is generally strong: lib/ functions use descriptive, domain-accurate names; validators follow a consistent pattern; React component names are PascalCase and clearly reflect their UI role. The main weaknesses are lib/rules.ts using opaque rule codes (checkRule01 etc.) instead of intent-communicating names, and SearchPoller.tsx being named as a passive poller when it actively initiates scrapes.",
+      "score_rationale": "The score is 80: the codebase earns high marks for consistent naming patterns, accurate predicate names (isX), and clear transformation names. It misses the 85+ tier because of the rule-code naming pattern in lib/rules.ts (requires cross-referencing to understand intent) and the SearchPoller misnomer which creates a false expectation for a developer reading the component tree."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "naming_quality",
+      "identifier": "nq_rule_code_names",
+      "summary": "lib/rules.ts functions named after opaque rule codes (checkRule01, checkRule03, checkRule05) rather than business intent",
+      "related_files": ["lib/rules.ts"],
+      "evidence": [
+        "checkRule01() checks if a restaurant has at least one community recommendation — the name says nothing about this",
+        "checkRule03() checks for duplicate votes on a recommendation — the name says nothing about this",
+        "checkRule05() checks for duplicate restaurant votes — the name says nothing about this",
+        "Callers must read the function body or comments to understand what check is being performed"
+      ],
+      "suggestion": "Rename to intent-communicating names: checkRule01 → hasMinimumRecommendations (or canVerify), checkRule03 → isFirstVoteOnRecommendation (or hasNotVotedOnRecommendation), checkRule05 → hasNotVotedOnRestaurant. Keep the RULE_XX reference in the JSDoc comment for traceability to the manifest.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "naming_quality",
+      "identifier": "nq_search_poller_misnomer",
+      "summary": "SearchPoller.tsx is named as a passive poller but actively initiates a scrape POST request",
+      "related_files": ["components/SearchPoller.tsx"],
+      "evidence": [
+        "SearchPoller.tsx useEffect: calls `fetch('/api/scrape', { method: 'POST', ... })` unconditionally on mount — this is an active scrape trigger, not passive polling",
+        "The component also calls `router.refresh()` on an interval and after scrape completion — the polling part is router refresh, not data polling",
+        "A developer reading the component tree would expect SearchPoller to check for new data, not to initiate a pipeline run"
+      ],
+      "suggestion": "Rename to ScrapeTrigger or ScrapeAndRefresh to communicate that it initiates a scrape operation and refreshes the page on completion. This sets accurate expectations for any developer adding or modifying search functionality.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Rule code identifiers (RULE_01 etc.) from the manifest were carried directly into function names without being translated to domain vocabulary",
+      "SearchPoller was named when its polling behavior was primary; the scrape-trigger responsibility was added later without renaming"
+    ],
+    "likely_symptoms": ["nq_rule_code_names", "nq_search_poller_misnomer"],
+    "possible_false_positives": [
+      "lib/reddit.ts foodQuery() open issue — function no longer exists in codebase; should be marked resolved"
+    ]
+  },
+  "context_updates": {
+    "naming_quality": {
+      "add": [
+        {
+          "header": "Validate functions follow consistent validateXxx pattern",
+          "description": "All 8 validator functions in lib/validate.ts use the validateXxx naming convention, making them easy to discover and predict. A developer adding a new entity type knows exactly what to name the validator.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Reddit helper predicates accurately named with isX pattern",
+          "description": "isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName in lib/reddit.ts all return boolean and have names that accurately describe their predicates. No name/behavior mismatch.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Rule functions use opaque code names not business intent",
+          "description": "checkRule01/03/05 in lib/rules.ts encode manifest rule codes rather than intent. Callers must read the implementation or comments to understand what is being checked. This is a developer experience cost on every read path.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

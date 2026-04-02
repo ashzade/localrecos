@@ -1,0 +1,86 @@
+{
+  "batch": "authorization_consistency",
+  "batch_index": 12,
+  "assessments": {
+    "authorization_consistency": 82.0
+  },
+  "dimension_notes": {
+    "authorization_consistency": {
+      "evidence": [
+        "POST /api/scrape has INTERNAL_API_TOKEN header check: reads env var, rejects without header (403) when set. The guard is correctly opt-in — safe for dev, gated in production.",
+        "GET /api/search, GET /api/search-more, GET /api/trending, GET /api/geo: all are fully public read routes — no auth, which is appropriate for a read-only discovery product.",
+        "POST /api/vote and POST /api/restaurant-vote: no session auth; fingerprint-based deduplication (RULE_03/RULE_05) is the only access control. This was an intentional wontfix decision documented in the review history.",
+        "Vote endpoints validate the direction field ('up'|'down') and the entity existence before acting — minimum trust-boundary validation is present.",
+        "vote and restaurant-vote both validate input before acting (validateVoteInput, validateRestaurantVoteInput); scrape validates body before acting. search and search-more validate required params and return 400 on missing values. Consistent input validation pattern across all POST and parameterized GET routes.",
+        "No magic permission strings found anywhere — the codebase has no role or permission string system at all (appropriate for an anonymous product).",
+        "The x-internal-token mechanism is opt-in based on env var — when INTERNAL_API_TOKEN is unset, POST /api/scrape accepts any caller. The comment in code correctly notes this is suitable for local dev.",
+        "No Supabase RLS patterns — this project uses Prisma with PostgreSQL; no RLS is configured or needed given the data model and auth model.",
+        "No service role / admin bypass patterns observed — no elevated DB access outside the single Prisma client.",
+        "The geo route exposes raw IP in its debug field: `return NextResponse.json({ city, debug: { source: 'ip', ip } })` — the caller's IP address is returned to the browser in production.",
+        "The geo route also leaks Nominatim response data including full address structure in the debug field, which is unnecessary for a production response."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "app/api/geo/route.ts returns the client IP address and full Nominatim address debug payload in its JSON response — a minor information disclosure in production"
+    }
+  },
+  "dimension_judgment": {
+    "authorization_consistency": {
+      "dimension_character": "For an anonymous product with no user accounts, the auth posture is deliberately minimal and consistently applied: all read routes are open, votes use fingerprint deduplication instead of session auth (intentional product decision), and the scrape endpoint has an opt-in token guard. The model is coherent and consistently applied across all routes. The one concrete gap is the geo endpoint returning the client's raw IP address and full Nominatim debug data in its production JSON response.",
+      "score_rationale": "The codebase scores in the low 80s because the auth model is intentionally simple, coherent, and consistently applied — a developer reviewing security can reason about it quickly. The IP leakage in the geo debug field is a real information disclosure defect that pulls the score below 85, but it is isolated and fixable with a single edit. The codebase is not in the 60-70 range because there are no auth inconsistencies between sibling routes and no magic permission strings."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "authorization_consistency",
+      "identifier": "geo_route_ip_leak_in_debug",
+      "summary": "GET /api/geo returns raw client IP and full Nominatim address data in production JSON response",
+      "related_files": [
+        "app/api/geo/route.ts"
+      ],
+      "evidence": [
+        "Line 35: `return NextResponse.json({ city, debug: { source: 'ip', ip } })` — the client IP is included in the response body returned to the browser",
+        "Line 23: `return NextResponse.json({ city, debug: { source: 'nominatim', status: nominatimStatus, address: data.address } })` — full address object from Nominatim (which may include neighbourhood, postcode, county) is returned to the browser",
+        "Line 25: `return NextResponse.json({ city: null, debug: { source: 'nominatim_failed', status: nominatimStatus, body: rawBody.slice(0, 200) } })` — raw upstream error body is returned"
+      ],
+      "suggestion": "Remove the `debug` field from production responses, or gate it behind a query parameter that is only enabled in development (e.g. `?debug=1` checked against NODE_ENV !== 'production'). The simplest fix: change the response to `return NextResponse.json({ city })` and strip all debug fields. Keep debug information server-side in console.log calls if diagnostics are needed.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Debug scaffolding added during development was not removed before production deployment"
+    ],
+    "likely_symptoms": [
+      "geo_route_ip_leak_in_debug"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "authorization_consistency": {
+      "add": [
+        {
+          "header": "Intentionally anonymous product, no session auth",
+          "description": "All routes are public by design — there are no user accounts. Vote deduplication uses fingerprinting (RULE_03/RULE_05) rather than session auth, a documented product decision that trades off strict identity for anonymous participation.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Consistent input validation across all write endpoints",
+          "description": "All POST routes validate body structure and required fields before acting, returning 400 for malformed input. This is a uniform trust-boundary pattern applied consistently.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Opt-in internal token guard on expensive scrape endpoint",
+          "description": "POST /api/scrape checks x-internal-token against INTERNAL_API_TOKEN env var — when set, it rejects unauthenticated requests (403). The opt-in design allows local dev without config while enabling production gating.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

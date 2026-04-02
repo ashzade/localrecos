@@ -1,0 +1,146 @@
+{
+  "batch": "abstraction_fitness",
+  "batch_index": 6,
+  "assessments": {
+    "abstraction_fitness": 74.0
+  },
+  "dimension_notes": {
+    "abstraction_fitness": {
+      "evidence": [
+        "lib/validate.ts: all 8 validator functions accept `Record<string, unknown>` rather than the typed interfaces they guard (ParsedQuery, RedditPost, etc.), requiring callers to cast with `as unknown as Record<string, unknown>` at every call site — the type system is bypassed at the exact point where it should provide value",
+        "LoadMoreButton.tsx: duplicates `normalizeWebsite`, `shouldMerge`, and `groupByName` logic that already exists in lib/search.ts (`normalizeWebsite`, `shouldMergeGroups`, `groupRestaurantsByName`), plus defines its own parallel `RawRestaurant`, `RestaurantGroup`, and `Location` interfaces — the boundary between server computation and client presentation is unclear",
+        "lib/reddit.ts: `foodQuery()` at line 100-102 is a single-line identity function (`return query`) — a named abstraction with zero behavior",
+        "lib/geo.ts: exports both `detect_city` and `detectCityFromIp` as aliases for the same function; `app/api/geo/route.ts` uses `detectCityFromIp` while `app/api/search/route.ts` and `app/api/trending/route.ts` use `detect_city` — dual names for one concept with no polymorphic purpose",
+        "Mechanical scan: `indirection_hotspot_count` is 6 but `wrapper_rate` is 0.0, `one_impl_interface_count` is 0, `delegation_heavy_class_count` is 0 — the indirection is in chain depth (JSX + data access chaining) not in wrapper layers",
+        "abstraction summary from scan: sub_axes show `indirection_cost` at 62, all others at 100 — the single genuine cost is the validate-layer type erasure and the client-side grouping duplication"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "sub_axes": {
+        "abstraction_leverage": 85.0,
+        "indirection_cost": 62.0,
+        "interface_honesty": 60.0,
+        "delegation_density": 100.0,
+        "definition_directness": 88.0,
+        "type_discipline": 65.0
+      }
+    }
+  },
+  "dimension_judgment": {
+    "abstraction_fitness": {
+      "dimension_character": "The codebase is lean on abstraction layers — no delegation-heavy classes, no facade modules, no one-implementation interfaces — which is healthy for its size. Two specific problems undermine this baseline: the validate layer systematically erases types at the boundary where type safety matters most (all validators accept `Record<string, unknown>`), and LoadMoreButton re-implements the server-side grouping algorithm in full rather than consuming a shared type and result shape. The identity function `foodQuery` is a third but minor ceremony item.",
+      "score_rationale": "The structural abstraction fitness is genuinely strong (no wrapper chains, no delegation indirection, no interface zoo), which pushes toward 80+. The validate layer's type erasure is a systemic pattern touching 8 functions and 9 import sites — every call site must `as unknown as Record<string, unknown>`, making the typed interfaces decorative rather than enforced. The client-side algorithm duplication creates a real maintenance hazard (the normalize/merge logic in LoadMoreButton already diverges slightly from lib/search.ts). These two issues together cap the score at 74."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "validate_type_erasure",
+      "summary": "Validator functions accept `Record<string, unknown>` instead of their respective typed interfaces, nullifying type safety at the enforcement boundary",
+      "related_files": [
+        "lib/validate.ts",
+        "app/api/scrape/route.ts",
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts"
+      ],
+      "evidence": [
+        "validateParsedQuery(obj: Record<string, unknown>) — but the interface ParsedQuery is already exported from lib/search.ts",
+        "Every call site casts: `validateParsedQuery(result as unknown as Record<string, unknown>)` and `validateRestaurantInput({...} as unknown as Record<string, unknown>)` — the double-cast signals the type contract is fighting itself",
+        "The typed interfaces (ParsedQuery, RedditPost, etc.) exist in lib/search.ts and lib/reddit.ts but are not used in the validators that enforce them"
+      ],
+      "suggestion": "Change each validator to accept its proper typed interface: `validateParsedQuery(obj: ParsedQuery): void`, `validateRedditPost(obj: RedditPost): void`, etc. Import the shared types from their source modules. This removes all call-site casts and makes the type system enforce what the validator tests at runtime.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "validate_type_design"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "loadmore_duplicated_grouping",
+      "summary": "LoadMoreButton re-implements the restaurant grouping algorithm (`normalizeWebsite`, `shouldMerge`, `groupByName`) already present in lib/search.ts, with diverging logic",
+      "related_files": [
+        "components/LoadMoreButton.tsx",
+        "lib/search.ts"
+      ],
+      "evidence": [
+        "LoadMoreButton.tsx lines 57-145 contain `normalizeWebsite`, `shouldMerge`, and `groupByName` — functionally equivalent to `normalizeWebsite`, `shouldMergeGroups`, and `groupRestaurantsByName` in lib/search.ts",
+        "The `normalizeWebsite` in LoadMoreButton strips trailing slash (`replace(/\\/$/, '')`) but the server-side version does not — the two are already diverging",
+        "LoadMoreButton defines its own `RawRestaurant`, `RestaurantGroup`, and `Location` interfaces that mirror (but don't import) the ones in lib/search.ts"
+      ],
+      "suggestion": "Export `groupRestaurantsByName` and the shared type definitions from lib/search.ts in a form consumable by client components (they are pure functions — no server-only imports). LoadMoreButton should call the shared function rather than reimplementing it. If the server/client boundary prevents direct import, extract the pure grouping logic into a separate `lib/restaurant-grouping.ts` that both sides import.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "client_server_boundary_duplication"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "food_query_identity_function",
+      "summary": "`foodQuery()` in lib/reddit.ts is an identity function (returns its argument unchanged) — a named abstraction with no behavior",
+      "related_files": [
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "lib/reddit.ts lines 100-102: `function foodQuery(query: string): string { return query; }` — called at line 108 as `foodQuery(query)`"
+      ],
+      "suggestion": "Remove `foodQuery` and inline `query` directly at the call site (`const encodedQuery = encodeURIComponent(query)`). If query preprocessing is intended in the future, add it when the need arises.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "detect_city_dual_alias",
+      "summary": "`detectCityFromIp` and `detect_city` are exported as aliases for the same function, splitting callers across two names with no substitution purpose",
+      "related_files": [
+        "lib/geo.ts",
+        "app/api/geo/route.ts",
+        "app/api/search/route.ts",
+        "app/api/trending/route.ts"
+      ],
+      "evidence": [
+        "lib/geo.ts line 40: `export const detectCityFromIp = detect_city;` — backward-compat alias comment",
+        "app/api/geo/route.ts uses `detectCityFromIp`; app/api/search/route.ts and app/api/trending/route.ts use `detect_city` — callers are already split"
+      ],
+      "suggestion": "Pick one name (`detectCityFromIp` is more idiomatic TypeScript camelCase; `detect_city` is a snake_case outlier in lib/). Remove the alias and update all call sites to the chosen name.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The validate layer was likely designed against a manifest schema that describes data shapes as untyped dicts; the typed interfaces were added later without updating the validator signatures",
+      "LoadMoreButton appears to have been built as a standalone client component without access to (or concern for) the server-side grouping functions, leading to independent reimplementation"
+    ],
+    "likely_symptoms": [
+      "loadmore_duplicated_grouping — the diverging normalizeWebsite will cause visible UI inconsistencies between initial load and load-more results for restaurants with trailing-slash websites"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "abstraction_fitness": {
+      "add": [
+        {
+          "header": "Zero wrapper/delegation layers in lib/",
+          "description": "No delegation-heavy classes, facade modules, or single-implementation interface ecosystems exist. Every lib/ export is a direct function or class with genuine behavior, keeping the abstraction stack flat and navigable.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Validate layer erases types at enforcement boundary",
+          "description": "All 8 validator functions in lib/validate.ts accept `Record<string, unknown>` instead of the typed interfaces they guard. Callers must double-cast with `as unknown as Record<string, unknown>`, making the TypeScript interfaces decorative rather than enforced at the point of validation.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Client-side grouping algorithm duplicated from lib/search.ts",
+          "description": "LoadMoreButton reimplements the full restaurant grouping logic (normalizeWebsite, shouldMerge, groupByName) that already exists in lib/search.ts, with parallel but diverging type definitions. The two implementations have already diverged in the normalizeWebsite function.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

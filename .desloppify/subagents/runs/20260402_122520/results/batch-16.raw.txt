@@ -1,0 +1,89 @@
+{
+  "batch": "initialization_coupling",
+  "batch_index": 16,
+  "assessments": {
+    "initialization_coupling": 74.0
+  },
+  "dimension_notes": {
+    "initialization_coupling": {
+      "evidence": [
+        "lib/db.ts: module-level PrismaClient instantiation at import time — `export const prisma = globalForPrisma.prisma ?? new PrismaClient({...})`. This reads process.env.NODE_ENV at import time to configure logging.",
+        "lib/db.ts: the `if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma` guard assigns to globalThis at module scope — a global singleton whose creation order matters. Any module that imports lib/db.ts before env vars are populated will capture a stale config.",
+        "lib/reddit.ts line 54-56: `const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0'`, `const CLIENT_ID = process.env.REDDIT_CLIENT_ID`, `const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET` — these are all read at import time. In a test harness, setting these env vars after module load has no effect.",
+        "lib/reddit.ts line 58: `let cachedToken: { token: string; expiresAt: number } | null = null` — module-level mutable global. Token state is shared across all request handlers in the same Node.js process. This is intentional caching but creates implicit shared state.",
+        "lib/openrouter.ts lines 1-3: `const OPENROUTER_BASE`, `const MODEL`, `const REDDIT_MODEL` — module-level constants computed at import time. These are pure string literals, so no snapshot vs getter issue exists here.",
+        "lib/google-places.ts lines 3-19: `const GOOGLE_PLACES_BASE`, `const FIELD_MASK`, `const FOOD_TYPES`, `const PRICE_MAP` — all module-level constants. GOOGLE_PLACES_API_KEY is NOT read at import time (it is read inside the function body), which is correct.",
+        "lib/geo.ts: no import-time env reads. `detect_city` reads no env at module scope — clean.",
+        "lib/fingerprint.ts: no module-level side effects — clean.",
+        "lib/search.ts: no module-level side effects beyond imports — clean.",
+        "lib/validate.ts: no module-level side effects — pure function exports.",
+        "lib/state-machine.ts: `VALID_TRANSITIONS` is a module-level constant; it is a plain object literal — no env reads, no I/O, no ordering dependency.",
+        "lib/db.ts: Next.js pattern of using `globalThis` to reuse PrismaClient across HMR reloads is idiomatic and documented. The env read for log level at instantiation is fragile for unit tests that want to swap NODE_ENV after module load, but this is well-understood Next.js practice.",
+        "lib/reddit.ts: CLIENT_ID/CLIENT_SECRET captured at import time means tests must set env vars before any import of this module. No lazy getter is provided."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "initialization_coupling": {
+      "dimension_character": "The codebase is largely clean of import-time side effects. The main tension is in lib/reddit.ts, where three environment variables (REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT) are captured into module-level constants at import time, creating a snapshot that is frozen for the lifetime of the module. lib/db.ts uses the idiomatic Next.js globalThis PrismaClient pattern and reads NODE_ENV at instantiation, which is an accepted tradeoff for HMR environments. All other lib modules correctly defer env reads into function bodies.",
+      "score_rationale": "The codebase scores above average on this dimension. Most env reads happen inside function bodies (google-places, geo, openrouter), which is the correct pattern. The reddit.ts import-time snapshot is a genuine fragility in test contexts and a minor correctness risk if env vars are populated late; the db.ts pattern is idiomatic but carries the same fragility. No network calls, file I/O, or DB connections are made at module scope (PrismaClient construction is deferred to first-use via the lazy singleton). Score of 74 reflects the two real issues (reddit.ts env snapshot, reddit.ts mutable cachedToken global) against an otherwise clean baseline."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_env_snapshot",
+      "summary": "Reddit env vars captured as module-level constants — fragile in test contexts",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "lib/reddit.ts lines 54-56: `const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0'`, `const CLIENT_ID = process.env.REDDIT_CLIENT_ID`, `const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET` — all read once at import time.",
+        "Any test that imports lib/reddit.ts before setting these env vars will capture undefined/default values for CLIENT_ID and CLIENT_SECRET, permanently disabling OAuth token fetching for that test run."
+      ],
+      "suggestion": "Move the env reads inside `getAccessToken()` and `buildHeaders()` — read `process.env.REDDIT_CLIENT_ID` and `process.env.REDDIT_CLIENT_SECRET` lazily at call time. USER_AGENT can remain a constant if the default fallback is acceptable, but for testability it should also be read lazily or passed as a parameter.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "reddit.ts was likely written as a standalone script and its env reads were not revisited when it became an imported module",
+      "No test suite exercises the reddit module directly, so the import-time env snapshot has not caused visible breakage"
+    ],
+    "likely_symptoms": ["reddit_env_snapshot"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "PrismaClient uses Next.js globalThis singleton pattern",
+          "description": "lib/db.ts follows the documented Next.js pattern for reusing PrismaClient across HMR reloads. It reads NODE_ENV at instantiation time, which is a known and accepted tradeoff — not a defect in the Next.js context.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Most lib modules defer env reads to function bodies",
+          "description": "lib/geo.ts, lib/google-places.ts, lib/openrouter.ts, lib/fingerprint.ts all read process.env inside function bodies rather than at module scope. This is the correct pattern and makes them safe to import before env vars are populated.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "reddit.ts captures env vars as module-level constants",
+          "description": "CLIENT_ID, CLIENT_SECRET, and USER_AGENT are frozen at import time. This is fragile in test contexts and means test authors must set env vars before any import of this module.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "reddit.ts cachedToken is a module-level mutable singleton",
+          "description": "The OAuth token cache is stored at module scope, shared across all request handlers. This is intentional for performance but creates implicit shared state that leaks between tests and requests.",
+          "settled": false,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

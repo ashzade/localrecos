@@ -155,7 +155,7 @@ const REQUEST_PATTERNS = [
   /\?/,
 ];
 
-function isRecommendationRequest(title: string): boolean {
+export function isRecommendationRequest(title: string): boolean {
   return REQUEST_PATTERNS.some((p) => p.test(title));
 }
 
@@ -170,7 +170,7 @@ const STOP_WORDS = new Set([
  * Extracts meaningful words from the query and checks if at least one appears
  * in the post title or body, to avoid mining comments from unrelated posts.
  */
-function isPostRelevantToQuery(post: RedditPost, query: string): boolean {
+export function isPostRelevantToQuery(post: RedditPost, query: string): boolean {
   const queryWords = query
     .toLowerCase()
     .split(/\s+/)
@@ -183,7 +183,7 @@ function isPostRelevantToQuery(post: RedditPost, query: string): boolean {
 }
 
 // Validate that an extracted string looks like a restaurant name
-function isValidRestaurantName(name: string): boolean {
+export function isValidRestaurantName(name: string): boolean {
   const words = name.trim().split(/\s+/);
   // Must be 1-6 words
   if (words.length > 6) return false;

@@ -44,6 +44,9 @@ export default function LoadMoreButton({ city, terms, sort, initialOffset, shown
       setSeenNames(newSeen);
       setOffset(offset + data.results.length);
       setHasMore(data.hasMore && data.results.length > 0);
+    } catch {
+      // Network or parse failure — leave existing results and hasMore intact
+      setHasMore(false);
     } finally {
       setLoading(false);
     }

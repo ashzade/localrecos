@@ -1,0 +1,112 @@
+{
+  "batch": "mid_level_elegance",
+  "batch_index": 9,
+  "assessments": {"mid_level_elegance": 65.0},
+  "dimension_notes": {
+    "mid_level_elegance": {
+      "evidence": [
+        "OPEN ISSUE CONFIRMED: /api/search-more returns raw ungrouped restaurants (app/api/search-more/route.ts returns `results` directly from searchRestaurants). LoadMoreButton.tsx must call groupRestaurantsByName client-side to reconstitute grouped output. The server-side grouping in /api/search returns grouped results; the more endpoint does not — the seam contract is asymmetric.",
+        "OPEN ISSUE CONFIRMED: triggerScrape in app/api/search/route.ts fires on every request where grouped.length < 3 with no in-flight deduplication, no rate limiting, and no backoff. Multiple rapid searches for the same low-result query will fan out multiple parallel scrape jobs to Reddit and Google Places.",
+        "The search route orchestration is clean: parseQuery -> detectCityFromIp fallback -> searchRestaurants -> groupRestaurantsByName -> triggerScrape (conditional). Each step has explicit input/output with no back-and-forth between collaborators.",
+        "Data translation for the scrape route happens in enrichAndUpsert — a single well-defined function that maps (ExtractedRestaurant, PlaceDetails) -> DB upsert. This is a clear and bounded translation point.",
+        "The scrape state machine (lib/state-machine.ts) provides an explicit protocol contract between scrape pipeline stages. assertValidTransition at each advance point makes the choreography observable.",
+        "app/api/scrape/route.ts fetchWithFallback takes a mutable `state` variable and an `advance` callback — the state is owned by POST but mutated via callback inside fetchWithFallback. This is a shared-mutable-state pattern across a boundary; returning the final state from fetchWithFallback would be cleaner.",
+        "The geo/route.ts endpoint combines lat/lon coordinate lookup (Nominatim) and IP-based geolocation into one handler, with an internal if/else dispatch. This mixed responsibility at the handler level is workable but the two paths differ in data sources and error modes.",
+        "Error propagation across boundaries is partially consistent: most route handlers return NextResponse.json with structured error objects (error, message), but the scrape route's catch block returns `{ error: 'Scrape failed', details: String(error) }` which leaks internal error details to callers.",
+        "The /api/trending route directly queries prisma and sorts in-memory — no shared service layer. This is acceptable for a small route but diverges from the /api/search pattern which goes through lib/search.ts.",
+        "LoadMoreButton receives `shownNames: string[]` from the server and converts it to a Set client-side. The boundary between server (array) and client (Set) is a minor translation gap that could be made explicit.",
+        "The vote routes (app/api/vote/route.ts and app/api/restaurant-vote/route.ts) follow a consistent pattern: validate input -> check rule -> run transaction -> return updated counts. This is clean orchestration."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "mid_level_elegance": {
+      "dimension_character": "The codebase has several well-designed seams — the scrape pipeline uses an explicit state machine, enrichment translation is localized to enrichAndUpsert, and the vote routes follow a consistent orchestration pattern. However, two persistent structural defects undermine mid-level elegance: the search-more/LoadMoreButton seam forces grouping logic to be re-implemented client-side due to an asymmetric API contract, and the background scrape trigger has no deduplication guard, creating a fan-out pattern on every low-result search.",
+      "score_rationale": "A score of 65 reflects clean seams in the vote and scrape enrichment paths offset by two significant boundary design problems that were flagged in a prior review and remain open. The asymmetric grouping contract between /api/search and /api/search-more forces the client to replicate server-side logic, which is a clear mid-level elegance failure. The unconstrained scrape trigger is a correctness risk at the integration boundary."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "search_more_ungrouped_response",
+      "summary": "/api/search-more returns ungrouped restaurants forcing LoadMoreButton to re-implement server-side grouping on the client",
+      "related_files": ["app/api/search-more/route.ts", "components/LoadMoreButton.tsx", "lib/search.ts"],
+      "evidence": [
+        "app/api/search-more/route.ts returns `{ results, hasMore }` where results is the raw output of searchRestaurants — an array of RestaurantWithRecommendations, not grouped RestaurantGroup objects",
+        "components/LoadMoreButton.tsx line 32: `const newGroups = groupRestaurantsByName(data.results as GroupableRestaurant[], seenNames)` — client must group the results it receives",
+        "/api/search by contrast returns `grouped` which is the output of groupRestaurantsByName — grouped RestaurantGroup objects",
+        "The seam contract is asymmetric: the initial load and the 'load more' operation return different shapes, requiring the client to perform server-equivalent work"
+      ],
+      "suggestion": "Move grouping into the /api/search-more endpoint: call groupRestaurantsByName(results) server-side before returning, and pass the existing shownNames (or excludeNames) as a query parameter. This aligns the response shape between initial search and load-more, removes the client-side grouping logic from LoadMoreButton, and eliminates the need for the client to maintain seenNames state for grouping purposes.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "scrape_trigger_no_deduplication",
+      "summary": "Background scrape trigger in /api/search fires on every low-result request with no rate-limiting or in-flight deduplication guard",
+      "related_files": ["app/api/search/route.ts"],
+      "evidence": [
+        "triggerScrape is called unconditionally when `grouped.length < 3` — this condition will be true for every request during the initial data-building phase for a city/query combination",
+        "triggerScrape uses fire-and-forget fetch with `.catch(() => undefined)` — there is no way to know if a scrape is already in progress for this city+query pair",
+        "Multiple concurrent users searching for the same low-result query will each trigger independent scrape jobs, fanning out to Reddit and Google Places APIs simultaneously"
+      ],
+      "suggestion": "Add a short-lived in-memory Set (or Redis key if available) keyed on `${city}:${query}` that is checked before triggering and cleared after the scrape completes (or after a TTL). Alternatively, accept the duplicate scrape risk but add a minimum interval guard (e.g., skip if a scrape was triggered within the last 60 seconds for this key).",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "scrape_route_mutable_state_callback",
+      "summary": "fetchWithFallback mutates caller-owned state via an advance() callback — a shared-mutable-state pattern across a function boundary",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "POST handler owns `let state: ScrapeState = 'PENDING'` and creates `const advance = (next: ScrapeState) => { assertValidTransition(state, next); state = next; }`",
+        "fetchWithFallback receives advance as a parameter and calls it to mutate state owned by the outer scope",
+        "After fetchWithFallback returns, the POST handler continues calling advance() to advance the same state variable — the state evolution is split between the inner function and the outer handler"
+      ],
+      "suggestion": "Return the final state from fetchWithFallback rather than passing a mutation callback. The outer handler can use the returned state to continue its own advance() calls. This makes the state ownership clear and removes shared-mutable-state coupling across the boundary.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The /api/search-more endpoint was designed to return raw rows to keep the server-side simple, pushing grouping complexity to the client — a design shortcut that created an asymmetric seam contract",
+      "The scrape trigger was added as a background side-effect without considering concurrent request scenarios or rate limiting",
+      "The fetchWithFallback callback pattern was introduced during the monolith decomposition but the state ownership model was not refined"
+    ],
+    "likely_symptoms": ["search_more_ungrouped_response", "scrape_trigger_no_deduplication"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "mid_level_elegance": {
+      "add": [
+        {
+          "header": "Vote routes follow consistent orchestration pattern",
+          "description": "Both /api/vote and /api/restaurant-vote use the same validate -> check-rule -> transaction -> return-counts pattern. The seam between the route and the rules/db layer is clean and predictable.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Scrape enrichment translation localized to enrichAndUpsert",
+          "description": "The translation from (ExtractedRestaurant, PlaceDetails) to DB write happens in a single function with clear inputs and outputs. No ad-hoc mapping scattered across the handler.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Asymmetric grouping contract between search and search-more",
+          "description": "The initial /api/search endpoint returns grouped RestaurantGroup objects while /api/search-more returns raw RestaurantWithRecommendations arrays. This forces the client to perform server-equivalent grouping and maintain deduplication state.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

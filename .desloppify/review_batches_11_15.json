@@ -1,0 +1,112 @@
+{
+  "session": {
+    "id": "ext_20260402_142847_81867bed",
+    "token": "1d40e292d3ef85287875eed2673fe9e7"
+  },
+  "assessments": {
+    "api_surface_coherence": 58,
+    "authorization_consistency": 60,
+    "ai_generated_debt": 60,
+    "incomplete_migration": 90,
+    "package_organization": 65
+  },
+  "dimension_notes": {
+    "api_surface_coherence": "Phase 1 — Observed: (1) lib/geo.ts exports detectCityFromIp (async) and extractIp (sync) as sibling public functions. (2) lib/search.ts exports parseQuery, searchRestaurants, countSearchResults, findRestaurantGroup (all async) alongside groupRestaurantsByName (sync) and the re-exported types from restaurant-grouping. (3) lib/reddit.ts exports scrapeRedditForRestaurants and fetchCommunityPicksForRestaurant (async) alongside isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName, and extractRestaurantName (all sync). (4) GET /api/search returns { city, terms, results: RestaurantGroup[], count: number }. (5) GET /api/search-more returns { results: RestaurantGroup[], hasMore: boolean, nextOffset: number }. Both return the same resource type (grouped restaurants) but with different envelope shapes — the /search-more now does grouping server-side (previously flagged bug appears fixed), but the envelope keys diverge: /search echoes city and terms; /search-more does not. Phase 2 — Judged: Sync/async mixed exports in three lib modules confirmed still present. The mixing is real: a consumer importing from lib/reddit.ts for a sync utility sees async siblings. The /api/search vs /api/search-more envelope divergence is confirmed — different keys for the same resource type. The previously noted issue that /search-more returned ungrouped data appears resolved (it now calls groupRestaurantsByName server-side), but the envelope shape is still inconsistent.",
+    "authorization_consistency": "Phase 1 — Observed: (1) All 7 route handlers have 0 authenticated handlers per holistic_context. (2) /api/scrape: line 144-148 checks x-internal-token only when INTERNAL_API_TOKEN env var is truthy — when unset, the guard is entirely skipped. (3) GET /api/geo currently returns only { city } — examined source shows no debug field, no IP, no full Nominatim address exposed. The previously flagged 'raw client IP and full Nominatim address' issue appears to have been fixed. (4) Vote routes (/api/vote, /api/restaurant-vote) have no user auth — only fingerprint-based duplicate prevention. (5) Public read routes (search, trending) have no auth, which is appropriate for a public app. Phase 2 — Judged: The /api/geo IP/address leak flagged in the prior review is resolved in the current code — { city } only is returned. The INTERNAL_API_TOKEN conditional guard on /api/scrape is confirmed still present and still a risk: when the env var is unset, the expensive scrape pipeline (Reddit API + Google Places + DB writes) is open to any caller. The vote routes lack user auth, but for a public community voting app this may be intentional design.",
+    "ai_generated_debt": "Phase 1 — Observed: (1) lib/validate.ts: validateRedditPost uses a constant array and for-loop for string field validation (lines 58-66); all other validators (validateExtractedRestaurant, validateRestaurantInput, validateCommunityRecommendationInput, validateVoteInput, validateRestaurantVoteInput) call requireString/requirePresent individually per field. The loop-vs-manual inconsistency spans the entire file. (2) lib/reddit.ts lines 320-324 and 341-345: validateExtractedRestaurant is called inside identical try-catch blocks that catch all errors and emit console.warn with the same message 'Extracted restaurant must have a name and city to proceed with enrichment.' The validation is never allowed to propagate — the catch block immediately continues. The warn message is also stale: the validator checks name, summary, and source, not city. (3) No nosy entry/exit logging found. (4) No docstring bloat on trivial functions. (5) No pass-through wrappers without added logic (groupRestaurantsByName in lib/search.ts adds an `as unknown as` cast for type coercion, not pure forwarding). Phase 2 — Judged: Both previously flagged issues confirmed still open. The loop-vs-manual inconsistency in validate.ts is classic LLM generation debt — one pattern applied to one function, abandoned for the rest. The silent-catch on validateExtractedRestaurant voids the validation contract and the stale warn message confirms it was copy-pasted without review.",
+    "incomplete_migration": "Phase 1 — Observed: (1) Searched all .ts and .tsx source files for TODO, FIXME, DEPRECATED, legacy, migrate, 'old api', 'remove after' — zero matches found. (2) No JS files alongside TS modules — codebase is fully TypeScript. (3) No axios/fetch duality — native fetch only. (4) All React components are functional — no class components. (5) No moment/dayjs or other library version duality. (6) No @deprecated annotations. (7) No compatibility shims. (8) lib/openrouter.ts has a comment stripping <think>...</think> blocks — this is an active workaround for a known model output quirk, not a stale migration shim. Phase 2 — Judged: This dimension is clean. Greenfield TypeScript/Next.js project with no migration debt.",
+    "package_organization": "Phase 1 — Observed using holistic_context.structure: lib/ has 12 files with avg fan-in 5.2. The 12 files span three identifiable concern groups: (a) external API clients — openrouter.ts (3 importers), reddit.ts (3 importers), google-places.ts (1 importer), geo.ts (7 importers); (b) domain logic — rules.ts (4 importers), state-machine.ts (1 importer), validate.ts (9 importers), hours.ts (5 importers), restaurant-grouping.ts (6 importers); (c) infrastructure — db.ts (10 importers), fingerprint.ts (3 importers), search.ts (8 importers). coupling_matrix shows only components/ -> lib/ (5 edges) and app/ -> components/ (3 edges) — no bidirectional or problematic cross-directory edges. google-places.ts (1 importer: app/api/scrape) and state-machine.ts (1 importer: app/api/scrape) have very low fan-in. Total project: 34 files, 3785 LOC. Phase 2 — Judged: The flat lib/ with 12 files across 3 concern groups is a real navigability issue. A developer unfamiliar with the codebase must scan all 12 lib files to locate the Reddit scraping logic or the state machine. The project is not small enough (34 files) for the flat-everything heuristic. google-places.ts and state-machine.ts are single-consumer files — they are correctly placed in lib/ (domain coherence), but their low fan-in makes them low-discovery. No bidirectional coupling or import-affinity mismatches found."
+  },
+  "dimension_judgment": {
+    "api_surface_coherence": "Two confirmed open issues: sync/async mixed exports in three lib modules (geo.ts, reddit.ts, search.ts) create an incoherent public API surface; /api/search and /api/search-more return different envelope shapes for the same resource. The envelope note from the previous review about /search-more returning ungrouped data is no longer applicable — that appears fixed. Remaining issues are real. Assessed 58.",
+    "authorization_consistency": "One confirmed security issue still open: INTERNAL_API_TOKEN conditional guard on /api/scrape leaves the endpoint fully open when the env var is absent. The previously flagged /api/geo raw IP/address leak appears resolved in the current code — only { city } is returned. Assessed 60 (improved from prior 40 since one major issue resolved).",
+    "ai_generated_debt": "Two confirmed open issues: (1) lib/validate.ts inconsistent loop-vs-manual field validation pattern; (2) silent-catch on validateExtractedRestaurant in lib/reddit.ts with stale error message. Both are textbook LLM-generated debt patterns. Assessed 60.",
+    "incomplete_migration": "Dimension clean. No stale TODOs, no mixed JS/TS, no deprecated symbols, no old library coexistence. Assessed 90.",
+    "package_organization": "lib/ flat with 12 files across 3 concern groups is the primary issue. No bidirectional coupling or import-affinity mismatches. state-machine.ts and google-places.ts are single-consumer but domain-coherent. The navigability impact is real for a 34-file project. Assessed 65."
+  },
+  "issues": [
+    {
+      "dimension": "api_surface_coherence",
+      "severity": "medium",
+      "title": "lib/geo.ts, lib/search.ts, and lib/reddit.ts mix sync and async exports in their public API surfaces",
+      "file": "lib/geo.ts",
+      "details": "lib/geo.ts exports detectCityFromIp (async) alongside extractIp (sync). lib/search.ts exports parseQuery, searchRestaurants, countSearchResults, findRestaurantGroup (all async) alongside groupRestaurantsByName (sync). lib/reddit.ts exports scrapeRedditForRestaurants and fetchCommunityPicksForRestaurant (async) alongside isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName, and extractRestaurantName (all sync). The sync helpers are pure domain utilities co-located for proximity, but the mixed API surface means a caller sees siblings with different execution models without any convention to distinguish them.",
+      "status": "open"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "severity": "medium",
+      "title": "GET /api/search and GET /api/search-more return structurally incompatible response envelopes for the same resource type",
+      "file": "app/api/search-more/route.ts",
+      "details": "GET /api/search returns { city, terms, results: RestaurantGroup[], count: number }. GET /api/search-more returns { results: RestaurantGroup[], hasMore: boolean, nextOffset: number }. Both serve the same resource (grouped restaurants) but use different envelope keys. The /search endpoint echoes city and terms; /search-more does not. The pagination-specific keys (hasMore, nextOffset) in /search-more vs count in /search mean callers must implement different logic to determine result completeness. Note: the previous issue about /search-more returning ungrouped data appears resolved — grouping now happens server-side.",
+      "status": "open"
+    },
+    {
+      "dimension": "authorization_consistency",
+      "severity": "high",
+      "title": "INTERNAL_API_TOKEN check on /api/scrape is conditional — endpoint is fully open when env var is unset",
+      "file": "app/api/scrape/route.ts",
+      "details": "Lines 144-148: `const internalToken = process.env.INTERNAL_API_TOKEN; if (internalToken) { if (request.headers.get('x-internal-token') !== internalToken) { return 403 } }`. When INTERNAL_API_TOKEN is absent from the environment, the outer `if (internalToken)` evaluates to false and the entire auth check is skipped. Any caller can POST to /api/scrape, triggering Reddit API calls, Google Places API calls, and DB writes without restriction. There is no fallback rejection when the env var is absent. The comment 'Omitting INTERNAL_API_TOKEN is only safe in local dev' is correct but does not enforce the constraint.",
+      "status": "open"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "severity": "medium",
+      "title": "lib/validate.ts repeats identical null/undefined + empty-string check pairs ~20 times with a loop/manual inconsistency",
+      "file": "lib/validate.ts",
+      "details": "9 validator functions each call requireString/requirePresent manually per field, repeating the same two-line pattern approximately 20 times across the file. The exception is validateRedditPost, which uses a REDDIT_POST_STRING_FIELDS constant array and a for-loop for its string fields (lines 58-66). The loop-vs-manual inconsistency within the same file is characteristic of LLM-generated code mixing two generation passes. The redundancy inflates the file and makes adding or modifying validators error-prone.",
+      "status": "open"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "severity": "medium",
+      "title": "validateExtractedRestaurant is called in lib/reddit.ts inside silent try-catch blocks that void the validation contract",
+      "file": "lib/reddit.ts",
+      "details": "Lines 320-324 and 341-345 both call validateExtractedRestaurant(extracted) inside try-catch blocks that catch all errors and emit console.warn with the identical message 'Extracted restaurant must have a name and city to proceed with enrichment.' The warn message is also stale — the validator checks name, summary, and source (not city). Since the catch block never rethrows and processing continues regardless, the validate call provides no protection. Both occurrences are copy-pasted boilerplate that undermines the validation contract established in lib/validate.ts.",
+      "status": "open"
+    },
+    {
+      "dimension": "package_organization",
+      "severity": "low",
+      "title": "lib/ is flat with 12 files spanning three distinct concern groups with no directory-level navigation aid",
+      "file": "lib/",
+      "details": "lib/ contains 12 files that span three concern groups: external API clients (openrouter.ts, reddit.ts, google-places.ts, geo.ts), domain logic (rules.ts, state-machine.ts, validate.ts, hours.ts, restaurant-grouping.ts), and infrastructure (db.ts, fingerprint.ts, search.ts). At 34 total project files the project exceeds the small-project flat-structure threshold. A developer unfamiliar with the codebase must scan all 12 files to locate related logic. google-places.ts (1 importer) and state-machine.ts (1 importer) are low-discovery within the flat structure. No bidirectional coupling or import-affinity mismatches found — the issue is purely navigability.",
+      "status": "open"
+    },
+    {
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "ddf8529afa7d4684",
+      "concern_type": "design_concern",
+      "concern_file": "app/api/scrape/route.ts",
+      "reasoning": "app/api/scrape/route.ts is a Next.js POST route handler invoked by HTTP, not by TypeScript import. The 'orphaned' (zero importers) designation from static analysis is a known false positive for framework entry points. The file is actively used: triggerScrape in app/api/search/route.ts fires a fire-and-forget HTTP POST to /api/scrape. Not dead code."
+    },
+    {
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "5a6bab2a47d60169",
+      "concern_type": "design_concern",
+      "concern_file": "components/TrendingSection.tsx",
+      "reasoning": "The cyclomatic complexity in TrendingSection.tsx is intrinsic to its feature: a geolocation waterfall with GPS -> Nominatim -> IP-fallback -> trending fetch. All branches are necessary and distinct — success callback, error callback, IP fallback, city-aware vs. city-unaware fetch. The 'high cyclomatic complexity' signal is proportional to the problem, not a design defect."
+    },
+    {
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "33516a752f2e856d",
+      "concern_type": "duplication_design",
+      "concern_file": "components/RestaurantCard.tsx",
+      "reasoning": "The hardcoded URL in RestaurantCard.tsx is the Google Maps deep-link template (https://www.google.com/maps/search/?api=1&query=), used twice in the same file for single-location and multi-location rendering. This is an appropriate inline constant for a UI component, not extraction-worthy. The duplication is minimal and within a single file."
+    },
+    {
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "975a48fc7b86f11b",
+      "concern_type": "systemic_smell",
+      "concern_file": "app/api/geo/route.ts",
+      "reasoning": "High cyclomatic complexity across 9 files reflects domain requirements: Reddit parsing heuristics, hours string parsing, multi-path validation, Google Places API response normalization, and route handlers with fallback chains. Each file's complexity is intrinsic to its specific responsibility. These are independent occurrences, not a shared antipattern. A blanket lint rule would produce noise without actionable fixes."
+    }
+  ],
+  "context_updates": {
+    "api_surface_coherence": "Both previously flagged issues confirmed still open. (1) Sync/async mixed exports confirmed in lib/geo.ts, lib/search.ts, lib/reddit.ts. (2) /api/search vs /api/search-more envelope divergence confirmed: different keys for same resource. Note: the prior issue about /search-more returning ungrouped data appears resolved — it now calls groupRestaurantsByName server-side.",
+    "authorization_consistency": "INTERNAL_API_TOKEN conditional guard on /api/scrape confirmed still open — high severity. The previously flagged /api/geo raw IP and full Nominatim address leak appears RESOLVED in current code: the endpoint now returns only { city }. Recommend closing the geo debug-field issue on next review pass.",
+    "ai_generated_debt": "Both previously flagged issues confirmed still open. (1) lib/validate.ts loop-vs-manual inconsistency still present. (2) Silent-catch on validateExtractedRestaurant in lib/reddit.ts still present with stale error message. No new AI debt patterns found.",
+    "incomplete_migration": "Dimension clean. No TODO/FIXME/DEPRECATED markers, no JS/TS mixed files, no old library coexistence, no stale migration shims.",
+    "package_organization": "lib/ flat-with-12-files issue confirmed still open. No new placement problems. google-places.ts and state-machine.ts have 1 importer each — low-discovery but domain-coherent."
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "batch": "logic_clarity",
+  "batch_index": 19,
+  "assessments": {"logic_clarity": 75.0},
+  "dimension_notes": {
+    "logic_clarity": {
+      "evidence": [
+        "lib/hours.ts `isOpenNow`: complex but genuinely necessary branching for hours format parsing (12h, 24h, compact, closed, 24-hours). All branches are distinct and handle real format variations. No dead code paths detected.",
+        "app/api/scrape/route.ts `fetchWithFallback`: Returns `{ results, state, empty }` but the returned `state` value is the closure-captured mutable variable, not the state at the point of return. On the success path, `advance('EXTRACTING')` updates the outer `state` variable, so the returned state is 'EXTRACTING' — but the caller destructures only `{ results, empty }` and ignores `state`. This means the state field in the return object is always stale/unused. Dead return value.",
+        "app/api/scrape/route.ts POST handler line 189: `const { results: redditResults, empty } = await fetchWithFallback(city, query, state, advance)` — `state` is passed by value (string) but `advance` mutates the outer `state` variable in the POST scope via closure. This is an unusual pattern where a function is supposed to update the caller's state variable through a passed callback. The logic works but is non-obvious.",
+        "components/SearchPoller.tsx: `scrapeFinished.current = true` is set (line 37) but never read anywhere in the component. This is dead state — a ref that is written but never consumed.",
+        "lib/reddit.ts `isValidRestaurantName`: line 196 `if (!/[a-zA-Z]{3}/.test(name)) return false` — this condition will almost never be reached because the function already requires `words.length >= 1` (from the split check) and words with <3 consecutive letters would be caught by earlier checks. Not a guaranteed dead path but a near-redundant check.",
+        "lib/reddit.ts `getSubreddits(city)`: falls back to `[slug, slug + 'food']` for unknown cities. If SUBREDDIT_MAP[key] exists, it returns it. This logic is straightforward and correct.",
+        "app/api/vote/route.ts and app/api/restaurant-vote/route.ts: Both have identical structure: validate body → find entity → check duplicate → cast vote in transaction → try state transition. The direction check `if (direction !== 'up' && direction !== 'down')` is repeated verbatim in both files. This is a clarity issue (same guard in two places) but not a logic defect per se.",
+        "components/RestaurantFeedbackButton.tsx: optimistic update pattern — increments count, then decrements on failure. The try/catch/finally structure is correct. No dead branches.",
+        "lib/search.ts `searchRestaurants`: the `if (words.length === 0)` branch returns all restaurants in city, the else branch adds name/summary filtering. Logic is clear and direct.",
+        "app/search/page.tsx `SearchResults`: `const hasMore = grouped.length > limit` computed from grouped results, then `const page = grouped.slice(0, limit)` — if grouped.length <= limit, hasMore is false and page === grouped. Clear logic.",
+        "components/LoadMoreButton.tsx `loadMore`: `setHasMore(data.hasMore && data.results.length > 0)` — combining two conditions. If data.results is empty but data.hasMore is true (shouldn't happen but possible), this correctly prevents an infinite load loop.",
+        "app/api/trending/route.ts line 16: `if (!city) city = 'Ottawa'` — hardcoded fallback city. This is a default value not a logic error, but it creates an always-true path since city is always set after line 16, making subsequent null checks on city impossible.",
+        "components/TrendingSection.tsx line 80: `const displayCity = city ?? 'Ottawa'` — same hardcoded fallback as the API route. These two 'Ottawa' defaults are separate and duplicated.",
+        "lib/restaurant-grouping.ts `groupRestaurantsByName`: the while(merged) loop with used Set correctly handles transitive merges. The logic is non-trivial but correct — each iteration either merges groups or terminates.",
+        "lib/hours.ts `isOpenNowCompact` line 83: `const dayDash = '-'` — variable assigned but the value is a literal hyphen character used in a regex pattern. The variable is used once in the regex construction. Minor: the variable could just be the literal inline but it's not dead code.",
+        "app/api/scrape/route.ts: `const advance = (next: ScrapeState) => { assertValidTransition(state, next); state = next; }` — advance is a closure that mutates `state` by reassignment. This works in JS because `state` is `let`, but passing `state` (a string) and `advance` (a function) separately to `fetchWithFallback` is an unusual async pattern. The function signature implies it manages state but actually borrows the outer scope's state variable."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "scrapeFinished.current ref is written but never read (dead state). The fetchWithFallback function returns a state field that is always ignored by the caller. The direction validation string check is duplicated verbatim across two route handlers."
+    }
+  },
+  "dimension_judgment": {
+    "logic_clarity": {
+      "dimension_character": "The core business logic in lib/ is clear and well-structured — hours parsing, restaurant grouping, state machine transitions, and rule checks all have explicit, distinct branches that match their stated purpose. The weaknesses concentrate in the scrape route's unusual closure-based state mutation pattern and in components where a ref is set but never read. There are no always-true/always-false conditions or truly dead code paths in the critical logic paths.",
+      "score_rationale": "The codebase avoids the most common logic clarity failures — no boolean simplification opportunities, no identical branches, no dead code after returns in critical paths. The deductions come from the dead scrapeFinished.current ref, the unused returned state field from fetchWithFallback, and the duplicated direction validation guard. These are real clarity issues but not correctness bugs."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "logic_clarity",
+      "identifier": "dead_scrape_finished_ref",
+      "summary": "scrapeFinished.current ref is written but never read — dead state",
+      "related_files": ["components/SearchPoller.tsx"],
+      "evidence": [
+        "Line 18: `const scrapeFinished = useRef(false)` — ref is created",
+        "Line 37: `scrapeFinished.current = true` — ref is set inside the async run() function",
+        "No other line in the file reads scrapeFinished.current — the value is never consumed by rendering or any conditional"
+      ],
+      "suggestion": "Remove the `scrapeFinished` ref entirely. If it was intended to guard against double-scrape triggers, the `stopped` boolean already serves that role via the cleanup function.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "fetch_with_fallback_dead_return_state",
+      "summary": "fetchWithFallback returns a state field that is always ignored by the caller",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "Lines 22: function return type includes `state: ScrapeState` in the destructured object",
+        "Line 189: caller destructures `{ results: redditResults, empty }` — `state` is not destructured and is dropped",
+        "The returned `state` is the closure variable at the moment of return, which has already been advanced to 'EXTRACTING' on the success path"
+      ],
+      "suggestion": "Remove `state` from the return object of fetchWithFallback since it is never used. The state machine is managed entirely through the `advance` callback closure. Simplify the return type to `{ results: ExtractedRestaurant[]; empty: boolean }`.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "direction_guard_duplicated",
+      "summary": "Direction validation guard duplicated verbatim in two vote route handlers",
+      "related_files": ["app/api/vote/route.ts", "app/api/restaurant-vote/route.ts"],
+      "evidence": [
+        "app/api/vote/route.ts lines 27-30: `if (direction !== 'up' && direction !== 'down') { return NextResponse.json({ error: 'direction must be \"up\" or \"down\"' }, { status: 400 }); }`",
+        "app/api/restaurant-vote/route.ts lines 27-30: identical guard with identical error message",
+        "The VoteDirection enum from @prisma/client exists (used on line 56 in both files) but is not used for this validation — raw string comparison is used instead"
+      ],
+      "suggestion": "Extract a `parseVoteDirection(direction: string): VoteDirection | null` helper that validates against the VoteDirection enum values and returns null on invalid input. Both routes call this helper and check for null. This also makes the validation consistent with the enum definition.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "scrapeFinished ref appears to be leftover from an earlier iteration of SearchPoller before the stopped variable was introduced",
+      "The scrape route's closure-based state pattern adds indirection that makes the returned state field appear meaningful when it is actually dead"
+    ],
+    "likely_symptoms": ["dead_scrape_finished_ref", "fetch_with_fallback_dead_return_state"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "logic_clarity": {
+      "add": [
+        {
+          "header": "Hours parsing complexity is inherent to format variation",
+          "description": "lib/hours.ts handles three distinct hours string formats from Google Places (12h, 24h, compact). The branching complexity is necessary and correct — not a logic clarity defect.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Scrape route uses closure mutation for state machine",
+          "description": "app/api/scrape/route.ts passes both a `state` string and an `advance` callback to fetchWithFallback. The advance function mutates the outer let variable via closure. This non-standard pattern causes the returned state field to be stale/unused and adds conceptual overhead without benefit.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

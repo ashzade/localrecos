@@ -43,11 +43,3 @@ export function assertValidTransition(from: ScrapeState, to: ScrapeState): void 
   }
 }
 
-function isValidTransition(from: ScrapeState, to: ScrapeState): boolean {
-  const allowed = VALID_TRANSITIONS[from] ?? [];
-  return allowed.includes(to);
-}
-
-function validNextStates(from: ScrapeState): ScrapeState[] {
-  return VALID_TRANSITIONS[from] ?? [];
-}

@@ -1,0 +1,57 @@
+{
+  "batch": "dependency_health",
+  "batch_index": 7,
+  "assessments": {"dependency_health": 88.0},
+  "dimension_notes": {
+    "dependency_health": {
+      "evidence": [
+        "package.json dependencies: @prisma/client, next, react, react-dom — all four are production runtime dependencies with no redundancy",
+        "@prisma/client is now correctly in dependencies (previously fixed — was in devDependencies)",
+        "No HTTP client library present — all network calls use the native fetch API, including Reddit API, OpenRouter, Google Places, and ip-api.com calls",
+        "No date/time library (moment, dayjs, date-fns) present — lib/hours.ts implements custom time parsing using only Date built-ins and regex",
+        "No utility library (lodash, ramda) present — array/object operations use native ES methods throughout",
+        "No validation library (zod, joi, yup) present — lib/validate.ts implements hand-rolled validators",
+        "devDependencies: vitest, @vitest/coverage-v8, typescript, tailwindcss, eslint, postcss, autoprefixer, tsx, @types/* — all are build/dev tools, not runtime",
+        "prisma CLI is correctly in devDependencies (build-time codegen only)",
+        "No circular dependency cycles visible from import graph — lib files import from each other in a clear hierarchy (restaurant-grouping <- search, validate <- reddit/google-places/search)",
+        "No version conflicts visible — single versions of all deps in package.json",
+        "tsx in devDependencies is used only for the prisma seed script — appropriate placement",
+        "The custom hours parser in lib/hours.ts is ~130 LOC handling 4 format branches — this is the cost of not using a date library, but the scope is bounded and the logic is self-contained"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "The hand-rolled time parsing in lib/hours.ts is a small ongoing maintenance cost that a date library would eliminate. The hand-rolled validation in lib/validate.ts (270 LOC) could be replaced by zod with less code and better error messages, but neither is a dependency health problem — they are build vs. implement tradeoffs."
+    }
+  },
+  "dimension_judgment": {
+    "dependency_health": {
+      "dimension_character": "The dependency footprint is exceptionally lean: four production dependencies covering only the framework (Next.js, React) and the database client (Prisma). No redundant libraries, no duplicate-purpose packages, no heavy utilities pulled in for single functions. All network I/O uses the native fetch API and all validation is hand-rolled, keeping the runtime dependency surface minimal.",
+      "score_rationale": "A score of 88 reflects a very healthy dependency profile with no actionable defects in the dimension scope. The slight discount from a perfect score acknowledges that the choice to hand-roll validators and time parsers, while keeping deps minimal, creates ongoing maintenance surface that a schema library (zod) or date library could reduce — but this is a deliberate design tradeoff, not a health problem."
+    }
+  },
+  "issues": [],
+  "retrospective": {
+    "root_causes": [],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "dependency_health": {
+      "add": [
+        {
+          "header": "Minimal production dependency footprint by design",
+          "description": "Only four production deps: Next.js, React, react-dom, @prisma/client. All network calls use native fetch, all validation is hand-rolled, no utility or date libraries. This keeps the bundle small but shifts maintenance burden to custom code in lib/validate.ts and lib/hours.ts.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "prisma/client correctly placed in dependencies",
+          "description": "After a previous fix, @prisma/client is in production dependencies and prisma CLI is in devDependencies. The placement is now correct for deployment scenarios where devDeps are pruned.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

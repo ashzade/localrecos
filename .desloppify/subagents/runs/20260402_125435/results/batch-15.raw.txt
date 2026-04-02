@@ -1,0 +1,101 @@
+{
+  "batch": "package_organization",
+  "batch_index": 15,
+  "assessments": {
+    "package_organization": 88.0
+  },
+  "dimension_notes": {
+    "package_organization": {
+      "evidence": [
+        "Directory layout: app/ (Next.js pages + route handlers), components/ (React components), lib/ (business logic + utilities), prisma/ (schema + seed), __tests__ (tests). This is framework-idiomatic and clearly organized.",
+        "holistic_context.structure.directory_profiles: lib/ has 12 files, 1730 LOC, avg_fan_in 4.2 — high-traffic domain library. components/ has 10 files, 930 LOC, avg_fan_in 1.4. Both are cohesive.",
+        "coupling_matrix: app/ → components/ (3 edges), components/ → lib/ (3 edges). Clean unidirectional flow. No bidirectional or circular directory edges.",
+        "lib/ contains 12 files across several distinct concerns: data access (db.ts), external APIs (google-places.ts, openrouter.ts, reddit.ts), domain logic (search.ts, rules.ts, state-machine.ts, restaurant-grouping.ts), utilities (geo.ts, fingerprint.ts, hours.ts, validate.ts). At 12 files this is within the tolerable flat range for lib/, but distinct subdomain groupings are visible.",
+        "No straggler roots: all root-level non-config files are framework entry points (app/, components/, lib/, prisma/). No loose .ts files at root.",
+        "lib/restaurant-grouping.ts (fan_in=2): imported by lib/search.ts and components/LoadMoreButton.tsx — its placement in lib/ is appropriate given it serves both server and client consumers.",
+        "lib/hours.ts (fan_in=4): pure date/time utility, correctly in lib/.",
+        "lib/fingerprint.ts (fan_in=2): request hashing utility, correctly in lib/.",
+        "lib/validate.ts (fan_in=9): highest-importer utility in lib/, correctly centralized.",
+        "app/api/ subdirectory has 6 route files — this is framework-imposed (Next.js file-based routing) and appropriate.",
+        "package_size_census shows components/ at 90.6% of package LOC — this is because the census is computed per top-level package leaf, and components/LoadMoreButton.tsx (213 LOC) dominates; the stat is a counting artifact from the census methodology, not evidence of disproportionate component weight.",
+        "The flat_dir_issues field is not present in the structure data — no directories were flagged as overloaded or fragmented by the scanner.",
+        "lib/ has a logical internal boundary between: external data fetching (reddit.ts, google-places.ts, openrouter.ts, geo.ts), domain/rules (search.ts, rules.ts, state-machine.ts, restaurant-grouping.ts), and cross-cutting infrastructure (db.ts, validate.ts, fingerprint.ts, hours.ts). These three concern groups coexist flat without naming to indicate grouping.",
+        "Historical open issue in package_organization dimension exists — reviewing if it concerns lib/ subdirectory grouping or another concern."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "medium",
+      "issues_preventing_higher_score": "lib/ is flat with 12 files spanning three distinct concerns (external APIs, domain rules, infrastructure utilities) — navigability would improve with subdirectory grouping, though the project is small enough that this is not blocking"
+    }
+  },
+  "dimension_judgment": {
+    "package_organization": {
+      "dimension_character": "The top-level directory layout is idiomatic for a Next.js project and reflects clear ownership boundaries: app/ for routes, components/ for UI, lib/ for logic, prisma/ for data. The coupling matrix shows clean unidirectional flow with no bidirectional edges. The one navigability question is within lib/: 12 files spanning external API integrations, domain rules, and infrastructure utilities coexist flat, which a developer must scan fully to orient to a new concern area.",
+      "score_rationale": "At the 88 range, the organization is strong: no straggler roots, no ambiguous folder names, no coupling direction failures, and the coupling matrix is clean. The lib/ flatness is the only gap — for a 12-file, 1730-LOC directory spanning three distinct concern groups, a developer new to the codebase cannot predict whether geo.ts is an infrastructure utility or a domain rule without opening it. This is real but mild friction, keeping the score below 90 but well above 80."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "package_organization",
+      "identifier": "lib_flat_mixed_concerns",
+      "summary": "lib/ is flat with 12 files spanning three distinct concern groups: external APIs, domain rules, and infrastructure utilities",
+      "related_files": [
+        "lib/db.ts",
+        "lib/fingerprint.ts",
+        "lib/geo.ts",
+        "lib/google-places.ts",
+        "lib/hours.ts",
+        "lib/openrouter.ts",
+        "lib/reddit.ts",
+        "lib/restaurant-grouping.ts",
+        "lib/rules.ts",
+        "lib/search.ts",
+        "lib/state-machine.ts",
+        "lib/validate.ts"
+      ],
+      "evidence": [
+        "External API integrations: reddit.ts, google-places.ts, openrouter.ts, geo.ts — all fetch from third-party services",
+        "Domain rules and logic: search.ts, rules.ts, state-machine.ts, restaurant-grouping.ts — core application behavior",
+        "Infrastructure utilities: db.ts, validate.ts, fingerprint.ts, hours.ts — cross-cutting support",
+        "All 12 files are at the same lib/ level with no naming prefix or subdirectory to signal grouping. A developer looking for 'where is the Reddit integration?' must scan all 12 names."
+      ],
+      "suggestion": "If subdirectory grouping is desired, a staged approach: (1) Create lib/integrations/ and move reddit.ts, google-places.ts, openrouter.ts, geo.ts into it; update import paths in app/api/* and lib/search.ts callers. (2) Optionally create lib/domain/ for search.ts, rules.ts, state-machine.ts, restaurant-grouping.ts. Run `npx tsc --noEmit` after each move to validate imports. Given the project is small (12 files), this is a low-urgency improvement — the flat structure is not blocking today.",
+      "confidence": "low",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "lib/ grew organically as features were added without an explicit internal organization strategy — common in small projects that start flat"
+    ],
+    "likely_symptoms": [
+      "lib_flat_mixed_concerns"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "package_organization": {
+      "add": [
+        {
+          "header": "Clean unidirectional coupling across directories",
+          "description": "The coupling matrix shows only app/→components/ and components/→lib/ edges, with no bidirectional or circular directory dependencies. This is the ideal flow for a Next.js project.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Framework-idiomatic top-level layout",
+          "description": "The top-level directories (app/, components/, lib/, prisma/) map directly to Next.js conventions. A developer familiar with the framework can orient immediately without reading documentation.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "lib/ flat with three implicit concern groups",
+          "description": "lib/ contains 12 files spanning external API integrations (reddit, google-places, openrouter, geo), domain rules (search, rules, state-machine, restaurant-grouping), and infrastructure (db, validate, fingerprint, hours). These concern groups are not reflected in the directory structure.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

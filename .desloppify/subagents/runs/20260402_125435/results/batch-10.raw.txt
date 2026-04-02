@@ -1,0 +1,155 @@
+{
+  "batch": "test_strategy",
+  "batch_index": 10,
+  "assessments": {"test_strategy": 62.0},
+  "dimension_notes": {
+    "test_strategy": {
+      "evidence": [
+        "OPEN ISSUE CONFIRMED: lib/hours.ts isOpenNow has zero tests. The function handles 4 format branches (pipe-separated 12-hour, pipe-separated 24-hour, compact range, '24 hours'/'Closed' literals), midnight wrap-around logic, and timezone-agnostic comparisons. It has 4 production importers (RestaurantCard, RecommendationCard based on the card components). No test file covers it.",
+        "OPEN ISSUE CONFIRMED: lib/reddit.ts extractRestaurantName has zero tests. It uses 3 extraction strategies (quoted text, 7 regex patterns, capitalized word fallback) and isValidRestaurantName applies structural heuristics. isPostRelevantToQuery, isRecommendationRequest are also untested. These are the core heuristics in the scrape pipeline — correctness is unknowable without tests.",
+        "OPEN ISSUE CONFIRMED: lib/openrouter.ts regexFallback has zero tests. It is the query-parsing fallback when the LLM is unavailable, called from parseQueryWithLLM when apiKey is missing or the API call fails. The regex `\\b(?:in|near)\\s+([A-Z][a-zA-Z\\s]+?)(?:\\s*$|\\s+(?:area|canada|usa|us|uk))` has multiple edge cases (trailing area/country words, city name casing, no match path). No test exists.",
+        "OPEN ISSUE CONFIRMED: lib/rules.ts checkRule01, checkRule03, checkRule05, tryTransitionToVerified are only exercised through mocked Prisma boundaries in api-votes.test.ts. The actual DB query logic (prisma.communityRecommendation.count, prisma.vote.findFirst, prisma.restaurantVote.findFirst, prisma.restaurant.findUnique + update) is never exercised. The tests mock lib/rules entirely (vi.mock('@/lib/rules', ...)) so the rule implementations themselves have no coverage.",
+        "Test suite has 8 test files covering: field-validation.test.ts (57 tests, high coverage of validate.ts), state-machine.test.ts (65 tests, comprehensive transition matrix coverage), api-search.test.ts, api-search-more.test.ts, api-votes.test.ts, api-geo.test.ts, api-trending.test.ts, rule-violations.test.ts",
+        "All API route tests mock their dependencies (lib/db, lib/search, lib/openrouter, lib/geo, lib/rules) — tests verify request/response contracts but do not exercise implementation logic in lib modules",
+        "lib/restaurant-grouping.ts (normalizeWebsite, shouldMerge, buildGroup, groupRestaurantsByName) has zero direct tests. The grouping algorithm is complex (O(n^2) merge loop, website normalization, name prefix matching) and is used in 2 production paths.",
+        "lib/geo.ts detectCityFromIp and extractIp have zero direct unit tests — covered only via mocks in api-search.test.ts and api-trending.test.ts",
+        "lib/search.ts searchRestaurants, parseQuery, countSearchResults have zero direct tests — all callers mock them",
+        "No snapshot tests exist — 100% of tests use behavioral assertions",
+        "No integration tests exist that cross module boundaries without mocking — all multi-module behavior is tested via mocked seams",
+        "vitest.config.ts is present and @vitest/coverage-v8 is in devDependencies, so coverage can be measured",
+        "The test-to-production ratio by file count: 8 test files vs ~15 production lib/route files — approximately 1:2"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "test_strategy": {
+      "dimension_character": "The test suite has excellent coverage of the two purely mechanical layers — field validation (lib/validate.ts, 57 tests) and state machine transitions (lib/state-machine.ts, 65 tests) — and reasonable coverage of API route request/response contracts. However, the core business logic layer — the restaurant extraction heuristics, the grouping algorithm, the hours parser, the query regex fallback, and the DB rule implementations — is almost entirely untested. The 4 open issues from the prior review remain unresolved.",
+      "score_rationale": "A score of 62 reflects a test suite that is thorough where it is easy to test (pure validators, state machine, route contracts) but has systematic blind spots at the logic layer that matters most for correctness. The 4 confirmed-open critical path gaps (hours, extractRestaurantName, regexFallback, rules DB logic) each represent functions where bugs would be silent and production-invisible. This is above a failing score because the framework tests exist and are well-structured, but significantly below passing because the core heuristics lack any verification."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "test_strategy",
+      "identifier": "hours_zero_coverage",
+      "summary": "lib/hours.ts isOpenNow is a complex pure function with 4 format branches and midnight wrap-around logic, with zero tests and 4 production importers",
+      "related_files": ["lib/hours.ts"],
+      "evidence": [
+        "isOpenNow handles: pipe-separated 12-hour format ('9:00 AM – 10:00 PM'), pipe-separated 24-hour format ('09:00 – 22:00'), compact format ('Mon-Sun 11am–10pm'), '24 hours' literal, 'Closed' literal",
+        "Midnight wrap-around: `if (closeMin < openMin) return nowMin >= openMin || nowMin < closeMin` — a logic branch that is easy to get wrong",
+        "The compact format dispatch uses a heuristic regex `/[a-z]{3}/i.test(hours) && !hours.includes(' | ')`",
+        "isOpenNowCompact has its own day-range wrap-around logic for ranges like Sat-Mon",
+        "No test file references lib/hours.ts"
+      ],
+      "suggestion": "Add a __tests__/hours.test.ts covering: each format branch, closed/open boundary minutes, midnight wrap-around (e.g. 11pm-2am), 'Closed' and '24 hours' literals, compact format with day ranges including wrap-around (Sat-Mon), and null return for unparseable inputs. All inputs are strings so no mocking is needed.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "reddit_extraction_zero_coverage",
+      "summary": "lib/reddit.ts core extraction heuristics (extractRestaurantName, isValidRestaurantName, isPostRelevantToQuery, isRecommendationRequest) have zero tests despite being the pipeline's primary logic",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "extractRestaurantName has 3 strategy branches and 7 regex patterns — correctness is unverifiable without tests",
+        "isValidRestaurantName applies word-count, capitalization, and phrase-fragment rules — edge cases are invisible",
+        "isPostRelevantToQuery filters posts before extraction — a false-negative here silently drops restaurants from results",
+        "isRecommendationRequest determines whether comments are mined — a false-positive here mines irrelevant comments",
+        "extractRestaurantName is exported (public API) but has no test"
+      ],
+      "suggestion": "Add a __tests__/reddit-extraction.test.ts covering extractRestaurantName with: quoted names, each of the 7 regex pattern cases, capitalized-word fallback, skipWords filtering, null return for unrecognizable input. Add tests for isValidRestaurantName edge cases (1-word, 6-word, >6-word names, lowercase start, invalid starts). Add tests for isPostRelevantToQuery with query words in/not-in post body.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "regex_fallback_zero_coverage",
+      "summary": "lib/openrouter.ts regexFallback is the query-parsing safety net when LLM is unavailable but has zero tests",
+      "related_files": ["lib/openrouter.ts"],
+      "evidence": [
+        "regexFallback is the return value of parseQueryWithLLM when apiKey is missing or API call fails — it is the path taken in all local dev and test environments without a key",
+        "The regex `/\\b(?:in|near)\\s+([A-Z][a-zA-Z\\s]+?)(?:\\s*$|\\s+(?:area|canada|usa|us|uk))/i` has subtle behavior: lazy quantifier on city capture, trailing country word exclusion, case-insensitivity",
+        "No test for 'sushi in Ottawa', 'pizza near Toronto area', query with no city, query with city at start"
+      ],
+      "suggestion": "Add tests in __tests__/openrouter-fallback.test.ts (or in an existing lib test file): test regexFallback for 'sushi in Ottawa' (city=Ottawa, terms=sushi), 'best pizza near Toronto area' (city=Toronto, terms trimmed), 'ramen' (city=null, terms=ramen), 'in Ottawa sushi' (no match at word boundary before city — verify city=null).",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "rules_db_logic_untested",
+      "summary": "lib/rules.ts rule implementations are mocked out in all tests — the actual Prisma DB query logic is never exercised",
+      "related_files": ["lib/rules.ts", "__tests__/api-votes.test.ts", "__tests__/rule-violations.test.ts"],
+      "evidence": [
+        "api-votes.test.ts line 20: `vi.mock('@/lib/rules', () => ({ checkRule03: vi.fn(), checkRule05: vi.fn(), tryTransitionToVerified: vi.fn() }))` — the rule functions are fully replaced by mocks",
+        "rule-violations.test.ts imports from lib/validate.ts and lib/search.ts but never imports or calls checkRule01, checkRule03, checkRule05",
+        "tryTransitionToVerified has complex logic: fetch restaurant, check status, check RULE_01 (count), update status — none of this is exercised",
+        "checkRule01 uses prisma.communityRecommendation.count; checkRule03 uses prisma.vote.findFirst; checkRule05 uses prisma.restaurantVote.findFirst — all mocked at the prisma level in other tests but never in a test that actually calls the rule functions"
+      ],
+      "suggestion": "Add a __tests__/rules.test.ts that mocks prisma directly (vi.mock('@/lib/db', ...)) and tests each rule function: checkRule01 returns true when count > 0, false when count = 0; checkRule03 returns true when findFirst returns null, false when it returns a vote; checkRule05 same pattern; tryTransitionToVerified updates status when RULE_01 passes and status is UNREVIEWED, does nothing when status is already VERIFIED.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "restaurant_grouping_zero_coverage",
+      "summary": "lib/restaurant-grouping.ts groupRestaurantsByName, shouldMerge, and normalizeWebsite have zero tests despite complex merging logic",
+      "related_files": ["lib/restaurant-grouping.ts"],
+      "evidence": [
+        "groupRestaurantsByName uses an O(n^2) iterative merge loop with a `merged` flag — correctness of convergence is unverified",
+        "shouldMerge checks website hostname normalization AND name prefix overlap — both are heuristics with edge cases",
+        "normalizeWebsite handles URL parse failures with a regex fallback",
+        "The function is used in 2 production paths (lib/search.ts and components/LoadMoreButton.tsx) and is the core de-duplication mechanism"
+      ],
+      "suggestion": "Add a __tests__/restaurant-grouping.test.ts covering: normalizeWebsite with valid URLs, www-prefixed URLs, invalid URLs; shouldMerge with shared website, prefix-matched names, non-matching pairs; groupRestaurantsByName with duplicates, multi-location chains (same website), excludeNames filtering.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Tests were written for the mechanical/validation layer (field checks, state machine transitions) where test cases are easy to enumerate from a spec, but the heuristic/extraction layer was left without tests because the correct outputs are harder to enumerate",
+      "All route tests mock their dependencies rather than testing through them, creating a test suite that validates contracts but not implementations",
+      "The 4 open issues from the prior review cycle remain, suggesting test addition is not being prioritized in the fix cycle"
+    ],
+    "likely_symptoms": ["reddit_extraction_zero_coverage", "hours_zero_coverage", "regex_fallback_zero_coverage"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "test_strategy": {
+      "add": [
+        {
+          "header": "Validation and state machine layers are thoroughly tested",
+          "description": "lib/validate.ts has 57 adversarial field tests and lib/state-machine.ts has 65 transition tests. These mechanical layers are well-covered and the tests are structured and intention-revealing.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Route contract tests exist but mock all lib dependencies",
+          "description": "All 5 API route test files verify request/response contracts but mock lib/db, lib/search, lib/rules, lib/geo, and lib/openrouter. Implementation logic in those modules has no coverage from the route test layer.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "No snapshot tests — all behavioral assertions",
+          "description": "The test suite uses only behavioral assertions (expect(value).toBe/toEqual/toMatch). No snapshot overuse exists, which is a positive signal for test maintenance.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Core extraction heuristics entirely untested",
+          "description": "The restaurant name extraction (extractRestaurantName, isValidRestaurantName), hours parsing (isOpenNow), query fallback (regexFallback), and grouping algorithm (groupRestaurantsByName) have zero test coverage. These are the highest-value functions to test because bugs are silent in production.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

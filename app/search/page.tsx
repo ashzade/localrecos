@@ -1,14 +1,13 @@
 import { Suspense } from 'react';
 import { searchRestaurants, parseQuery, groupRestaurantsByName } from '@/lib/search';
 import { isOpenNow } from '@/lib/hours';
+import { PRICE_ORDER } from '@/lib/restaurant-grouping';
 import RestaurantCard from '@/components/RestaurantCard';
 import SearchBar from '@/components/SearchBar';
 import SortBar from '@/components/SortBar';
 import SearchPoller from '@/components/SearchPoller';
 import PersistCity from '@/components/PersistCity';
 import LoadMoreButton from '@/components/LoadMoreButton';
-
-const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 
 const PAGE_SIZE = 10;
 

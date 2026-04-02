@@ -1,0 +1,102 @@
+{
+  "batch": "cross_module_architecture",
+  "batch_index": 1,
+  "assessments": {
+    "cross_module_architecture": 82.0
+  },
+  "dimension_notes": {
+    "cross_module_architecture": {
+      "evidence": [
+        "lib/ is the canonical domain layer: db.ts (9 importers), validate.ts (9 importers), search.ts (8 importers), geo.ts (6 importers) — all consumed by app/api/ routes and pages, correct direction",
+        "app/api/ routes import lib/ only; components/ import lib/ only for hours and geo; coupling matrix shows no upward app→lib violations",
+        "lib/reddit.ts has a deferred import at line 52: `import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate'` placed mid-file after module-level constants — not a cycle but an unusual placement that breaks the convention of top-of-file imports",
+        "lib/geo.ts exports both detect_city (snake_case) and detectCityFromIp (camelCase alias) — the alias comment says 'backward compatibility' but the alias is used in app/api/geo/route.ts while detect_city is used in app/api/search/route.ts, so two callers use different names for the same function across the boundary",
+        "groupRestaurantsByName logic is duplicated across lib/search.ts (server) and components/LoadMoreButton.tsx (client) — same shouldMerge/buildGroup/normalizeWebsite algorithm maintained in two places, indicating a missing shared boundary for the grouping abstraction",
+        "lib/search.ts countSearchResults and searchRestaurants duplicate the word-parsing and where-condition construction logic; both call parseWords internally",
+        "components/ directory is 90.7% of the top-level package LOC census — this is an artifact of the measurement tool counting only root-package files rather than full lib/ depth, not a genuine hub concern",
+        "lib/db.ts uses module-level singleton with globalThis pattern — standard Next.js pattern for Prisma, not a structural concern",
+        "No circular import cycles detected in the import graph; dependency direction is lib/ ← app/api/ ← (Next.js router), correct"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "cross_module_architecture": {
+      "dimension_character": "The codebase has a clear and respected three-layer boundary: lib/ (domain logic), app/api/ (HTTP handlers), components/ (UI), with dependency direction consistently pointing inward. The primary structural weakness is a restaurant-grouping algorithm that lives in both lib/search.ts and components/LoadMoreButton.tsx — the client and server each maintain their own copy of the same merge logic, creating a genuine missing-boundary problem that will cause divergence over time. The geo alias bifurcation (detect_city vs detectCityFromIp) is a minor naming oddity at a boundary but does not create a cycle or direction violation.",
+      "score_rationale": "The architecture scores solidly for respected layering and no import cycles, which represents the core contract for cross_module_architecture. The score is held below 90 by the duplicated grouping algorithm — a concrete cross-package duplication that indicates a missing shared boundary. At the 80-range anchor (recurring boundary violations that make changes ripple unexpectedly), this is a single well-defined duplication rather than a systemic pattern, placing it closer to 82 than 75."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "cma_grouping_duplication",
+      "summary": "Restaurant grouping algorithm duplicated across lib/search.ts and components/LoadMoreButton.tsx",
+      "related_files": ["lib/search.ts", "components/LoadMoreButton.tsx"],
+      "evidence": [
+        "lib/search.ts defines groupRestaurantsByName with shouldMergeGroups, buildGroup, normalizeWebsite helpers (lines 82-187)",
+        "components/LoadMoreButton.tsx re-implements shouldMerge, groupByName, normalizeWebsite with the same logic for client-side pagination (lines 57-145)",
+        "The two normalizeWebsite implementations differ subtly: lib version uses new URL() with a try/catch fallback; LoadMoreButton version uses only a regex replace — a silent behavioral divergence at the boundary"
+      ],
+      "suggestion": "Extract the grouping logic into a shared utility in lib/search.ts (already has groupRestaurantsByName) or a new lib/group.ts. The client component should serialize already-grouped results from the server response rather than re-grouping raw rows client-side. The /api/search-more endpoint could return pre-grouped RestaurantGroup[] and LoadMoreButton would consume that shape directly, eliminating the duplicated merge pass.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "client_server_boundary_grouping"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "cma_geo_alias_boundary_split",
+      "summary": "lib/geo.ts exports two names for the same function; callers use different aliases creating inconsistent cross-module references",
+      "related_files": ["lib/geo.ts", "app/api/geo/route.ts", "app/api/search/route.ts"],
+      "evidence": [
+        "lib/geo.ts line 6 exports detect_city (snake_case); line 40 exports detectCityFromIp as alias 'for backward compatibility'",
+        "app/api/geo/route.ts imports detectCityFromIp (the alias)",
+        "app/api/search/route.ts imports detect_city (the original)",
+        "Two callers import different symbols for the same function — the 'backward compatibility' alias has no external need since both callers are in the same codebase"
+      ],
+      "suggestion": "Standardize on the camelCase name detectCityFromIp (consistent with TypeScript conventions used throughout lib/) and remove the snake_case export. Update app/api/search/route.ts to import detectCityFromIp. The alias comment mentions the spec — if the spec name must be preserved, keep one name and add a JSDoc alias comment rather than a live export.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "naming_convention_drift"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The client pagination path (LoadMoreButton) needed grouping logic but couldn't call server-side lib functions directly, leading to a copy rather than a shared API contract",
+      "The geo alias likely predates the codebase reaching its current shape — an early naming decision that was never cleaned up when both callers became internal"
+    ],
+    "likely_symptoms": [
+      "cma_grouping_duplication — the divergent normalizeWebsite implementations are a symptom of ungoverned copy"
+    ],
+    "possible_false_positives": [
+      "The package_size_census flagging components/ at 90.7% — this measures only root-level package files and does not reflect actual lib/ depth, which has comparable LOC"
+    ]
+  },
+  "context_updates": {
+    "cross_module_architecture": {
+      "add": [
+        {
+          "header": "Clean three-layer dependency direction",
+          "description": "lib/ is the domain core; app/api/ and app/pages consume it; components/ consume only lib/hours and lib/geo. No upward imports exist. The direction is consistently correct and enforced by structure.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No import cycles in the graph",
+          "description": "The import graph contains no circular dependencies. lib/reddit.ts has a mid-file import statement (line 52) but this does not create a cycle — it is a style outlier only.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Grouping algorithm split across server and client",
+          "description": "The restaurant merge/group logic exists in lib/search.ts for the server path and is re-implemented in components/LoadMoreButton.tsx for the client pagination path. The two normalizeWebsite implementations already diverge.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

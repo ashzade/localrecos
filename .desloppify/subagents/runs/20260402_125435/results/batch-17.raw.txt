@@ -1,0 +1,303 @@
+{
+  "batch": "design_coherence",
+  "batch_index": 17,
+  "assessments": {"design_coherence": 68.0},
+  "dimension_notes": {
+    "design_coherence": {
+      "evidence": [
+        "app/api/scrape/route.ts (225 LOC): This is a Next.js API route — it has zero importers because routes are resolved by the framework via file-system routing, not static imports. It is NOT orphaned in a meaningful sense. The file does mix concerns: orchestration logic (fetchWithFallback, enrichAndUpsert, upsertRestaurant) is all co-located in the route file rather than extracted to lib/.",
+        "app/api/search-more/route.ts (23 LOC): Tiny focused route, legitimately used via HTTP. Dismiss orphaned signal.",
+        "app/api/trending/route.ts (43 LOC): Simple focused route. Dismiss orphaned signal.",
+        "app/api/vote/route.ts (96 LOC): Focused voting route. Dismiss orphaned signal.",
+        "app/search/page.tsx (129 LOC): Next.js page component — correctly flagged as orphaned by static import analysis but it's a framework entry point. The file is slightly overloaded: contains SearchResults async function with data fetching, sorting, filtering, and JSX rendering all in one body.",
+        "components/TrendingSection.tsx: High cyclomatic complexity (>15 branches) confirmed. The component handles geolocation detection, IP fallback, fetch, state management, loading state, empty state, and full rendering all in a single component with a complex useEffect chain.",
+        "lib/google-places.ts: High cyclomatic complexity (>15 branches) confirmed. The searchGooglePlaces function handles API call, response validation, food type filtering, business status filtering, photo resolution, and validation — many branches but they are all part of a single coherent data-fetching responsibility.",
+        "lib/openrouter.ts: 'Async functions without await' signal — regexFallback is synchronous but the exported parseQueryWithLLM and getRedditRecommendations are properly async. This is not a design problem.",
+        "lib/reddit.ts: Hardcoded URL 'https://www.reddit.com/api/v1/access_token' is a well-known stable OAuth endpoint, not a design issue.",
+        "prisma/seed.ts: Framework seed script, invoked via `prisma db seed`. Not an orphan in the meaningful sense.",
+        "components/RestaurantCard.tsx: Hardcoded Google Maps URL pattern `https://www.google.com/maps/search/?api=1&query=...` appears both in RestaurantCard.tsx and app/restaurant/[id]/page.tsx — duplication.",
+        "components/RestaurantFeedbackButton.tsx vs components/VoteButton.tsx (VoteButton doesn't exist as a file — it's RecommendationCard or similar): boilerplate_duplication signal at lines 37/38 of RestaurantFeedbackButton and VoteButton. VoteButton does not exist as a separate file in components/; the signal may refer to RecommendationCard.",
+        "components/LoadMoreButton.tsx (213 LOC): Has PRICE_ORDER constant duplicated from app/search/page.tsx — the same Record<string, number> for price ordering is defined independently in both files.",
+        "app/api/scrape/route.ts: The POST handler calls parseQuery twice — once inside fetchWithFallback (line 24) and again at line 194 to get terms for Google Places. This is a redundant double-parse of the same query string within one request.",
+        "app/restaurant/[id]/page.tsx: Makes two separate Prisma queries — one in generateMetadata and one in the page component itself — for the same restaurant record. These cannot be deduplicated due to Next.js RSC architecture.",
+        "components/TrendingSection.tsx: The STATUS_BADGE constant is duplicated from STATUS_LABELS/STATUS_INFO in RestaurantCard.tsx and app/restaurant/[id]/page.tsx — same keys, same label/className structure defined three times across the codebase."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Multiple instances of structural duplication (STATUS badge map defined 3 times, PRICE_ORDER defined twice, Google Maps URL template repeated), one confirmed multi-responsibility function in TrendingSection, and redundant double-parse in scrape route reduce design coherence."
+    }
+  },
+  "dimension_judgment": {
+    "design_coherence": {
+      "dimension_character": "The codebase demonstrates solid function-level focus in most lib modules — search, geo, fingerprint, rules, and state-machine are all single-responsibility. The design weaknesses concentrate in the UI layer: TrendingSection is an overloaded component mixing geolocation, fallback orchestration, and rendering; the STATUS badge lookup map is defined independently in three files; and PRICE_ORDER is duplicated between the search page and LoadMoreButton. The scrape route has a redundant double-parse of the query string within a single request lifecycle.",
+      "score_rationale": "The lib layer is well-structured with clear single responsibilities. The component/route layer shows a pattern of incremental accumulation — constants and status maps repeated across files because there is no shared constants module. The scrape route's double-parse is a concrete inefficiency. These are real but moderate design issues; the codebase is not severely incoherent, just lacking a shared constants home."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "design_coherence",
+      "identifier": "status_badge_triplication",
+      "summary": "STATUS badge lookup map defined independently in three files",
+      "related_files": ["components/TrendingSection.tsx", "components/RestaurantCard.tsx", "app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "TrendingSection.tsx lines 19-23: `const STATUS_BADGE: Record<string, { label: string; className: string }> = { VERIFIED: ..., UNREVIEWED: ..., INCOMPLETE: ... }`",
+        "RestaurantCard.tsx lines 51-55: `const STATUS_LABELS: Record<string, { label: string; className: string }> = { VERIFIED: ..., UNREVIEWED: ..., INCOMPLETE: ... }`",
+        "app/restaurant/[id]/page.tsx lines 13-29: `const STATUS_INFO: Record<string, { label: string; className: string; description: string }> = { VERIFIED: ..., UNREVIEWED: ..., INCOMPLETE: ... }`",
+        "All three map the same three RestaurantStatus enum values to display labels and Tailwind class names"
+      ],
+      "suggestion": "Extract a shared status display map to lib/restaurant-status.ts (or a constants file). The restaurant-page variant adds `description` — that field can be included in the shared map with optional status-display objects having a description property.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "missing_shared_constants"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "price_order_duplication",
+      "summary": "PRICE_ORDER sort constant duplicated between search page and LoadMoreButton",
+      "related_files": ["app/search/page.tsx", "components/LoadMoreButton.tsx"],
+      "evidence": [
+        "app/search/page.tsx line 11: `const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 }`",
+        "components/LoadMoreButton.tsx line 7: `const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 }` — identical definition"
+      ],
+      "suggestion": "Move PRICE_ORDER to lib/restaurant-grouping.ts (which is already shared between server and client) or a dedicated constants file and import it in both places.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "missing_shared_constants"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "scrape_double_parse",
+      "summary": "Query string parsed twice within a single scrape request",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "Line 24 inside fetchWithFallback: `const terms = (await parseQuery(query)).terms` — first parse, calls LLM",
+        "Line 194 in POST handler: `const terms = (await parseQuery(query)).terms` — second parse of the same query string, another LLM call",
+        "Each parseQuery call may invoke the OpenRouter LLM API, doubling latency and cost for every scrape request"
+      ],
+      "suggestion": "Extract the parsed result from fetchWithFallback and return it alongside results so the POST handler can reuse it without re-parsing. Alternatively, pass terms as a parameter into the enrichment step.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "trending_section_overloaded",
+      "summary": "TrendingSection mixes geolocation, fallback orchestration, and rendering in one component",
+      "related_files": ["components/TrendingSection.tsx"],
+      "related_files": ["components/TrendingSection.tsx"],
+      "evidence": [
+        "The useEffect contains: browser geolocation API call, success/failure callbacks, IP-based geo fallback, /api/geo fetch, /api/trending fetch, localStorage write — all in a single effect",
+        "Signal: 1x High cyclomatic complexity (>15 branches) confirmed by scanner",
+        "The component is responsible for: city detection strategy selection, fallback chain, data fetching, loading state, empty state, and full JSX rendering"
+      ],
+      "suggestion": "Extract city detection + trending fetch into a custom hook (e.g. useTrendingRestaurants) that returns { city, results, loading }. The component then only renders based on those values. This separates the orchestration from the presentation.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "5a6bab2a47d60169"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "google_maps_url_duplication",
+      "summary": "Google Maps URL template duplicated in RestaurantCard and restaurant detail page",
+      "related_files": ["components/RestaurantCard.tsx", "app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "RestaurantCard.tsx line 78: `` `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(primaryLocation.address)}` ``",
+        "app/restaurant/[id]/page.tsx line 68: `` `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.address)}` ``",
+        "Also duplicated in the multi-location rendering within RestaurantCard.tsx and restaurant page"
+      ],
+      "suggestion": "Extract a `buildGoogleMapsUrl(address: string): string` helper to lib/ or a shared util. Both components import and call it.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "missing_shared_constants",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "33516a752f2e856d"
+    }
+  ],
+  "issues": [
+    {
+      "dimension": "design_coherence",
+      "identifier": "status_badge_triplication",
+      "summary": "STATUS badge lookup map defined independently in three files",
+      "related_files": ["components/TrendingSection.tsx", "components/RestaurantCard.tsx", "app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "TrendingSection.tsx lines 19-23: STATUS_BADGE constant with VERIFIED/UNREVIEWED/INCOMPLETE keys",
+        "RestaurantCard.tsx lines 51-55: STATUS_LABELS constant with same keys and shape",
+        "app/restaurant/[id]/page.tsx lines 13-29: STATUS_INFO constant with same keys plus description field",
+        "All three map the same RestaurantStatus enum values to display labels and Tailwind class names"
+      ],
+      "suggestion": "Extract a shared status display map to lib/restaurant-status.ts and import it in all three files. The description field in STATUS_INFO can be an optional property on the shared type.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "missing_shared_constants"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "price_order_duplication",
+      "summary": "PRICE_ORDER sort constant duplicated between search page and LoadMoreButton",
+      "related_files": ["app/search/page.tsx", "components/LoadMoreButton.tsx"],
+      "evidence": [
+        "app/search/page.tsx line 11: `const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 }`",
+        "components/LoadMoreButton.tsx line 7: identical definition"
+      ],
+      "suggestion": "Move PRICE_ORDER to lib/restaurant-grouping.ts (already shared between server and client) and import it in both places.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "missing_shared_constants"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "scrape_double_parse",
+      "summary": "Query string parsed twice (two LLM calls) within a single scrape request",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "fetchWithFallback at line 24 calls `(await parseQuery(query)).terms` — LLM call #1",
+        "POST handler at line 194 calls `(await parseQuery(query)).terms` again — LLM call #2",
+        "parseQuery delegates to parseQueryWithLLM which makes a real HTTP request to OpenRouter"
+      ],
+      "suggestion": "Return the parsed terms from fetchWithFallback alongside results, or extract parseQuery to the top of POST and pass terms down to fetchWithFallback and the enrichment step.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "trending_section_overloaded",
+      "summary": "TrendingSection mixes geolocation strategy, fetch orchestration, and rendering in one component body",
+      "related_files": ["components/TrendingSection.tsx"],
+      "evidence": [
+        "Single useEffect handles: navigator.geolocation check, success/error callbacks, /api/geo fetch, /api/trending fetch, localStorage write — confirmed >15 cyclomatic branches",
+        "Component simultaneously owns city detection strategy, loading state, empty state, and full rendering"
+      ],
+      "suggestion": "Extract city detection and trending fetch into a `useTrendingRestaurants()` hook returning `{ city, results, loading }`. The component then only renders based on hook output.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "5a6bab2a47d60169"
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "ddf8529afa7d4684",
+      "reasoning": "app/api/scrape/route.ts has zero static importers because Next.js resolves API routes by filesystem path, not import graph. It is a live production endpoint called via HTTP from app/api/search/route.ts (triggerScrape function)."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "f346c072e6d8cdd2",
+      "reasoning": "app/api/search-more/route.ts is a legitimate Next.js API route called from LoadMoreButton.tsx via fetch('/api/search-more'). Zero static importers is expected."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "c203f3e137c3791d",
+      "reasoning": "app/api/trending/route.ts is called via fetch('/api/trending') from TrendingSection.tsx. Zero static importers is expected for Next.js routes."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "1eca88d3e8c0910c",
+      "reasoning": "app/api/vote/route.ts is a live endpoint called from RecommendationCard component via fetch. Not orphaned."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "9294d05ddf9fb2ed",
+      "reasoning": "app/search/page.tsx is a Next.js page component resolved by filesystem routing. Zero static importers is correct."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "fe35024c74ae293f",
+      "reasoning": "lib/google-places.ts high cyclomatic complexity reflects the many edge cases in Google Places API response parsing (food type filtering, business status, photo resolution, price mapping). All branches serve a single coherent responsibility: enriching restaurant data from the API."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "8ad734967206dcad",
+      "reasoning": "lib/openrouter.ts has regexFallback which is synchronous, but the exported functions are correctly async because they may call the API. The 'async without await' signal is likely targeting regexFallback itself which is internal and not exported async."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "5fb979854464f879",
+      "reasoning": "lib/reddit.ts hardcoded URL 'https://www.reddit.com/api/v1/access_token' is Reddit's stable OAuth2 token endpoint. This is a well-known third-party API URL that does not change; no config indirection is needed."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "85e1aefac42fcfd9",
+      "reasoning": "prisma/seed.ts is invoked by `prisma db seed` command configured in package.json. It is a framework seed script, not an orphaned file."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "616191946bfa168e",
+      "reasoning": "The boilerplate duplication between RestaurantFeedbackButton.tsx and what the signal calls VoteButton.tsx — VoteButton.tsx does not exist as a separate file in components/. RestaurantFeedbackButton and any similar component share an optimistic vote pattern that is intentional and appropriate for the domain."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "1e7e68bd166d3d07",
+      "reasoning": "app/api/geo/route.ts (36 LOC) is a small focused route that handles both GPS coordinate reverse geocoding and IP fallback — two closely related concerns for the same city detection feature. Not truly mixed responsibilities."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "b760d12bb97d68f7",
+      "reasoning": "app/api/restaurant-vote/route.ts is a live endpoint called from RestaurantFeedbackButton. Not orphaned; the file is accessed via HTTP routing."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "c1f1352f2a1de81c",
+      "reasoning": "app/restaurant/[id]/page.tsx is a Next.js dynamic route page component. Zero static importers is expected."
+    },
+    {
+      "dimension": "design_coherence",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "c1b0086c4daaa17a",
+      "reasoning": "LoadMoreButton.tsx at 213 LOC contains rendering logic, state management, and group-deduplication logic — these are coherent responsibilities for a stateful pagination component. The PRICE_ORDER duplication is captured separately as a confirmed issue."
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Missing shared constants module: STATUS display map and PRICE_ORDER are duplicated because there is no lib/constants.ts or similar home for display-layer constants",
+      "Scrape route grew organically with state machine logic inlined rather than extracted to lib/"
+    ],
+    "likely_symptoms": ["price_order_duplication", "status_badge_triplication"],
+    "possible_false_positives": ["All orphaned signals for Next.js route files and page components — filesystem routing means zero static importers is normal"]
+  },
+  "context_updates": {
+    "design_coherence": {
+      "add": [
+        {
+          "header": "Next.js routes appear orphaned in static import analysis",
+          "description": "All app/api/*/route.ts and app/**/page.tsx files have zero static importers because Next.js resolves them by filesystem path at runtime, not via import graph. The orphaned signal is a systematic false positive for this project's architecture.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "No shared constants module leads to display constant duplication",
+          "description": "The STATUS badge/label maps and PRICE_ORDER are duplicated across 3 and 2 files respectively because there is no shared lib/constants.ts. This is a recurrent pattern that will grow as more components need these values.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "lib layer has clean single-responsibility functions",
+          "description": "lib/rules.ts, lib/state-machine.ts, lib/geo.ts, lib/fingerprint.ts, and lib/hours.ts all have single coherent responsibilities with no mixed concerns. The design discipline is stronger in the lib layer than in components.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

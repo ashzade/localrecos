@@ -1,0 +1,166 @@
+{
+  "session": {
+    "id": "ext_20260402_142847_81867bed",
+    "token": "1d40e292d3ef85287875eed2673fe9e7"
+  },
+  "assessments": {
+    "cross_module_architecture": 68,
+    "high_level_elegance": 62,
+    "convention_outlier": 72,
+    "error_consistency": 67,
+    "naming_quality": 70
+  },
+  "dimension_notes": {
+    "cross_module_architecture": "Three previously flagged issues were verified. (1) IP extraction logic is still duplicated: lib/fingerprint.ts lines 10-13 read x-forwarded-for/x-real-ip headers inline, identical to lib/geo.ts's extractIp(). computeFingerprint() does not call extractIp(). (2) lib/search.ts still re-exports RestaurantLocation and RestaurantGroup from lib/restaurant-grouping.ts (line 6) and wraps groupRestaurantsByName with an 'as unknown as GroupableRestaurant[]' cast (lines 60-62), creating a false boundary. (3) Double parseQuery call: app/api/search/route.ts calls parseQuery (line 29) then may call triggerScrape(); app/api/scrape/route.ts calls parseQuery again in fetchWithFallback (line 24). SearchPoller also fires POST /api/scrape independently, meaning for a low-results query the scrape pipeline can be triggered twice (server-side + client-side), each with its own parseQuery LLM call. No new architecture issues found.",
+    "high_level_elegance": "Three previously flagged issues were verified still open. (1) app/api/scrape/route.ts still contains full pipeline orchestration as private file-level functions: fetchWithFallback, enrichAndUpsert, upsertRestaurant. These are untestable without HTTP. (2) The restaurant status badge map is split across three files with differing shapes and names: RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts (label+className, exported), STATUS_INFO in app/restaurant/[id]/page.tsx (label+className+description, local), and RestaurantCard.tsx imports from lib/restaurant-grouping.ts directly. The page-level version is a distinct superset. (3) Scrape is triggered both server-side via triggerScrape() in api/search/route.ts (when grouped.length < 3) and client-side via SearchPoller posting directly to /api/scrape on every mount. Both can fire for the same query concurrently. No new decomposition issues found.",
+    "convention_outlier": "Two previously flagged issues were verified still open. (1) PRICE_ORDER is defined verbatim in both app/search/page.tsx (line 11) and components/LoadMoreButton.tsx (line 7) — identical Record<string, number> with the same four keys. (2) The status badge display variable has three names across consumer files: RESTAURANT_STATUS_BADGE (lib/restaurant-grouping.ts — imported by RestaurantCard.tsx), STATUS_INFO (app/restaurant/[id]/page.tsx — local). Note: in the actual source RestaurantCard.tsx imports RESTAURANT_STATUS_BADGE from lib/restaurant-grouping.ts rather than defining a local STATUS_LABELS, so the 'three different variable names' from the prior review slightly overstates it — two distinct definitions (RESTAURANT_STATUS_BADGE and STATUS_INFO) exist, plus the import alias. The core issue (STATUS_INFO is a superset redefinition) stands. No new convention outliers found.",
+    "error_consistency": "One previously flagged issue has been resolved; three remain open. RESOLVED: tryTransitionToVerified is now wrapped in try-catch in both vote routes (app/api/vote/route.ts lines 83-89, app/api/restaurant-vote/route.ts lines 83-89) with a log-and-continue pattern. The 500-on-committed-vote concern is fixed. STILL OPEN: (1) getRedditRecommendations returns [] on all failure paths (missing key, non-OK HTTP, parse error) — callers cannot distinguish transient network failure from genuine no-results. (2) LoadMoreButton.tsx catch block (line 49) calls setHasMore(false) on any error — a transient network failure permanently disables the Load More button for the session. (3) validateRedditPost and validateExtractedRestaurant throw ValidationError, but lib/reddit.ts catches both silently (lines 136-140, lines 320-324) with only a console.warn — validation is effectively a no-op filter. Mixed error strategy across lib/ (throws in validate.ts, returns-null in geo.ts, returns-empty-array in reddit.ts and openrouter.ts) remains systemic.",
+    "naming_quality": "Both previously flagged issues were verified still open. (1) lib/rules.ts exports checkRule01 (checks restaurant has recommendations), checkRule03 (checks no duplicate recommendation vote), checkRule05 (checks no duplicate restaurant vote). All named after opaque numeric rule codes. A reader in the vote routes cannot infer intent without tracing to rules.ts. (2) SearchPoller.tsx fires POST /api/scrape as its primary action (line 31) — it initiates a scrape then polls for results via router.refresh() on an interval. The name 'Poller' implies passive read-only observation. No new naming issues found. The rest of the codebase naming is consistent and domain-aligned."
+  },
+  "dimension_judgment": {
+    "cross_module_architecture": "Three confirmed open boundary issues. The IP extraction duplication is a concrete coupling failure — a shared utility (extractIp) exists but is not used by its sibling (computeFingerprint). The search.ts re-export wrapper adds a type-unsafe cast without benefit. The double parseQuery / dual scrape trigger is a runtime concern with LLM cost implications. Dependency direction overall is sound (lib consumed by app/components, no upward arrows). Score reflects three persistent open issues at moderate severity.",
+    "high_level_elegance": "Three confirmed open issues with meaningful impact on decomposition clarity. Scrape orchestration trapped in a route file is the most significant — it makes pipeline logic untestable and couples domain behaviour to HTTP. The status badge split ownership is a minor maintenance burden. The dual scrape trigger creates unpredictable pipeline invocation patterns. The codebase is otherwise navigable with clear domain naming. Score reflects three issues that collectively materially affect role clarity.",
+    "convention_outlier": "Two confirmed open issues. PRICE_ORDER duplication is a clean convention failure — identical constant in sibling consumer files. The status display naming divergence (RESTAURANT_STATUS_BADGE vs STATUS_INFO) adds navigation friction. Codebase is otherwise highly consistent (lib/ uniformly camelCase, components/ PascalCase, API routes follow Next.js conventions). Score reflects two concrete outliers of low-to-medium impact.",
+    "error_consistency": "One issue resolved (tryTransitionToVerified wrapped), three remain. The most systemic remaining problem is the mixed error strategy in lib/: validate.ts throws, geo.ts returns null, openrouter.ts and reddit.ts return empty arrays — all for I/O failures in the same layer. The silent ValidationError swallow in reddit.ts is the most contract-breaking: the validator exists to enforce correctness but its throws are caught and ignored. LoadMoreButton silently disabling on transient error is a UX concern. Score reflects improvement (one fix) with three persistent structural issues.",
+    "naming_quality": "Two confirmed open naming issues. checkRule01/03/05 force engineers to look up rule definitions to understand vote guard intent. SearchPoller actively initiates a scrape — its name invites the wrong mental model. No new naming issues. The codebase is otherwise well-named with consistent domain vocabulary. Score reflects two isolated but real failures in an otherwise clean naming landscape."
+  },
+  "issues": [
+    {
+      "dimension": "cross_module_architecture",
+      "severity": "medium",
+      "summary": "IP extraction logic duplicated between lib/fingerprint.ts and lib/geo.ts",
+      "detail": "lib/fingerprint.ts lines 10-13 read x-forwarded-for and x-real-ip headers inline, implementing identical logic to lib/geo.ts's exported extractIp(). computeFingerprint() does not call extractIp(). Changes to header fallback order must be made in two files.",
+      "files": ["lib/fingerprint.ts", "lib/geo.ts"],
+      "suggestion": "Have computeFingerprint import and call extractIp from lib/geo.ts, or move extractIp to a shared lib/http.ts that both can import.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "ip_extraction_duplication_fingerprint_geo"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "severity": "low",
+      "summary": "lib/search.ts re-exports lib/restaurant-grouping.ts types and wraps its function, obscuring the true boundary",
+      "detail": "lib/search.ts line 6 re-exports RestaurantLocation and RestaurantGroup from lib/restaurant-grouping.ts. Lines 60-62 define groupRestaurantsByName as a pass-through that casts 'as unknown as GroupableRestaurant[]'. Callers importing from lib/search do not know they are reaching into restaurant-grouping logic, and the cast papers over a real type mismatch.",
+      "files": ["lib/search.ts", "lib/restaurant-grouping.ts"],
+      "suggestion": "Remove the wrapper from lib/search.ts. Callers needing groupRestaurantsByName should import directly from lib/restaurant-grouping.ts. Fix the underlying type mismatch (RestaurantWithRecommendations vs GroupableRestaurant) structurally rather than with a cast.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "search_re_exports_restaurant_grouping"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "severity": "medium",
+      "summary": "parseQuery called twice per scrape-triggering search — potential duplicate LLM calls",
+      "detail": "app/api/search/route.ts calls parseQuery (line 29) then may trigger /api/scrape. app/api/scrape/route.ts calls parseQuery again inside fetchWithFallback (line 24). Additionally SearchPoller fires its own POST to /api/scrape independently on mount, producing a third parseQuery call for a low-results query. Each call may hit the OpenRouter LLM.",
+      "files": ["app/api/scrape/route.ts", "app/api/search/route.ts", "components/SearchPoller.tsx"],
+      "suggestion": "Pass the pre-parsed query terms to /api/scrape in the request body, or cache the parsed result. Eliminate the dual-trigger pattern so scrape is invoked once per user query.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "scrape_double_parse_query"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "severity": "high",
+      "summary": "Scrape route acts as both HTTP handler and pipeline orchestrator; orchestration logic belongs in lib/",
+      "detail": "app/api/scrape/route.ts contains three substantial private functions — fetchWithFallback, enrichAndUpsert, upsertRestaurant — that implement domain pipeline logic with no HTTP-specific content. These cannot be unit tested without HTTP. The route file is 225 LOC of which the handler itself is ~80 LOC.",
+      "files": ["app/api/scrape/route.ts"],
+      "suggestion": "Extract fetchWithFallback, enrichAndUpsert, and upsertRestaurant to lib/scrape-pipeline.ts. The route file should parse the request, call the pipeline function, and format the response.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "scrape_route_orchestrator"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "severity": "medium",
+      "summary": "Restaurant status badge map duplicated with inconsistent shapes across files",
+      "detail": "RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts has {label, className} shape (no description). STATUS_INFO in app/restaurant/[id]/page.tsx adds a description field, making it a superset. RestaurantCard.tsx imports from lib/restaurant-grouping.ts. Ownership of this display mapping is split; the page-level variant cannot reuse the shared constant because it needs the extra field.",
+      "files": ["lib/restaurant-grouping.ts", "app/restaurant/[id]/page.tsx", "components/RestaurantCard.tsx"],
+      "suggestion": "Add the description field to RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts. The restaurant page can then import the same constant. This consolidates ownership without requiring RestaurantCard to change.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "status_badge_map_triplication"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "severity": "medium",
+      "summary": "Scrape triggered both server-side in api/search and client-side in SearchPoller, creating potential duplicate pipeline invocations",
+      "detail": "app/api/search/route.ts calls triggerScrape() fire-and-forget when grouped.length < 3 (line 52-54). SearchPoller unconditionally fires POST /api/scrape on every mount (line 31). For low-results queries both fire concurrently — two scrape pipelines run for the same city+query. The upsertRestaurant deduplicates by name/address, preventing data corruption, but Reddit and Google Places API quota is wasted.",
+      "files": ["app/api/search/route.ts", "components/SearchPoller.tsx"],
+      "suggestion": "Remove triggerScrape() from api/search/route.ts. SearchPoller is already the client-side trigger. If server-side triggering is desired, have SearchPoller conditionally render based on a flag from the search API response rather than unconditionally firing.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "dual_scrape_trigger_search_and_poller"
+    },
+    {
+      "dimension": "convention_outlier",
+      "severity": "low",
+      "summary": "PRICE_ORDER constant defined identically in two sibling consumer files",
+      "detail": "const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 } is defined verbatim at app/search/page.tsx line 11 and components/LoadMoreButton.tsx line 7. Both files use it for sorting by price_range. Adding a tier or changing ordering requires two edits.",
+      "files": ["app/search/page.tsx", "components/LoadMoreButton.tsx"],
+      "suggestion": "Define PRICE_ORDER once in lib/restaurant-grouping.ts alongside the price_range field on RestaurantGroup, and import it in both consumer files.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "price_order_duplication"
+    },
+    {
+      "dimension": "convention_outlier",
+      "severity": "low",
+      "summary": "Status badge display map uses different names and shapes across consumer files",
+      "detail": "The mapping from restaurant status code to display label+style is named RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts and STATUS_INFO in app/restaurant/[id]/page.tsx (which adds a description field). These are two separate definitions of the same domain concept with divergent names. Navigating from a status badge in the UI to its source requires checking multiple files.",
+      "files": ["lib/restaurant-grouping.ts", "app/restaurant/[id]/page.tsx"],
+      "suggestion": "Consolidate into a single constant with a canonical name (e.g. RESTAURANT_STATUS_DISPLAY) in lib/restaurant-grouping.ts, with the description field included, imported by all consumers.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "status_map_name_divergence"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "medium",
+      "summary": "getRedditRecommendations returns [] on API failure, making network errors indistinguishable from genuine no-results",
+      "detail": "lib/openrouter.ts getRedditRecommendations returns [] on: missing API key (line 79), non-OK HTTP response (line 113-115), parse exception (line 135-138), and malformed response shape (line 127). The caller in app/api/scrape/route.ts checks llmRecs.length === 0 to decide if the fallback found nothing, then advances the state machine to FAILED. A transient API outage produces the same FAILED outcome as a genuine no-results response.",
+      "files": ["lib/openrouter.ts", "app/api/scrape/route.ts"],
+      "suggestion": "Return a discriminated result from getRedditRecommendations (e.g. { ok: true, results } | { ok: false, error }) or throw on API failure. The caller can then distinguish error paths from genuine empty results.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "get_reddit_recommendations_empty_on_error"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "low",
+      "summary": "LoadMoreButton loadMore() sets hasMore=false on any error, preventing future loads after transient failures",
+      "detail": "components/LoadMoreButton.tsx catch block (line 49-52) catches all errors and calls setHasMore(false). A transient network failure permanently disables the Load More button for the session. The offset is not incremented either, so the next click (if hasMore were preserved) would retry with the same offset.",
+      "files": ["components/LoadMoreButton.tsx"],
+      "suggestion": "On network or parse failure, preserve hasMore=true and show a retry affordance or error message rather than silently disabling further loading.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "load_more_no_catch_stale_state"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "medium",
+      "summary": "validateRedditPost and validateExtractedRestaurant throw ValidationError but callers silently catch and continue, undermining the validation contract",
+      "detail": "lib/reddit.ts fetchSubredditPosts (lines 136-140) and scrapeRedditForRestaurants (lines 320-324) both catch ValidationError thrown by validators and log a console.warn, then continue. The validator is designed as a hard guard (throws on invalid data) but the catch silently degrades it to an optional filter. Any data that fails validation is silently dropped rather than surfacing the problem.",
+      "files": ["lib/reddit.ts", "lib/validate.ts"],
+      "suggestion": "If the intent is to filter invalid items without halting, use a guard predicate instead of a throwing validator. If the intent is to enforce correctness, propagate the error. The current mixed pattern (throw + silent catch) is misleading.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "validate_reddit_post_silent_catch"
+    },
+    {
+      "dimension": "naming_quality",
+      "severity": "medium",
+      "summary": "lib/rules.ts functions named after opaque rule codes rather than business intent",
+      "detail": "checkRule01, checkRule03, checkRule05 communicate only that a numbered rule exists. A reader of the vote routes must navigate to lib/rules.ts and read the JSDoc to learn: checkRule01 = does restaurant have recommendations, checkRule03 = has fingerprint already voted on this recommendation, checkRule05 = has fingerprint already voted on this restaurant. The rule code is an internal cross-reference that should not be the exported function name.",
+      "files": ["lib/rules.ts"],
+      "suggestion": "Rename: checkRule01 → hasRecommendation (or canTransitionToVerified), checkRule03 → isRecommendationVoteAllowed, checkRule05 → isRestaurantVoteAllowed. Rule code references can remain in JSDoc.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "rules_opaque_numeric_names"
+    },
+    {
+      "dimension": "naming_quality",
+      "severity": "low",
+      "summary": "SearchPoller.tsx is named as a passive poller but actively initiates a scrape POST request",
+      "detail": "components/SearchPoller.tsx fires POST /api/scrape (line 31) as its primary action on mount. It then polls via router.refresh() on an interval while waiting for results. The name 'Poller' implies passive read-only observation and hides the active write-side trigger role of this component.",
+      "files": ["components/SearchPoller.tsx"],
+      "suggestion": "Rename to ScrapeInitiator, ScrapeTrigger, or SearchScrapePoller to communicate that the component actively starts a scrape and observes its completion.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "search_poller_misleading_name"
+    }
+  ],
+  "context_updates": {
+    "cross_module_architecture": "All three previously flagged issues confirmed still open: IP extraction duplicated between fingerprint.ts and geo.ts, search.ts wrapping restaurant-grouping.ts with a type-unsafe cast, and parseQuery called multiple times per scrape-triggering request (server-side trigger + client-side SearchPoller). No new issues found.",
+    "high_level_elegance": "All three previously flagged issues confirmed still open: scrape orchestration logic in route file, status badge map split with different shapes across files, dual scrape trigger from server-side triggerScrape and client-side SearchPoller. No new decomposition issues found.",
+    "convention_outlier": "Both previously flagged issues confirmed still open: PRICE_ORDER duplicated in search/page.tsx and LoadMoreButton.tsx, status badge naming inconsistency (RESTAURANT_STATUS_BADGE vs STATUS_INFO). Prior review noted three variable names; actual source shows two distinct definitions (the third was an import alias). Core issue stands. No new outliers found.",
+    "error_consistency": "tryTransitionToVerified issue is RESOLVED — both vote routes now wrap the call in try-catch with log-and-continue. Three issues remain open: getRedditRecommendations empty-on-failure, LoadMoreButton hasMore=false on transient error, ValidationError silently swallowed in reddit.ts. Mixed lib-layer error strategy (throw vs return-null vs return-empty-array) is a systemic pattern.",
+    "naming_quality": "Both previously flagged issues confirmed still open: checkRule01/03/05 opaque naming in lib/rules.ts, SearchPoller active scrape initiator misnamed as passive poller. No new naming issues found."
+  }
+}

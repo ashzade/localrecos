@@ -31,9 +31,9 @@ function requirePresent(obj: Record<string, unknown>, field: string, entity: str
 // ── ParsedQuery (in-memory) ──────────────────────────────────────────────────
 
 interface ParsedQuery {
-  city?: string | null;
-  terms?: string | null;
-  raw?: string | null;
+  city: string | null;
+  terms: string;
+  raw: string;
 }
 
 export function validateParsedQuery(obj: ParsedQuery): void {
@@ -45,14 +45,14 @@ export function validateParsedQuery(obj: ParsedQuery): void {
 // ── RedditPost (in-memory) ───────────────────────────────────────────────────
 
 interface RedditPost {
-  id?: string | null;
-  title?: string | null;
-  selftext?: string | null;
-  url?: string | null;
-  permalink?: string | null;
-  subreddit?: string | null;
-  score?: number | null;
-  created_utc?: number | null;
+  id: string;
+  title: string;
+  selftext: string;
+  url: string;
+  permalink: string;
+  subreddit: string;
+  score: number;
+  created_utc: number;
 }
 
 const REDDIT_POST_STRING_FIELDS = ['id', 'title', 'selftext', 'url', 'permalink', 'subreddit'] as const;
@@ -69,11 +69,11 @@ export function validateRedditPost(obj: RedditPost): void {
 // ── ExtractedRestaurant (in-memory) ─────────────────────────────────────────
 
 interface ExtractedRestaurant {
-  name?: string | null;
-  postUrl?: string | null;
-  summary?: string | null;
-  source?: string | null;
-  redditScore?: number | null;
+  name: string;
+  postUrl: string;
+  summary: string;
+  source: string;
+  redditScore: number;
 }
 
 export function validateExtractedRestaurant(obj: ExtractedRestaurant): void {
@@ -86,14 +86,14 @@ export function validateExtractedRestaurant(obj: ExtractedRestaurant): void {
 // ── PlaceDetails (in-memory) ─────────────────────────────────────────────────
 
 interface PlaceDetails {
-  name?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  website?: string | null;
-  hours?: string | null;
-  price_range?: string | null;
-  service_options?: string[] | null;
-  photo_url?: string | null;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  hours: string | null;
+  price_range: string | null;
+  service_options: string[];
+  photo_url: string | null;
 }
 
 export function validatePlaceDetails(obj: PlaceDetails): void {
@@ -105,18 +105,18 @@ export function validatePlaceDetails(obj: PlaceDetails): void {
 // ── Restaurant (DB entity — application-layer pre-write guard) ───────────────
 
 interface RestaurantInput {
-  name?: string | null;
-  city?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  website?: string | null;
-  hours?: string | null;
-  price_range?: string | null;
-  service_options?: string[] | null;
-  status?: string | null;
-  photo_url?: string | null;
-  upvotes?: number | null;
-  downvotes?: number | null;
+  name: string;
+  city: string;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  hours: string | null;
+  price_range: string | null;
+  service_options: string[];
+  status: 'UNREVIEWED' | 'VERIFIED' | 'INCOMPLETE';
+  photo_url: string | null;
+  upvotes: number;
+  downvotes: number;
 }
 
 export function validateRestaurantInput(obj: RestaurantInput): void {
@@ -132,14 +132,14 @@ export function validateRestaurantInput(obj: RestaurantInput): void {
 // ── CommunityRecommendation (DB entity — application-layer pre-write guard) ──
 
 interface CommunityRecommendationInput {
-  restaurant_id?: string | null;
-  source?: string | null;
-  post_url?: string | null;
-  summary?: string | null;
-  mention_count?: number | null;
-  source_upvotes?: number | null;
-  upvotes?: number | null;
-  downvotes?: number | null;
+  restaurant_id: string;
+  source: string;
+  post_url: string;
+  summary: string;
+  mention_count: number;
+  source_upvotes: number;
+  upvotes: number;
+  downvotes: number;
 }
 
 export function validateCommunityRecommendationInput(obj: CommunityRecommendationInput): void {
@@ -157,9 +157,9 @@ export function validateCommunityRecommendationInput(obj: CommunityRecommendatio
 // ── RestaurantVote (DB entity — application-layer pre-write guard) ────────────
 
 interface RestaurantVoteInput {
-  restaurant_id?: string | null;
-  fingerprint?: string | null;
-  direction?: string | null;
+  restaurant_id: string;
+  fingerprint: string;
+  direction: string;
 }
 
 export function validateRestaurantVoteInput(obj: RestaurantVoteInput): void {
@@ -172,9 +172,9 @@ export function validateRestaurantVoteInput(obj: RestaurantVoteInput): void {
 // ── Vote (DB entity — application-layer pre-write guard) ─────────────────────
 
 interface VoteInput {
-  recommendation_id?: string | null;
-  fingerprint?: string | null;
-  direction?: string | null;
+  recommendation_id: string;
+  fingerprint: string;
+  direction: string;
 }
 
 export function validateVoteInput(obj: VoteInput): void {

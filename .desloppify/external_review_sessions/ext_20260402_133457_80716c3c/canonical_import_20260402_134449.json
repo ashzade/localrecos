@@ -1,0 +1,1065 @@
+{
+  "assessments": {
+    "cross_module_architecture": 72,
+    "high_level_elegance": 68,
+    "convention_outlier": 74,
+    "error_consistency": 65,
+    "naming_quality": 72,
+    "abstraction_fitness": 82.0,
+    "dependency_health": 97.0,
+    "low_level_elegance": 72.0,
+    "mid_level_elegance": 72.0,
+    "test_strategy": 74.0,
+    "api_surface_coherence": 55,
+    "authorization_consistency": 40,
+    "ai_generated_debt": 58,
+    "incomplete_migration": 92,
+    "package_organization": 62,
+    "initialization_coupling": 72.0,
+    "design_coherence": 65.0,
+    "contract_coherence": 70.0,
+    "logic_clarity": 80.0,
+    "type_safety": 75.0
+  },
+  "dimension_notes": {
+    "cross_module_architecture": "Phase 1 (observe): lib/fingerprint.ts (line 11-13) has its own inline IP extraction logic \u2014 identical header reads to lib/geo.ts's extractIp function \u2014 without importing from geo.ts. lib/search.ts re-exports and wraps lib/restaurant-grouping.ts: groupRestaurantsByName is a thin pass-through that type-casts to unknown then delegates. app/api/scrape/route.ts calls parseQuery twice (line 24 via fetchWithFallback, then again at line 194) \u2014 both invocations may hit the LLM. lib/geo.ts (extractIp) and lib/fingerprint.ts (computeFingerprint) own the same IP-extraction concern in parallel. Phase 2 (judge): Three confirmed architectural issues remain open. The fingerprint/geo duplication means changes to header fallback logic must be made in two places. The search.ts re-export wrapper obscures the true module boundary \u2014 callers of search.ts do not know they are reaching into restaurant-grouping. The double parseQuery call in scrape/route.ts is a redundant LLM call introduced when terms were needed for the Google Places query but was not refactored. These are concrete boundary integrity failures, not style issues.",
+    "high_level_elegance": "Phase 1 (observe): app/api/scrape/route.ts (222 LOC) contains pipeline orchestration logic (fetchWithFallback, enrichAndUpsert, upsertRestaurant) that goes well beyond HTTP handler responsibility. The status badge display map is defined three times with different names and slightly different shapes: STATUS_LABELS in RestaurantCard.tsx (no description field), STATUS_INFO in app/restaurant/[id]/page.tsx (with description), STATUS_BADGE in TrendingSection.tsx (no description). SearchPoller.tsx fires POST /api/scrape from the client while app/api/search/route.ts also fires triggerScrape() fire-and-forget when result count is low \u2014 two entry points triggering the same pipeline. Phase 2 (judge): All three previously flagged open issues remain confirmed. The scrape route mixes HTTP boundary concerns with domain orchestration. The three-way status badge duplication with inconsistent shapes means a label change requires updates in three files with no type-safety guarantee they stay in sync. The dual scrape trigger (server-side in search API + client-side in SearchPoller) creates a race condition where the same query may be scraped twice.",
+    "convention_outlier": "Phase 1 (observe): PRICE_ORDER constant is defined identically at components/LoadMoreButton.tsx:7 and app/search/page.tsx:11 \u2014 same Record<string, number> shape, same values. The status display maps use three different variable names across sibling files: STATUS_LABELS (RestaurantCard.tsx), STATUS_INFO (app/restaurant/[id]/page.tsx), STATUS_BADGE (TrendingSection.tsx). In naming_by_directory data, lib/ files are uniformly camelCase which is consistent. scrape/ shows 3 camelCase + 1 PascalCase (the route file itself follows Next.js convention). Phase 2 (judge): The PRICE_ORDER duplication is confirmed open and is a clear convention violation \u2014 identical constant defined twice in sibling consumer files. The three-name status badge map is an additional convention outlier: sibling components that all render the same domain concept (restaurant status) use differently named and shaped constants, which means the convention is not established. This is a real navigation and maintenance burden.",
+    "error_consistency": "Phase 1 (observe): In app/api/vote/route.ts (line 83) and app/api/restaurant-vote/route.ts (line 83), tryTransitionToVerified is called after the Prisma transaction commits. If tryTransitionToVerified throws (e.g. DB error on the update), the handler returns a 500 to the client even though the vote was committed. In lib/openrouter.ts, getRedditRecommendations returns [] on any API failure or parse error \u2014 network failure is indistinguishable from genuine no-results. In components/LoadMoreButton.tsx, loadMore() has no catch block \u2014 the try/finally means setLoading(false) runs, but hasMore and offset remain stale on fetch failure. In lib/reddit.ts, validateRedditPost and validateExtractedRestaurant throw ValidationError, but both call sites (fetchSubredditPosts and scrapeRedditForRestaurants) silently catch and log a warning, so the validation guard has no teeth. lib/ error strategy is predominantly throws (49 instances) with some returns_null (21), while components use returns_null or try_catch \u2014 the cross-layer mixing is significant within lib itself (throws vs. returns_null are used inconsistently for the same class of I/O failures). Phase 2 (judge): All four previously flagged open issues are confirmed. The post-transaction tryTransitionToVerified failure is the most severe \u2014 it corrupts client state (vote recorded, 500 returned). The silent validation catch in reddit.ts undermines the contract of the validator. The LoadMoreButton missing catch leaves the UI in an ambiguous state.",
+    "naming_quality": "Phase 1 (observe): lib/rules.ts exports checkRule01 (checks if restaurant has recommendations), checkRule03 (checks if recommendation vote is a duplicate), checkRule05 (checks if restaurant vote is a duplicate) \u2014 all named after opaque rule codes rather than business intent. SearchPoller.tsx is named as if it passively polls, but its primary action is firing a POST to /api/scrape \u2014 it initiates a scrape and polls secondarily. In app/api/scrape/route.ts, fetchWithFallback (line 17) describes mechanism (fetch + fallback) but not domain purpose (resolve Reddit results with LLM fallback). lib/search.ts exports groupRestaurantsByName as a pass-through wrapper \u2014 the name accurately describes the underlying function but the wrapper itself has no distinct identity. The STATUS_INFO / STATUS_LABELS / STATUS_BADGE naming inconsistency across sibling files is noted but belongs primarily to convention_outlier. Phase 2 (judge): Both previously flagged open issues remain confirmed. checkRule01/03/05 name opaque codes rather than business intent \u2014 a new engineer reading the vote routes cannot understand the guard's purpose without tracing to rules.ts. SearchPoller actively initiates a scrape POST; its name invites the wrong mental model. fetchWithFallback is a secondary concern (vague but not severely misleading). No new high-severity naming issues found beyond the two open items.",
+    "abstraction_fitness": {
+      "issues_preventing_higher_score": "Two concrete issues pull the score down: (1) lib/search.ts wraps lib/restaurant-grouping.ts groupRestaurantsByName using an 'as unknown as GroupableRestaurant[]' unsafe cast to paper over a structural type mismatch instead of aligning types; (2) lib/state-machine.ts exports isValidTransition and validNextStates which have no production callers \u2014 they are speculative API surface that add ceremony without substitution value. Both have been flagged in prior reviews and remain unresolved. Abstracting away from these two issues, the rest of the codebase is lean \u2014 no pass-through wrapper chains, no single-implementation interface ecosystems, and the lib/ layer earns its indirection."
+    },
+    "dependency_health": {
+      "issues_preventing_higher_score": "Dependency set is minimal and purposeful. Only four runtime dependencies exist (next, react, react-dom, @prisma/client) with no overlapping libraries, no heavy deps for light use, and no circular import cycles detectable. Dev dependencies are scoped appropriately. Minor note: the package pins 'next' to 14.1.3 (a minor version pin rather than a range) while other deps use caret ranges \u2014 this is a mild consistency concern but not a material health issue."
+    },
+    "low_level_elegance": {},
+    "mid_level_elegance": {},
+    "test_strategy": {},
+    "api_surface_coherence": "Phase 1 \u2014 Observed:\n1. lib/geo.ts exports both detectCityFromIp (async) and extractIp (sync) in the same public API surface.\n2. lib/reddit.ts exports scrapeRedditForRestaurants (async), fetchCommunityPicksForRestaurant (async), and extractRestaurantName (sync) together.\n3. lib/search.ts exports parseQuery (async), searchRestaurants (async), countSearchResults (async), findRestaurantGroup (async), and groupRestaurantsByName (sync) together.\n4. GET /api/search returns { city, terms, results: RestaurantGroup[], count } \u2014 the results array contains grouped objects.\n5. GET /api/search-more returns { results: RestaurantWithRecommendations[], hasMore } \u2014 the results array contains ungrouped raw rows that the client (LoadMoreButton) must re-group itself.\n6. The two search endpoints share the same semantic intent (paginated restaurant search) but have structurally incompatible envelopes.\n\nPhase 2 \u2014 Judged:\nThe previously-flagged sync/async mix (lib/geo.ts, lib/search.ts, lib/reddit.ts) is confirmed still present. These mixed exports are genuine \u2014 the sync helpers (extractIp, extractRestaurantName, groupRestaurantsByName) are pure utilities co-located with async functions that share their domain, not coincidental groupings. The friction is real but mild for callers: a consumer importing from lib/reddit.ts for extractRestaurantName sees async siblings that are irrelevant.\n\nThe /api/search vs /api/search-more response envelope divergence is more impactful: LoadMoreButton has to call groupRestaurantsByName client-side (importing it from lib/restaurant-grouping) to normalize the response. This is a real seam inconsistency \u2014 the client is compensating for a server-side contract omission. Both issues are confirmed open.",
+    "authorization_consistency": "Phase 1 \u2014 Observed:\n1. All 7 route handlers (geo, restaurant-vote, scrape, search-more, search, trending, vote) have 0 authenticated handlers and 0 declared public routes per holistic_context.authorization.\n2. /api/scrape has a rudimentary token check (x-internal-token header vs INTERNAL_API_TOKEN env var) \u2014 not a proper auth middleware but the only access control in the codebase.\n3. /api/geo/route.ts line 23 returns: { city, debug: { source: 'nominatim', status: nominatimStatus, address: data.address } } \u2014 the full Nominatim address object (contains country, postcode, road, suburb fields) is returned in production JSON.\n4. /api/geo/route.ts line 35 returns: { city, debug: { source: 'ip', ip } } \u2014 the raw client IP address is returned in the production JSON response.\n5. /api/vote and /api/restaurant-vote accept POST requests from any client without any session/token validation; duplicate-vote prevention is purely fingerprint-based.\n6. No permission constants or shared constants are used anywhere \u2014 not applicable since no permissions exist.\n\nPhase 2 \u2014 Judged:\nThe previously-flagged issue about /api/geo returning the raw client IP and full Nominatim address in production JSON is confirmed open. The debug field is not behind a dev/test gate. This is a privacy leak \u2014 IP addresses are PII in many jurisdictions and full address payloads from Nominatim include granular street data that serve no client need beyond the city value. The vote routes lack any user authentication, making the anti-abuse protection entirely dependent on browser fingerprinting, but since this is a public voting app that may be intentional design \u2014 not flagged as auth inconsistency. The scrape route's token check is the only access control and it is conditional on the env var being set; without it any caller can trigger scrapes.",
+    "ai_generated_debt": "Phase 1 \u2014 Observed:\n1. lib/validate.ts: 9 validator functions each use identical null/undefined + empty-string paired checks (if obj.x === null || obj.x === undefined) then (if obj.x === ''). The pattern repeats verbatim ~20 times. validateRedditPost uses a loop for string fields but manual pairs for score/created_utc. The inconsistency within the same file signals copy-paste generation.\n2. app/api/scrape/route.ts lines 60-73: validateRestaurantInput is called with a full inline object literal containing the exact same data that is immediately passed to upsertRestaurant on line 75. The validate call adds no new information because upsertRestaurant constructs the same shape \u2014 this is defensive ceremony around data that was already shaped by the code immediately above.\n3. No entry/exit console logging observed across lib/ functions \u2014 positively absent.\n4. No docstring bloat on trivial functions detected \u2014 docstrings present are appropriate.\n5. No pass-through wrapper functions without added logic detected (the groupRestaurantsByName wrapper in lib/search.ts has a cast, not pure forwarding \u2014 already flagged in abstraction_fitness).\n6. In lib/reddit.ts, the validateExtractedRestaurant call is immediately followed by a catch that logs a warning and continues \u2014 the validation throw is silently swallowed in both invocation sites (comment extraction and direct post extraction). This is AI-generated defensive validation that does nothing.\n\nPhase 2 \u2014 Judged:\nThe previously-flagged repeated null/empty check pattern in lib/validate.ts is confirmed and is the clearest AI-debt signal in the codebase \u2014 20+ near-identical check pairs with one inconsistency (the loop for string fields) that is characteristic of LLM-generated code that mixed two approaches. The silent-catch on validateExtractedRestaurant in lib/reddit.ts is a second signal: the validate call was inserted as a cargo-cult safety measure but is entirely neutralized by the catch block. Both issues are open and material.",
+    "incomplete_migration": "Phase 1 \u2014 Observed:\n1. Searched all .ts/.tsx files for TODO, FIXME, DEPRECATED, legacy, migrate, 'old api', 'remove after' \u2014 zero matches found.\n2. No JS files alongside TS files for the same modules \u2014 full TypeScript throughout.\n3. No axios/fetch duality \u2014 only native fetch used.\n4. No class component / functional component duality \u2014 all React components are functional.\n5. No moment/dayjs or other library duplication.\n6. No @deprecated annotations or DEPRECATED constants.\n7. No compatibility shims visible.\n8. lib/openrouter.ts has a comment stripping <think>...</think> blocks ('some Qwen models emit') \u2014 this is an active workaround for a known model quirk, not a migration artifact.\n\nPhase 2 \u2014 Judged:\nThis dimension is clean. The codebase appears to have been written as a greenfield TypeScript/Next.js project with no migration debt. The <think> block stripping in openrouter.ts is a live compatibility note for a specific model's output format, not a stale migration shim. No issues to report.",
+    "package_organization": "Phase 1 \u2014 Observed:\n1. lib/ contains 12 files (1730 LOC): db.ts (10 importers), validate.ts (9 importers), search.ts (8 importers), geo.ts (7 importers), hours.ts (5 importers), rules.ts (4 importers), fingerprint.ts (3 importers), openrouter.ts (3 importers), restaurant-grouping.ts (3 importers), reddit.ts (2 importers), google-places.ts (1 importer from app/api/scrape), state-machine.ts (1 importer from app/api/scrape).\n2. The 12 files span at least three concern groups: (a) external API clients \u2014 openrouter.ts, reddit.ts, google-places.ts, geo.ts; (b) domain/rules \u2014 rules.ts, state-machine.ts, validate.ts, hours.ts, restaurant-grouping.ts; (c) infrastructure \u2014 db.ts, fingerprint.ts, search.ts.\n3. google-places.ts and state-machine.ts each have only 1 importer (both from app/api/scrape/route.ts) \u2014 borderline straggler threshold.\n4. holistic_context.structure shows lib/ avg fan-in 4.8, but this average masks low-fan-in files (google-places: 1, state-machine: 1, reddit: 2).\n5. No coupling_matrix entries pointing INTO lib/ from other lib/ files except via lib/search.ts importing lib/openrouter, lib/restaurant-grouping, lib/validate, lib/db \u2014 already noted under cross_module_architecture.\n6. No ambiguous folder naming \u2014 'lib', 'components', 'app', 'prisma' are all clear.\n7. The previously-flagged flat lib/ issue (12 files, 3 concern groups) is confirmed.\n\nPhase 2 \u2014 Judged:\nThe lib/ flatness issue is real but borderline. With 12 files and 34 total project files this is not a severe navigation problem. The concern-group separation is real: a developer looking for 'the Reddit scraping logic' must scan all 12 lib files rather than finding a lib/reddit/ or lib/external/ subdirectory. google-places.ts and state-machine.ts have only 1 importer each but they are closely related to the scrape pipeline \u2014 low fan-in here reflects the pipeline's narrow use, not misplacement. The flat structure is the primary issue as previously flagged; no new structural problems detected.",
+    "initialization_coupling": {
+      "evidence": [
+        "lib/reddit.ts lines 54-56: USER_AGENT, CLIENT_ID, CLIENT_SECRET are read from process.env at module load time. CLIENT_ID and CLIENT_SECRET are used in getAccessToken() at call time, but their undefined-or-string value is fixed at import. Tests that set process.env after import will use stale values.",
+        "lib/reddit.ts line 58: `let cachedToken: { token: string; expiresAt: number } | null = null;` is a module-level mutable singleton \u2014 all Next.js requests in the same process share this token cache with no explicit synchronization guard.",
+        "lib/db.ts: The globalThis-based Prisma singleton is the canonical Next.js pattern for dev hot-reload safety. It is intentional framework bootstrap and not a defect.",
+        "lib/openrouter.ts lines 1-3: OPENROUTER_BASE, MODEL, REDDIT_MODEL are module-level constants \u2014 these are true constants (not derived from env at import time) so they are safe.",
+        "app/api/scrape/route.ts line 11: `export const dynamic = 'force-dynamic'` is a Next.js framework directive, not a side effect.",
+        "No circular init dependencies or lazy-import hacks detected across the lib/ modules.",
+        "No DB connections, file I/O, or network calls happen at module scope outside of lib/reddit.ts's constant reads."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "medium"
+    },
+    "design_coherence": {
+      "evidence": [
+        "app/api/scrape/route.ts: The file is flagged as orphaned (zero importers) yet contains 222 LOC implementing a POST handler with a full scrape pipeline. The orphaned status is consistent with Next.js file-based routing \u2014 it IS an entry point, so the orphaned signal is a false positive for routing semantics.",
+        "app/api/scrape/route.ts: The POST handler orchestrates fetchWithFallback, Google Places enrichment, enrichAndUpsert, and state machine transitions \u2014 four distinct responsibilities in a single route handler body. The orchestration block from line 182 to 214 is doing pipeline coordination that could be extracted to a lib function.",
+        "app/api/scrape/route.ts: parseQuery(query) is called twice \u2014 once inside fetchWithFallback (line 24) and once directly in the POST handler (line 194) \u2014 computing the same value for the same input with no caching between the two calls.",
+        "components/TrendingSection.tsx: The useEffect contains nested .then() chains branching into three paths (GPS success, GPS failure \u2192 IP, no GPS \u2192 IP). This is branchy but reflects the real branching logic of the geolocation decision tree. High cyclomatic complexity signal is legitimate but the nesting is not obviously extractable without adding more LOC.",
+        "components/RestaurantCard.tsx: STATUS_LABELS defined locally with the same keys/values as STATUS_BADGE in TrendingSection.tsx (different variable name, same shape). Both files define VERIFIED/UNREVIEWED/INCOMPLETE with the same Tailwind class strings.",
+        "lib/validate.ts: The file contains 9 validator functions that all follow the same null/empty check pattern but only one (validateRedditPost) uses a loop over REDDIT_POST_STRING_FIELDS \u2014 the other 8 write manual check pairs. This inconsistency inflates the file considerably.",
+        "app/api/geo/route.ts: The systemic smell signal for high_cyclomatic_complexity is legitimate \u2014 the single GET handler has nominatim branch, fallback branch, and ip branch inline, yielding >15 branches including the nested status checks and JSON.parse. However, the logic belongs in a single handler and the branching is inherent to the routing logic.",
+        "The concern signal for app/api/scrape/route.ts (orphaned + smells) is confirmed: the file is an active Next.js route (not truly dead), but has a real design problem with double parseQuery() call and mixing orchestration concerns with HTTP handler logic."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    },
+    "contract_coherence": {
+      "evidence": [
+        "lib/search.ts groupRestaurantsByName (line 60-62): declared return type is `ReturnType<typeof _groupRestaurantsByName>` \u2014 this is accurate. But the cast `restaurants as unknown as GroupableRestaurant[]` papers over a structural type mismatch (RestaurantWithRecommendations vs GroupableRestaurant). The function's input type RestaurantWithRecommendations[] and actual argument type are structurally compatible but the double-cast signals a real type boundary issue rather than a contract lie.",
+        "lib/state-machine.ts: isValidTransition and validNextStates are exported but have zero production callers (only assertValidTransition is imported in scrape/route.ts). These are part of the public API surface but have no confirmed consumers, making the contract unverifiable in practice.",
+        "lib/openrouter.ts getRedditRecommendations: declared return type Promise<RedditRecommendation[]>. On API key missing it returns [] (line 79), on !response.ok it returns [] (line 115), on JSON parse failure it returns [] (line 125), on empty content it returns [] (line 120). The contract is internally consistent \u2014 [] is a valid return on all failure paths. No lie here.",
+        "lib/rules.ts tryTransitionToVerified: declared return type Promise<void>. It can throw from the Prisma calls (network error etc.) but the docstring says nothing about that. Callers in both vote routes (line 83) call it post-transaction without a try-catch, so a DB failure inside tryTransitionToVerified would surface as an unhandled rejection after the transaction has already committed.",
+        "lib/reddit.ts scrapeRedditForRestaurants: The function returns ExtractedRestaurant[] but silently catches validation failures in both inner try-catch blocks (lines 321-325, 342-346) \u2014 items that fail validateExtractedRestaurant are dropped rather than throwing. This is consistent (returns only valid items) and documented via the catch warning, but callers have no way to know items were dropped.",
+        "lib/validate.ts validateParsedQuery: function throws ValidationError on invalid input \u2014 contract matches behavior. Same for all 9 validator functions. Consistent throw contract.",
+        "lib/geo.ts extractIp: declared return type string \u2014 always returns a string (falls back to 'unknown'). Contract is accurate.",
+        "lib/fingerprint.ts computeFingerprint: IP re-extraction logic is identical to lib/geo.ts extractIp, but computeFingerprint takes NextRequest while extractIp takes Headers. Different input types, different contexts. Not a contract problem per se."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "medium"
+    },
+    "logic_clarity": {
+      "evidence": [
+        "lib/search.ts: The async function `groupRestaurantsByName` (line 60) wraps `_groupRestaurantsByName` synchronously \u2014 no await exists. The smells detector correctly flagged 'Async functions without await' for lib/search.ts. The wrapper at line 60 is declared as a plain function (not async), so the smell applies to something else in lib/search.ts \u2014 checking: searchRestaurants and countSearchResults are async and do await, parseQuery is async and awaits. The structural detector may be referencing a pattern in the file, not necessarily groupRestaurantsByName.",
+        "app/api/scrape/route.ts: parseQuery(query) is called at line 24 (inside fetchWithFallback) and again at line 194 (in POST handler). Both calls are async and both call parseQueryWithLLM under the hood. The second call is a duplicate computation for the same input, representing wasted LLM/network calls.",
+        "app/restaurant/[id]/page.tsx and app/search/page.tsx: flagged for 'Async functions without await'. These are Next.js Server Components where async is required by the framework contract even if await is not used inside the function body. Not a logic defect.",
+        "lib/openrouter.ts regexFallback (line 141-150): The function contains a conditional `if (match)` returning `{ city, terms }` and a final `return { city: null, terms: trimmed }`. Both branches are distinct \u2014 no dead code.",
+        "lib/hours.ts isOpenNow: The function has try-catch at the top level, returning null on any thrown error. Inside, it has a branching chain of format detection (compact vs pipe-separated) then time-format (12h vs 24h). All branches return distinct values \u2014 no identical branches.",
+        "lib/reddit.ts fetchSubredditPosts: inside the for-loop, `validateRedditPost` is called and caught, silently dropping invalid posts. The logic path is clear, but the catch block logs a misleading message ('cannot extract restaurants' instead of 'invalid post fields').",
+        "lib/validate.ts: validateParsedQuery checks `obj.terms === null || obj.terms === undefined` then separately `obj.terms === ''` \u2014 this is redundant with the interface definition but correctly handles runtime values where TypeScript types are not enforced. The pattern is defensive and legitimate at an I/O boundary.",
+        "components/TrendingSection.tsx line 80: `const displayCity = city ?? 'Ottawa';` \u2014 hardcoded fallback city 'Ottawa'. This is a magic default that will show incorrect UI if city is null and the user is not in Ottawa. It is a logic smell (hardcoded value as a fallback for dynamic data) but not a dead-code or always-true condition issue."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "medium"
+    },
+    "type_safety": {
+      "evidence": [
+        "lib/search.ts line 61: `restaurants as unknown as GroupableRestaurant[]` \u2014 double cast to bypass type checking. RestaurantWithRecommendations is structurally compatible with GroupableRestaurant (both have id, name, city, recommendations, upvotes, downvotes, total_net_votes) but the date fields differ: RestaurantWithRecommendations.recommendations[].scraped_at is Date while GroupableRecommendation.scraped_at is string | Date. The as unknown as cast is covering a real structural mismatch.",
+        "lib/reddit.ts line 130: `.filter((r: unknown) => r && typeof (r as Record<string, unknown>).name === 'string' && ...)` \u2014 explicit any-style cast on untyped API response. This is appropriate at an external API boundary.",
+        "lib/google-places.ts: buildPlaceDetails takes `place: Record<string, unknown>` and uses many casts like `place.displayName as Record<string, string> | undefined`. This is appropriate for an untyped API response.",
+        "lib/validate.ts: All validator interfaces declare fields as optional (e.g. `name?: string | null`) to avoid import coupling. The validators then explicitly check for null/undefined. This is a deliberate design choice documented in the module docstring \u2014 not a type safety issue.",
+        "lib/rules.ts: checkRule01, checkRule03, checkRule05 all return Promise<boolean>. Callers use the boolean correctly (no ignored returns, no cast to truthy).",
+        "app/api/vote/route.ts line 56: `direction === 'up' ? VoteDirection.up : VoteDirection.down` \u2014 raw string 'up'/'down' is compared and then mapped to VoteDirection enum. The direction parameter is typed as string, not VoteDirection. A Literal type or VoteDirection could narrow this earlier.",
+        "app/api/restaurant-vote/route.ts: same pattern as vote/route.ts \u2014 direction is validated as string 'up'|'down' but typed as just `string`. The VoteDirection enum is available from @prisma/client but bypassed with string comparison. This is the enum_bypass_patterns concern.",
+        "lib/geo.ts extractIp: return type is `string` \u2014 the function always returns a string (including 'unknown'). But `headers.get('x-real-ip')` can return null, and the `||` chain falls through correctly to 'unknown'. The return type is accurate.",
+        "components/TrendingSection.tsx line 13: `status: string` in the TrendingRestaurant interface \u2014 rather than using RestaurantStatus enum from Prisma. STATUS_BADGE lookup uses raw string keys. Low severity given this is a UI component.",
+        "components/RestaurantCard.tsx line 39: `status: string` in the local Restaurant interface \u2014 same pattern.",
+        "lib/search.ts ParsedQuery interface (line 8-12): `city: string | null` but lib/validate.ts ParsedQuery interface (line 18-22) declares `city?: string | null` \u2014 the two interfaces for the same concept diverge slightly (required vs optional). This is a parallel type definition issue."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "medium"
+    }
+  },
+  "dimension_judgment": {
+    "cross_module_architecture": "Score 72. The overall dependency direction is sound \u2014 lib/ is consumed by app/ and components/ with no upward arrows. The three confirmed issues (IP extraction duplication, search.ts re-export wrapper, double parseQuery in scrape route) are real boundary failures that create blast radius for changes to IP logic and LLM query parsing. The codebase is small enough that these don't cascade widely, but they represent genuine module boundary confusion. Held from higher score by the two persistent open issues plus the double-parse which has architectural weight.",
+    "high_level_elegance": "Score 68. Top-level packages map to recognizable domains (lib=core logic, app/api=routes, components=UI). However three open issues together materially reduce role clarity: the scrape route is a significant orchestration module masquerading as a thin HTTP handler, the status badge triplication with shape divergence means display-layer domain knowledge has no authoritative home, and the dual scrape trigger creates an unpredictable pipeline entry point that a new engineer would find confusing. The codebase structure is navigable but these issues create real ownership ambiguity.",
+    "convention_outlier": "Score 74. The codebase is generally well-disciplined: lib/ is uniformly camelCase, components/ uses PascalCase for files, API routes follow Next.js conventions. The PRICE_ORDER duplication is the confirmed open issue \u2014 an identical constant defined twice in sibling consumers. The status map naming divergence (STATUS_LABELS vs STATUS_INFO vs STATUS_BADGE) is an additional outlier that compounds with the high_level_elegance finding. No other significant convention drift found. Held from higher score by two confirmed outliers that require coordinated fixes.",
+    "error_consistency": "Score 65. The most severe issue is tryTransitionToVerified being called outside the transaction in both vote routes \u2014 a committed database write can return a 500 to the client. The silent catch on validators in reddit.ts undermines the validation contract entirely (ValidationError is thrown but never propagates). LoadMoreButton's missing catch leaves pagination state stale on network failure. getRedditRecommendations returning [] on failure conflates errors with empty results, making the fallback in scrape/route.ts potentially over-trigger LLM calls. Four confirmed open issues across different layers all remain unresolved.",
+    "naming_quality": "Score 72. The codebase vocabulary is generally domain-aligned (restaurant, recommendation, scrape, vote, fingerprint). The two confirmed open issues are real: checkRule01/03/05 are opaque identifiers that force engineers to look up the rule definitions to understand vote guard logic; SearchPoller's name actively misleads about its primary action (scraping, not polling). No new severe naming issues found. fetchWithFallback is mildly vague. The rest of the naming is consistent and communicates intent well.",
+    "abstraction_fitness": {
+      "dimension_character": "The codebase is generally abstraction-lean: no wrapper chains, no pass-through forwarding functions, no single-implementation interface ecosystems. The lib/ layer earns its indirection because modules contain real logic. Two issues remain that add ceremony without earning their keep: a speculative public API surface on lib/state-machine.ts (two exported functions with no production callers) and an unsafe type cast that exposes a structural mismatch between lib/search.ts and lib/restaurant-grouping.ts rather than resolving it.",
+      "score_rationale": "The base is solid \u2014 abstraction fitness is generally good in this codebase. The two flagged issues are real and have been open since prior reviews: the state-machine speculative exports are a minor ceremony concern (no runtime cost but adds surface area and misleads about production usage), while the 'as unknown as' cast in groupRestaurantsByName is a more concrete design smell that papers over a type alignment problem rather than fixing it. These are not systemic but are persistent enough to bring the score down from the high 80s.",
+      "score": 82.0
+    },
+    "dependency_health": {
+      "dimension_character": "The dependency surface is minimal and purposeful \u2014 four runtime dependencies that map directly to the project's core concerns (Next.js framework, React, Prisma ORM). No competing libraries for the same purpose, no heavy deps pulled in for a single utility function, and no version conflict indicators in package.json. This is a clean, intentional dependency set.",
+      "score_rationale": "Near-exemplary dependency health for a project of this size and scope. The only minor observation is the 'next' version pin at 14.1.3 (a specific minor version) while other dependencies use caret ranges \u2014 a small inconsistency that does not pose a material risk. Nothing else pulls this score down; the developer would encounter no confusion navigating the dependency set.",
+      "score": 97.0
+    },
+    "low_level_elegance": {
+      "dimension_character": "Several well-crafted modules with clean control flow exist (lib/restaurant-grouping.ts, lib/state-machine.ts), but three persistent craft issues reduce the overall quality. Two involve duplicated logic: the where-condition construction in lib/search.ts is copy-pasted between searchRestaurants and countSearchResults, and lib/validate.ts uses a loop for one type (RedditPost) while using verbose manual null/empty pairs for all others. A third issue \u2014 calling parseQuery twice in app/api/scrape/route.ts for the same input \u2014 is a concrete inefficiency that does extra async I/O unnecessarily.",
+      "score_rationale": "The codebase has clean foundations \u2014 readable control flow, intentional edge-case handling, and good extraction balance across most files. But the three open issues (validate.ts inconsistency, search.ts where-condition duplication, scrape/route.ts double-parse) are concrete and traceable, representing ~40-80 LOC of unnecessary duplication or waste. These are not subtle preferences \u2014 any senior engineer reading these files would spot them. They bring the score into the 70s range since they cluster in the most import-heavy modules (lib/search.ts with 8 importers, lib/validate.ts with 9 importers).",
+      "score": 72.0
+    },
+    "mid_level_elegance": {
+      "dimension_character": "Three active seam design problems impede cross-module handoffs. The search-more/LoadMoreButton boundary is incoherent: the server route returns ungrouped restaurants and the client component re-implements the grouping logic locally using the same groupRestaurantsByName function \u2014 duplicating responsibility across the boundary. The fetchWithFallback function in scrape/route.ts mutates caller-owned state via an advance() callback, creating a shared-mutable-state pattern across a function boundary. The search route fires a background scrape on every low-result request with no rate-limiting or deduplication guard.",
+      "score_rationale": "The mid-level seam issues are not superficial \u2014 each one represents a real design decision that a developer touching these paths would need to work around. The ungrouped search-more response is the most consequential because it forces the client component to contain logic that belongs in the server layer, making the boundary contract surprising and fragile. The advance() callback mutation pattern, while functional, creates hidden shared state across a function boundary that would be difficult to test or reason about in isolation. These are three structurally distinct issues in the most-used user-facing paths.",
+      "score": 72.0
+    },
+    "test_strategy": {
+      "dimension_character": "Significant improvement is visible since prior reviews: lib/hours.ts, lib/restaurant-grouping.ts, and lib/openrouter.ts regexFallback are now tested. The core lib/ modules with the highest importer counts (lib/validate.ts, lib/search.ts, lib/state-machine.ts, lib/rules.ts) have test coverage. However, meaningful gaps remain: lib/rules.ts tests mock all Prisma calls so the actual DB query logic (the production path) is never exercised against real behavior; lib/reddit.ts isValidRestaurantName, isPostRelevantToQuery, and isRecommendationRequest \u2014 which are the pipeline's primary quality filters \u2014 have no dedicated tests despite being pure functions. UI components are broadly untested, which is expected but noted.",
+      "score_rationale": "The test strategy has matured \u2014 major pure-function modules now have direct tests, and the API route tests are solid (api-search-more, api-search, api-votes, api-geo, api-trending all covered). The remaining gap is behavioral: lib/rules.ts tests exercise the mock, not the real Prisma queries, so any DB-level bug in checkRule01/03/05 would not be caught. And three key pure filter functions in lib/reddit.ts (isValidRestaurantName, isPostRelevantToQuery, isRecommendationRequest) are the gate that determines which restaurants make it through the pipeline, yet have no tests. A developer making a change to restaurant name validation would have no regression safety net.",
+      "score": 74.0
+    },
+    "api_surface_coherence": "Two confirmed issues: (1) mixed sync/async exports in lib/geo.ts, lib/reddit.ts, and lib/search.ts \u2014 this is structural but low-friction since the sync helpers are pure utilities; (2) /api/search and /api/search-more return structurally different envelopes for the same resource type, forcing the client to re-implement server-side grouping. The second issue has concrete downstream cost (LoadMoreButton imports and re-runs groupRestaurantsByName). Score penalized for both confirmed open issues. Assessed 55.",
+    "authorization_consistency": "One confirmed security-relevant issue: /api/geo leaks client IP and full Nominatim address object in production response via an ungated debug field. The vote routes have no user auth but this may be intentional for a public voting app. The scrape route's token check is env-conditional, meaning any caller can trigger expensive Reddit+Google API pipeline calls if the env var is unset. Overall auth posture is weak but the most concrete issue is the IP/address leak in /api/geo. Assessed 40.",
+    "ai_generated_debt": "Two confirmed issues: (1) lib/validate.ts repeats identical null/undefined + empty-string check pairs ~20 times across 9 functions with a mid-file inconsistency (loop for string fields, manual for others) \u2014 classic LLM generation artifact; (2) validateExtractedRestaurant is called in lib/reddit.ts inside two try-catch blocks that silently swallow ValidationError, rendering the validation contract void. The validate-then-silently-catch pattern is a clear AI hallmark. No nosy logging, no docstring bloat, no entry/exit traces. Assessed 58.",
+    "incomplete_migration": "No migration debt found. No TODO/FIXME/DEPRECATED markers, no JS/TS mixed files, no old library coexistence, no compatibility shims. The codebase is clean on this dimension. Assessed 92.",
+    "package_organization": "lib/ is flat with 12 files spanning three concern groups (external API clients, domain logic, infrastructure). With 34 total files the project is not small enough to excuse flat-everything. The concern-group separation is clear to an observer reading this review but not obvious to a developer navigating the directory \u2014 there are no signals distinguishing google-places.ts from rules.ts in the directory listing. State-machine.ts and google-places.ts have only 1 importer each, making them low-discovery stragglers within the flat lib/. The previously-flagged issue is confirmed open. Assessed 62.",
+    "initialization_coupling": {
+      "dimension_character": "The codebase has minimal initialization coupling risk. The Prisma singleton in lib/db.ts follows the canonical Next.js pattern intentionally. The main coupling concern is lib/reddit.ts, which captures CLIENT_ID and CLIENT_SECRET into module-scope constants at import time and holds a module-level mutable OAuth token cache \u2014 both patterns create test fragility and shared-state risk in a long-running process. No circular init dependencies or DB connections at module scope were found elsewhere.",
+      "score_rationale": "The pattern is localized to lib/reddit.ts but it is a real concern: environment variable reads at module scope make test isolation harder, and the shared mutable token cache is a subtle bug surface in concurrent request environments. The rest of the codebase is clean on this dimension. This places the codebase at the 70-75 range \u2014 a real issue in one important module, otherwise stable."
+    },
+    "design_coherence": {
+      "dimension_character": "Several files accumulate multiple responsibilities in ways that create real friction. The scrape route handler embeds both HTTP parsing and full pipeline orchestration, and calls parseQuery twice for the same input. The STATUS_BADGE / STATUS_LABELS duplication across TrendingSection.tsx and RestaurantCard.tsx indicates a missing shared constant. lib/validate.ts uses a loop for one type's string fields but manual pairs for all others, inflating the file. These are recurring, not isolated, patterns \u2014 they share the root cause of logic that belongs in lib/ being kept in routes/components.",
+      "score_rationale": "The double parseQuery call in the scrape route is a concrete, reproducible inefficiency (two LLM API calls for the same input on every scrape request). The status badge duplication means inconsistency risk on any future change. The validate.ts structural inconsistency inflates code volume. These issues span multiple files and share a root cause of inconsistent extraction discipline. The codebase sits around 65 \u2014 meaningful friction for a developer making changes, particularly in the scrape pipeline."
+    },
+    "contract_coherence": {
+      "dimension_character": "Most contracts in this codebase are honored: validator functions throw consistently, LLM wrapper functions return empty arrays on failure, and geolocation functions return null on failure. The main contract issue is lib/rules.ts tryTransitionToVerified, which can throw from Prisma after its callers have committed a transaction \u2014 the function's void return type and callers' lack of error handling creates a silent failure mode post-commit. The dead API surface in lib/state-machine.ts (isValidTransition, validNextStates) creates unverifiable contracts.",
+      "score_rationale": "The post-transaction tryTransitionToVerified failure mode is a confirmed issue from prior reviews and still open. The groupRestaurantsByName double-cast hides a real type boundary inconsistency. The state-machine dead exports are speculative surface. Overall the contracts are mostly coherent with two confirmed structural issues \u2014 scoring around 70."
+    },
+    "logic_clarity": {
+      "dimension_character": "The majority of the codebase has direct, intention-revealing control flow. Guard clauses are used consistently. The main clarity issues are: the double parseQuery call in the scrape route (silent redundancy), the hardcoded 'Ottawa' fallback in TrendingSection (misleading default), and the async-without-await smell in lib/search.ts (which on inspection is limited to the groupRestaurantsByName wrapper which is not actually async). Framework-required async patterns in page components are correctly excluded.",
+      "score_rationale": "The double parseQuery call is the most impactful logic clarity issue \u2014 it is invisible from reading the caller but causes real duplicate LLM calls. The hardcoded 'Ottawa' fallback is a minor but surprising default. Otherwise control flow is clear and branches are distinct. This sits solidly at 80 \u2014 solid with a few specific places where a developer would be surprised."
+    },
+    "type_safety": {
+      "dimension_character": "The codebase has a few recurring type safety gaps: raw string comparisons against VoteDirection enum values in both vote route handlers, the as unknown as cast in lib/search.ts masking a real structural mismatch, and local Restaurant/TrendingRestaurant interfaces using status: string instead of RestaurantStatus from Prisma. The external API boundary code (lib/google-places.ts, lib/openrouter.ts) appropriately uses Record<string, unknown> casts. The parallel ParsedQuery interfaces in lib/search.ts and lib/validate.ts diverge slightly on the city field.",
+      "score_rationale": "The enum bypass pattern in both vote route handlers is a consistent gap \u2014 VoteDirection.up/down is available but bypassed with raw string checks. The as unknown as cast in search.ts is covering a real structural type mismatch that should be resolved by aligning scraped_at field types. These are recurring patterns (not isolated) affecting two independently important subsystems. Scoring around 75 \u2014 solid but with recurring bypass patterns that undermine type documentation trustworthiness."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "cross_module_architecture",
+      "severity": "medium",
+      "summary": "IP extraction logic duplicated between lib/fingerprint.ts and lib/geo.ts",
+      "detail": "lib/fingerprint.ts (lines 10-13) reads x-forwarded-for and x-real-ip headers inline, implementing the same logic as lib/geo.ts's extractIp function. fingerprint.ts does not import from geo.ts. Changes to header fallback order must be made in two places.",
+      "files": [
+        "lib/fingerprint.ts",
+        "lib/geo.ts"
+      ],
+      "suggestion": "Have computeFingerprint import and call extractIp from lib/geo.ts for the IP extraction step, or move extractIp to a lower-level lib/http.ts that both can import.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "ip_extraction_duplication_fingerprint_geo"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "severity": "low",
+      "summary": "lib/search.ts re-exports lib/restaurant-grouping.ts types and wraps its function, obscuring the true boundary",
+      "detail": "lib/search.ts line 6 re-exports RestaurantLocation and RestaurantGroup from lib/restaurant-grouping.ts. Lines 60-62 define groupRestaurantsByName as a pass-through wrapper that type-casts to unknown to satisfy type compatibility. Callers importing from lib/search do not know they are reaching into restaurant-grouping logic.",
+      "files": [
+        "lib/search.ts",
+        "lib/restaurant-grouping.ts"
+      ],
+      "suggestion": "Remove the wrapper from lib/search.ts. Callers that need groupRestaurantsByName should import directly from lib/restaurant-grouping.ts, which is already safe for client use.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "search_re_exports_restaurant_grouping"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "severity": "medium",
+      "summary": "app/api/scrape/route.ts calls parseQuery twice, potentially making two LLM calls for the same request",
+      "detail": "fetchWithFallback (line 24) calls parseQuery to get terms. The POST handler then calls parseQuery again at line 194 to get terms for the Google Places query enrichment. Both calls may hit the OpenRouter LLM. The result of the first call is discarded at the handler level.",
+      "files": [
+        "app/api/scrape/route.ts"
+      ],
+      "suggestion": "Return the parsed terms from fetchWithFallback along with results, or pass the pre-parsed terms as a parameter to the enrichment step instead of re-parsing.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "scrape_double_parse_query"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "severity": "medium",
+      "summary": "Scrape route acts as both HTTP handler and pipeline orchestrator; orchestration logic belongs in lib/",
+      "detail": "app/api/scrape/route.ts (222 LOC) defines fetchWithFallback, enrichAndUpsert, and upsertRestaurant \u2014 domain pipeline functions that have no HTTP-specific logic. The POST handler is 80+ lines of orchestration on top of these helpers. This makes the pipeline untestable without an HTTP context.",
+      "files": [
+        "app/api/scrape/route.ts"
+      ],
+      "suggestion": "Move the scrape pipeline (fetchWithFallback, enrichAndUpsert, upsertRestaurant) to a lib/scrape.ts module. The route should only parse the request, call the pipeline, and format the response.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "scrape_route_orchestrator"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "severity": "medium",
+      "summary": "Restaurant status badge map duplicated across three files with inconsistent names and shapes",
+      "detail": "STATUS_LABELS in components/RestaurantCard.tsx, STATUS_INFO in app/restaurant/[id]/page.tsx (adds a description field), and STATUS_BADGE in components/TrendingSection.tsx define the same domain concept (restaurant status display) independently. Changing a label or adding a new status value requires three coordinated edits with no type enforcement.",
+      "files": [
+        "components/RestaurantCard.tsx",
+        "app/restaurant/[id]/page.tsx",
+        "components/TrendingSection.tsx"
+      ],
+      "suggestion": "Define the status display map once in lib/restaurant-grouping.ts or a dedicated display constants module, with the superset shape (including description), and import it in all three consumers.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "status_badge_map_triplication"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "severity": "medium",
+      "summary": "Scrape is triggered both server-side in api/search and client-side in SearchPoller, creating potential duplicate pipeline invocations",
+      "detail": "app/api/search/route.ts (line 52-54) calls triggerScrape() fire-and-forget when result count is below 3. components/SearchPoller.tsx independently fires POST /api/scrape on mount for every search. Both can fire for the same city+query combination, resulting in duplicate Reddit scrapes and Google Places enrichment calls.",
+      "files": [
+        "app/api/search/route.ts",
+        "components/SearchPoller.tsx"
+      ],
+      "suggestion": "Establish a single scrape trigger point. Either the search API always triggers (and SearchPoller only polls for result updates), or SearchPoller is the sole trigger and the API never fires it. The current dual-trigger has no deduplication guard.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "dual_scrape_trigger_search_and_poller"
+    },
+    {
+      "dimension": "convention_outlier",
+      "severity": "low",
+      "summary": "PRICE_ORDER constant defined identically in two sibling consumer files",
+      "detail": "components/LoadMoreButton.tsx line 7 and app/search/page.tsx line 11 both define `const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 }` verbatim. Adding a new price tier requires updating two files.",
+      "files": [
+        "components/LoadMoreButton.tsx",
+        "app/search/page.tsx"
+      ],
+      "suggestion": "Define PRICE_ORDER once in lib/restaurant-grouping.ts (where price_range is a field on RestaurantGroup) and import it in both consumer files.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "price_order_duplication"
+    },
+    {
+      "dimension": "convention_outlier",
+      "severity": "low",
+      "summary": "Status badge display map uses three different variable names across sibling components",
+      "detail": "Sibling components that render the same domain concept (restaurant status) use STATUS_LABELS (RestaurantCard.tsx), STATUS_INFO (app/restaurant/[id]/page.tsx), and STATUS_BADGE (TrendingSection.tsx). This naming divergence compounds with the triplication issue: there is no canonical name for this concept.",
+      "files": [
+        "components/RestaurantCard.tsx",
+        "app/restaurant/[id]/page.tsx",
+        "components/TrendingSection.tsx"
+      ],
+      "suggestion": "When consolidating the status map (see high_level_elegance issue), settle on one canonical name such as STATUS_DISPLAY.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "status_map_name_divergence"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "high",
+      "summary": "tryTransitionToVerified called after transaction commits in both vote routes; transition failure returns 500 on a committed vote",
+      "detail": "In app/api/vote/route.ts (line 83) and app/api/restaurant-vote/route.ts (line 83), tryTransitionToVerified is called after the prisma.$transaction block completes. If this call throws (e.g. a DB error on the status update), the handler returns a 500 to the client even though the vote record and upvotes/downvotes increment were already committed. The client receives an error but the vote was recorded.",
+      "files": [
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts"
+      ],
+      "suggestion": "Either include the status transition inside the transaction, or catch errors from tryTransitionToVerified separately and return a success response with a warning rather than a 500.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "try_transition_post_transaction_500"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "medium",
+      "summary": "getRedditRecommendations returns [] on API failure, making network errors indistinguishable from genuine no-results",
+      "detail": "lib/openrouter.ts lines 113-115 and 135-138 return [] on HTTP failure or parse exception. The caller in app/api/scrape/route.ts (line 32) checks `if (llmRecs.length === 0)` to decide if the fallback produced nothing. A transient API failure silently looks like an empty result set, potentially advancing the state machine to FAILED when the service was actually available.",
+      "files": [
+        "lib/openrouter.ts",
+        "app/api/scrape/route.ts"
+      ],
+      "suggestion": "Either propagate the error from getRedditRecommendations (throw on API failure) or return a discriminated result type so the caller can distinguish empty-results from error.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "get_reddit_recommendations_empty_on_error"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "medium",
+      "summary": "LoadMoreButton loadMore() has no catch on fetch failure; hasMore and offset remain stale after network error",
+      "detail": "components/LoadMoreButton.tsx loadMore() (line 25-49) has a try/finally but no catch. On a fetch error, the finally block sets loading=false, but setGroups, setSeenNames, setOffset, and setHasMore are never called. The UI shows the 'More' button as if more results may exist, but clicking it will retry with the same stale offset.",
+      "files": [
+        "components/LoadMoreButton.tsx"
+      ],
+      "suggestion": "Add a catch block that sets hasMore to false or displays an error state to prevent the user from repeatedly retrying a broken fetch with stale state.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "load_more_no_catch_stale_state"
+    },
+    {
+      "dimension": "error_consistency",
+      "severity": "medium",
+      "summary": "validateRedditPost and validateExtractedRestaurant throw ValidationError but callers silently catch and continue, undermining the validation contract",
+      "detail": "lib/reddit.ts fetchSubredditPosts (lines 136-140) catches ValidationError from validateRedditPost and logs a warning, then continues. scrapeRedditForRestaurants (lines 320-325 and 342-347) catches ValidationError from validateExtractedRestaurant and logs a warning. The validator is designed to be a hard guard but the catch silently swallows it, meaning invalid data is simply filtered out with a console.warn rather than surfacing the problem.",
+      "files": [
+        "lib/reddit.ts",
+        "lib/validate.ts"
+      ],
+      "suggestion": "If the intent is to filter invalid items, use a predicate check rather than try/catch on a throwing validator. If the intent is to enforce the contract, propagate the error. The current approach misleads readers into thinking validation is enforced when it is silently bypassed.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "validate_reddit_post_silent_catch"
+    },
+    {
+      "dimension": "naming_quality",
+      "severity": "medium",
+      "summary": "lib/rules.ts functions named after opaque rule codes rather than business intent",
+      "detail": "checkRule01, checkRule03, and checkRule05 communicate only that there is a rule with a numeric code. A reader of app/api/vote/route.ts must navigate to lib/rules.ts to understand that checkRule03 means 'has this fingerprint already voted on this recommendation' and checkRule01 means 'does this restaurant have at least one community recommendation'. The rule code is an internal implementation detail leaking into the public API.",
+      "files": [
+        "lib/rules.ts",
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts"
+      ],
+      "suggestion": "Rename: checkRule01 \u2192 hasRecommendations or canBeVerified, checkRule03 \u2192 isRecommendationVoteAllowed or hasDuplicateRecommendationVote, checkRule05 \u2192 isRestaurantVoteAllowed or hasDuplicateRestaurantVote.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "rules_opaque_numeric_names"
+    },
+    {
+      "dimension": "naming_quality",
+      "severity": "low",
+      "summary": "SearchPoller.tsx is named as a passive poller but actively initiates a scrape POST request",
+      "detail": "components/SearchPoller.tsx fires POST /api/scrape as its primary action on mount. It polls secondarily (router.refresh() on an interval) while the scrape runs. The name 'Poller' invites the mental model of a read-only observer, hiding that this component is a write-side trigger for the data pipeline.",
+      "files": [
+        "components/SearchPoller.tsx"
+      ],
+      "suggestion": "Rename to ScrapeInitiator, SearchScrapePoller, or ScrapeTrigger to reflect that the component actively starts a scrape and then observes results.",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "search_poller_misleading_name"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "search_groupby_unsafe_cast",
+      "summary": "lib/search.ts groupRestaurantsByName uses 'as unknown as GroupableRestaurant[]' to paper over a structural type mismatch",
+      "related_files": [
+        "lib/search.ts",
+        "lib/restaurant-grouping.ts"
+      ],
+      "evidence": [
+        "lib/search.ts line 60-62: 'export function groupRestaurantsByName(restaurants: RestaurantWithRecommendations[]): ReturnType<typeof _groupRestaurantsByName> { return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[]); }'",
+        "RestaurantWithRecommendations has a 'recommendations' array with restaurant_id field; GroupableRestaurant's GroupableRecommendation does not \u2014 the types are structurally mismatched, and the cast hides the difference rather than resolving it",
+        "Callers in app/api/search/route.ts import groupRestaurantsByName from lib/search.ts and receive the re-exported wrapper, getting TypeScript-level safety that doesn't reflect runtime reality"
+      ],
+      "suggestion": "Align the types: either add restaurant_id to GroupableRecommendation (if it is needed downstream), or map RestaurantWithRecommendations to GroupableRestaurant explicitly before passing to _groupRestaurantsByName, removing the unsafe cast. The mapping is one clear place to translate between the DB shape and the grouping contract.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "state_machine_speculative_exports",
+      "summary": "lib/state-machine.ts exports isValidTransition and validNextStates with no production callers",
+      "related_files": [
+        "lib/state-machine.ts"
+      ],
+      "evidence": [
+        "lib/state-machine.ts exports three functions: assertValidTransition (used in app/api/scrape/route.ts), isValidTransition, and validNextStates",
+        "isValidTransition and validNextStates are only referenced in __tests__/state-machine.test.ts \u2014 no production callers exist",
+        "These exports add public API surface without substitution value \u2014 there is no polymorphic usage pressure or planned extension point"
+      ],
+      "suggestion": "Remove the exports from isValidTransition and validNextStates (make them unexported module-local functions, or delete them if only needed for test inspection of assertValidTransition's behavior). Tests can be restructured to test assertValidTransition directly by checking what it throws.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "validate_inconsistent_loop_vs_manual",
+      "summary": "lib/validate.ts uses a loop for RedditPost string fields but manual null/empty pairs for all other types, doubling code volume",
+      "related_files": [
+        "lib/validate.ts"
+      ],
+      "evidence": [
+        "validateRedditPost (lines 54-68) uses REDDIT_POST_STRING_FIELDS loop for the 6 string fields, then falls back to manual null checks for score and created_utc",
+        "validateExtractedRestaurant, validatePlaceDetails, validateRestaurantInput, validateCommunityRecommendationInput, validateVoteInput, validateRestaurantVoteInput \u2014 all use manual null/empty check pairs repeated verbatim for every field",
+        "The inconsistency is persistent: the loop pattern exists in one validator and not the other seven, making it look like an isolated refactor that was not applied uniformly"
+      ],
+      "suggestion": "Apply the loop pattern uniformly: define field arrays for each entity's string fields (similar to REDDIT_POST_STRING_FIELDS) and iterate them. Numeric/special fields remain as manual checks. This eliminates approximately 80 lines of repetitive null/empty check pairs across the file and makes adding or removing fields a one-line change.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "search_where_condition_duplication",
+      "summary": "searchRestaurants and countSearchResults in lib/search.ts duplicate the Prisma where-condition construction (~40 LOC)",
+      "related_files": [
+        "lib/search.ts"
+      ],
+      "evidence": [
+        "searchRestaurants (lines 100-164) builds a whereCondition: Prisma.RestaurantWhereInput block covering zero-words and non-zero-words cases with summaryConditions and nameConditions arrays",
+        "countSearchResults (lines 169-202) rebuilds the identical logic: same words.length === 0 check, same summaryConditions and nameConditions array construction, same OR structure \u2014 the only difference is prisma.restaurant.count vs prisma.restaurant.findMany",
+        "Any change to the search filter (e.g. adding a new field to match on) must be made in both functions"
+      ],
+      "suggestion": "Extract a buildWhereCondition(normalizedCity: string, words: string[]): Prisma.RestaurantWhereInput helper function. Both searchRestaurants and countSearchResults call it and pass the result to their respective Prisma methods. This is a single-file change that eliminates ~35 lines of duplication.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "scrape_route_double_parsequery",
+      "summary": "app/api/scrape/route.ts calls parseQuery(query) twice for the same input \u2014 once inside fetchWithFallback and once in the POST handler",
+      "related_files": [
+        "app/api/scrape/route.ts"
+      ],
+      "evidence": [
+        "fetchWithFallback at line 24: 'const terms = (await parseQuery(query)).terms;' \u2014 this calls the LLM-backed parser",
+        "POST handler at line 194: 'const terms = (await parseQuery(query)).terms;' \u2014 called again after fetchWithFallback returns, using the same query string",
+        "parseQuery makes a network call to OpenRouter (or falls back to regex); calling it twice doubles the latency and API usage for every scrape"
+      ],
+      "suggestion": "Return the parsed terms from fetchWithFallback as part of its return value (e.g. add terms to the returned object) and use that in the POST handler instead of calling parseQuery again. The result is already computed inside fetchWithFallback at line 24.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "search_more_ungrouped_response",
+      "summary": "/api/search-more returns ungrouped restaurants forcing LoadMoreButton to re-implement server-side grouping on the client",
+      "related_files": [
+        "app/api/search-more/route.ts",
+        "components/LoadMoreButton.tsx",
+        "lib/restaurant-grouping.ts"
+      ],
+      "evidence": [
+        "app/api/search-more/route.ts returns raw results from searchRestaurants without grouping (line 22: 'return NextResponse.json({ results, hasMore })')",
+        "components/LoadMoreButton.tsx line 32: 'const newGroups = groupRestaurantsByName(data.results as GroupableRestaurant[], seenNames)' \u2014 the client must call groupRestaurantsByName itself",
+        "app/api/search/route.ts (the initial search endpoint) groups on the server: line 50 'const grouped = groupRestaurantsByName(restaurants)'",
+        "The boundary contract is inconsistent: initial search returns groups, paginated search returns flat restaurants \u2014 the client must handle both shapes"
+      ],
+      "suggestion": "Move grouping into /api/search-more: call groupRestaurantsByName in the route handler before returning, passing the seenNames exclusion set as a query parameter (serialized as a JSON array or comma-separated string). This makes the two search endpoints consistent and removes the grouping logic from LoadMoreButton.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "fetchwithfallback_advance_callback_mutation",
+      "summary": "fetchWithFallback in scrape/route.ts mutates caller-owned state via an advance() callback \u2014 shared-mutable-state pattern across a function boundary",
+      "related_files": [
+        "app/api/scrape/route.ts"
+      ],
+      "evidence": [
+        "POST handler at line 183-187 creates local 'state' and 'advance' closure, then passes advance into fetchWithFallback",
+        "fetchWithFallback calls advance('PARSING'), advance('FETCHING'), etc., mutating the caller's state variable through a closure reference",
+        "The function signature 'advance: (s: ScrapeState) => void' obscures that this is a side-effectful mutation of external state \u2014 callers cannot reason about fetchWithFallback's effects without examining its internals"
+      ],
+      "suggestion": "Have fetchWithFallback return the final ScrapeState as part of its return value instead of mutating caller state through a callback. The caller can update its own state variable after the call returns, keeping state transitions explicit and local to the POST handler.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "search_scrape_no_ratelimit",
+      "summary": "Background scrape trigger in /api/search fires on every low-result request with no rate-limiting or in-flight deduplication guard",
+      "related_files": [
+        "app/api/search/route.ts"
+      ],
+      "evidence": [
+        "app/api/search/route.ts lines 9-19 and 52-54: triggerScrape is called when grouped.length < 3, unconditionally on every matching request",
+        "triggerScrape uses fire-and-forget fetch with .catch(() => undefined) \u2014 no record of in-flight scrapes, no cooldown, no deduplication by (city, query)",
+        "A burst of requests for the same low-result query (e.g. concurrent users) would trigger multiple parallel scrape jobs against the same city+query"
+      ],
+      "suggestion": "Add a simple server-side deduplication guard: keep an in-memory Set of active scrape keys (city+query hash) and skip triggerScrape if a key is already present, removing it after the scrape completes or times out. This is a one-file change that prevents redundant pipeline invocations without requiring external infrastructure.",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "rules_db_logic_never_exercised",
+      "summary": "lib/rules.ts checkRule01/checkRule03/checkRule05 tests mock all Prisma calls \u2014 the actual DB query logic is never exercised",
+      "related_files": [
+        "lib/rules.ts",
+        "__tests__/rules.test.ts"
+      ],
+      "evidence": [
+        "__tests__/rules.test.ts line 7-13: vi.mock('@/lib/db') mocks all Prisma methods before the functions under test are imported",
+        "checkRule01 at lib/rules.ts line 7-11 executes 'prisma.communityRecommendation.count({ where: { restaurant_id: restaurantId } })' \u2014 this query is never tested against real Prisma behavior",
+        "If the where clause were changed to a different field name or the count call broke, the test would still pass because it validates only the mock interaction",
+        "lib/rules.ts is imported by 4 production modules and is the gate for recommendation-count verification and vote deduplication"
+      ],
+      "suggestion": "Add integration tests that run against a test database (using Prisma's test environment or SQLite in-memory) to validate the actual query logic. Alternatively, at minimum add a comment in the test file noting that tests validate call shape only, not query correctness, so future engineers are not misled about coverage depth.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "reddit_filter_functions_untested",
+      "summary": "lib/reddit.ts isValidRestaurantName, isPostRelevantToQuery, and isRecommendationRequest are pure pipeline filter functions with zero dedicated tests",
+      "related_files": [
+        "lib/reddit.ts",
+        "__tests__/reddit-extraction.test.ts"
+      ],
+      "evidence": [
+        "__tests__/reddit-extraction.test.ts only tests extractRestaurantName \u2014 a single exported function",
+        "isValidRestaurantName (lib/reddit.ts lines 186-198) is an unexported function with 5 distinct validation rules (word count, capital letter, invalidStarts regex, letter sequence check) \u2014 these rules are the quality gate for which restaurant names enter the pipeline",
+        "isPostRelevantToQuery (lines 173-183) and isRecommendationRequest (lines 158-160) are unexported but are the primary filters determining which Reddit posts get processed \u2014 a false positive or false negative in either function silently affects all extraction results",
+        "These are pure functions with clear input/output contracts that are straightforward to test"
+      ],
+      "suggestion": "Export isValidRestaurantName, isPostRelevantToQuery, and isRecommendationRequest and add unit tests covering their edge cases. For isValidRestaurantName: test the word count limit (7 words should fail), the capital letter requirement, the invalidStarts patterns, and the letter sequence check. For isPostRelevantToQuery: test query word matching and the empty-query-always-returns-true branch. For isRecommendationRequest: test the REQUEST_PATTERNS regex variants.",
+      "confidence": "high"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "severity": "medium",
+      "title": "lib/geo.ts, lib/search.ts, and lib/reddit.ts mix sync and async exports in their public API surfaces",
+      "file": "lib/geo.ts",
+      "details": "lib/geo.ts exports detectCityFromIp (async) alongside extractIp (sync). lib/search.ts exports parseQuery, searchRestaurants, countSearchResults, findRestaurantGroup (all async) alongside groupRestaurantsByName (sync). lib/reddit.ts exports scrapeRedditForRestaurants and fetchCommunityPicksForRestaurant (async) alongside extractRestaurantName (sync). The sync helpers are pure utilities co-located for domain proximity but the mixed API surface means a caller importing one function sees siblings with a different execution model without any convention to signal the distinction.",
+      "status": "open"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "severity": "high",
+      "title": "GET /api/search and GET /api/search-more return structurally incompatible response envelopes for the same resource type",
+      "file": "app/api/search-more/route.ts",
+      "details": "GET /api/search returns { city, terms, results: RestaurantGroup[], count } where results contains grouped objects with a locations[] array. GET /api/search-more returns { results: RestaurantWithRecommendations[], hasMore } where results contains ungrouped raw DB rows. LoadMoreButton (components/LoadMoreButton.tsx line 32) compensates by importing and re-running groupRestaurantsByName on the client, duplicating server-side logic. The two endpoints serve the same semantic purpose (paginated restaurant search) but callers must apply different processing to each response.",
+      "status": "open"
+    },
+    {
+      "dimension": "authorization_consistency",
+      "severity": "high",
+      "title": "GET /api/geo returns raw client IP and full Nominatim address object in production JSON response",
+      "file": "app/api/geo/route.ts",
+      "details": "Line 23 returns { city, debug: { source: 'nominatim', status: nominatimStatus, address: data.address } } where data.address is the full Nominatim address object containing country, postcode, road, suburb, and other PII-adjacent fields. Line 35 returns { city, debug: { source: 'ip', ip } } which includes the raw client IP address. Neither debug field is guarded by a NODE_ENV check or any other environment gate. IP addresses are PII under GDPR and similar frameworks. Clients need only the city value; the debug field was likely retained from development and never removed.",
+      "status": "open"
+    },
+    {
+      "dimension": "authorization_consistency",
+      "severity": "medium",
+      "title": "INTERNAL_API_TOKEN check on /api/scrape is conditional \u2014 if env var is unset the endpoint is fully open",
+      "file": "app/api/scrape/route.ts",
+      "details": "Lines 142-144: the token guard is only applied when process.env.INTERNAL_API_TOKEN is truthy. If the env var is not set in a deployment, any caller can POST to /api/scrape, triggering an expensive pipeline (Reddit API calls, Google Places API calls, DB writes). There is no fallback rejection when the env var is absent. This means the security posture of the endpoint depends entirely on whether an operator remembers to configure the env var.",
+      "status": "open"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "severity": "medium",
+      "title": "lib/validate.ts repeats identical null/undefined + empty-string check pairs ~20 times with mid-file inconsistency",
+      "file": "lib/validate.ts",
+      "details": "9 validator functions each use the same two-check pattern per field: (obj.x === null || obj.x === undefined) then (obj.x === ''). This pattern is repeated verbatim approximately 20 times. The file itself acknowledges the inconsistency: validateRedditPost uses a loop for string fields (lines 55-62) but all other validators use manual pairs. The loop and manual-pair approaches exist in the same file for structurally identical tasks, which is a hallmark of LLM-generated code that mixed two generation passes.",
+      "status": "open"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "severity": "medium",
+      "title": "validateExtractedRestaurant is called inside try-catch blocks that silently swallow ValidationError in lib/reddit.ts",
+      "file": "lib/reddit.ts",
+      "details": "Lines 321-325 and lines 340-344 both call validateExtractedRestaurant(extracted) inside try-catch blocks that catch all errors and emit only a console.warn. The validation contract (ValidationError thrown for missing fields) is entirely voided by the catch \u2014 the code proceeds identically whether validation passes or fails. This is a cargo-cult validation pattern: the call looks like a safety gate but provides no actual protection. The same warn message 'Extracted restaurant must have a name and city to proceed with enrichment' is copied verbatim in both catch blocks.",
+      "status": "open"
+    },
+    {
+      "dimension": "package_organization",
+      "severity": "medium",
+      "title": "lib/ is flat with 12 files spanning three distinct concern groups: external API clients, domain rules, and infrastructure utilities",
+      "file": "lib/",
+      "details": "lib/ contains 12 files: external API clients (openrouter.ts, reddit.ts, google-places.ts, geo.ts), domain logic (rules.ts, state-machine.ts, validate.ts, hours.ts, restaurant-grouping.ts), and infrastructure (db.ts, fingerprint.ts, search.ts). A developer looking for the Reddit scraping logic must scan all 12 files rather than navigating to a purposeful subdirectory. state-machine.ts (1 importer) and google-places.ts (1 importer) are low-discovery within the flat structure. With 34 total project files the project is not small enough for the flat-everything heuristic to apply. The three concern groups have no discovery aid in the directory listing.",
+      "status": "open"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_module_scope_env_reads",
+      "summary": "lib/reddit.ts captures CLIENT_ID and CLIENT_SECRET into module-scope constants at import time, making them stale in tests that set process.env after import",
+      "related_files": [
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "Lines 55-56: `const CLIENT_ID = process.env.REDDIT_CLIENT_ID;` and `const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;` are evaluated once at module load",
+        "getAccessToken() at line 61 uses the captured CLIENT_ID/CLIENT_SECRET \u2014 any test that sets process.env.REDDIT_CLIENT_ID after importing reddit.ts will see the stale undefined value"
+      ],
+      "suggestion": "Move the env reads inside getAccessToken(): `const CLIENT_ID = process.env.REDDIT_CLIENT_ID; const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;` at the top of the function body. USER_AGENT can stay as a module constant since it has a safe default.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_shared_mutable_token_cache",
+      "summary": "lib/reddit.ts module-level `cachedToken` mutable singleton is shared across all concurrent Next.js requests in the same process with no synchronization",
+      "related_files": [
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "Line 58: `let cachedToken: { token: string; expiresAt: number } | null = null;` is module scope",
+        "getAccessToken() reads and writes cachedToken without any lock \u2014 two concurrent requests can both see an expired token, both fetch new tokens, and the second write overwrites the first"
+      ],
+      "suggestion": "Replace the free variable with a lazily-initialized promise that is shared: `let tokenPromise: Promise<string | null> | null = null;`. Invalidate and recreate the promise only when expiry is detected. This avoids the race where concurrent requests both fetch tokens.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "scrape_route_double_parsequery",
+      "summary": "app/api/scrape/route.ts calls parseQuery(query) twice for the same input \u2014 once inside fetchWithFallback (line 24) and once in the POST handler (line 194)",
+      "related_files": [
+        "app/api/scrape/route.ts"
+      ],
+      "evidence": [
+        "Line 24 (inside fetchWithFallback): `const terms = (await parseQuery(query)).terms;`",
+        "Line 194 (in POST handler): `const terms = (await parseQuery(query)).terms;`",
+        "parseQuery calls parseQueryWithLLM which makes an HTTP request to OpenRouter \u2014 the duplicate call wastes an LLM API round-trip on every scrape"
+      ],
+      "suggestion": "Return `terms` from fetchWithFallback alongside `results` and `empty`. Change the return type to `{ results: ExtractedRestaurant[]; state: ScrapeState; empty: boolean; terms: string }` and use the returned terms in the POST handler instead of calling parseQuery again.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "ddf8529afa7d4684"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "status_badge_map_duplicated",
+      "summary": "STATUS_BADGE in TrendingSection.tsx and STATUS_LABELS in RestaurantCard.tsx define identical status-to-badge mappings with different variable names",
+      "related_files": [
+        "components/TrendingSection.tsx",
+        "components/RestaurantCard.tsx"
+      ],
+      "evidence": [
+        "TrendingSection.tsx lines 19-23: `const STATUS_BADGE: Record<string, { label: string; className: string }> = { VERIFIED: {...}, UNREVIEWED: {...}, INCOMPLETE: {...} }`",
+        "RestaurantCard.tsx lines 51-55: `const STATUS_LABELS: Record<string, { label: string; className: string }> = { VERIFIED: {...}, UNREVIEWED: {...}, INCOMPLETE: {...} }`",
+        "Both use identical Tailwind class strings for each status value \u2014 any change to badge labels or styles must be made in two places"
+      ],
+      "suggestion": "Extract to a shared constant file (e.g. `lib/restaurant-status.ts` or inline in `lib/restaurant-grouping.ts` since that file already defines GroupableRestaurant with status: string). Both components import the shared constant. The variable name should be STATUS_BADGE consistently.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "status_badge_duplication"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "trending_section_cyclomatic_complexity",
+      "summary": "TrendingSection.tsx useEffect has high cyclomatic complexity from deeply nested geolocation decision tree",
+      "related_files": [
+        "components/TrendingSection.tsx"
+      ],
+      "evidence": [
+        "Lines 30-65: The useEffect contains fetchTrending(), fetchIpFallback(), a geolocation.getCurrentPosition branch with success/error callbacks, and nested .then() chains \u2014 yielding >15 distinct branches",
+        "The three paths (GPS coords \u2192 geo API, GPS failure \u2192 IP geo, no GPS \u2192 IP geo) are all inlined into a single useEffect callback"
+      ],
+      "suggestion": "Extract `fetchTrendingWithCoords(lat, lon)`, `fetchTrendingWithIp()`, and `fetchTrendingWithCity(city?)` as named async functions outside the useEffect, then compose them inside the useEffect. This keeps the decision tree visible but reduces nesting depth by 2 levels.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "5a6bab2a47d60169"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "restaurant_card_google_maps_url_hardcoded",
+      "summary": "RestaurantCard.tsx hardcodes `https://www.google.com/maps/search/?api=1&query=` in two places within the same component",
+      "related_files": [
+        "components/RestaurantCard.tsx"
+      ],
+      "evidence": [
+        "Line 78: `const mapsUrl = primaryLocation.address ? \\`https://www.google.com/maps/search/?api=1&query=...\\`` ",
+        "Line 141: `const locMapsUrl = loc.address ? \\`https://www.google.com/maps/search/?api=1&query=...\\``",
+        "Both build the same URL shape \u2014 a duplication of the URL template within the same file"
+      ],
+      "suggestion": "Extract a `buildMapsUrl(address: string): string` function at the top of the file that encapsulates the Google Maps URL pattern. Both callsites use it.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "33516a752f2e856d"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "high_cyclomatic_complexity_systemic",
+      "summary": "High cyclomatic complexity appears in 9 files \u2014 a codebase-wide pattern indicating insufficient extraction discipline in complex parsing/routing functions",
+      "related_files": [
+        "app/api/geo/route.ts",
+        "app/api/restaurant-vote/route.ts",
+        "app/api/scrape/route.ts",
+        "app/api/vote/route.ts",
+        "components/TrendingSection.tsx",
+        "lib/google-places.ts",
+        "lib/hours.ts",
+        "lib/reddit.ts",
+        "lib/validate.ts"
+      ],
+      "evidence": [
+        "lib/hours.ts: two functions with >15 branches each (isOpenNow, isOpenNowCompact) \u2014 format detection branching inherent to the problem",
+        "lib/validate.ts: 9 validator functions each with multiple null/empty branches; only one uses a loop",
+        "lib/reddit.ts: extractRestaurantName has 7+ regex patterns in a cascade \u2014 inherent to heuristic extraction",
+        "Route handlers: branching is mostly guard clauses and input validation \u2014 appropriate for request handlers",
+        "The pattern is systemic but is driven by three distinct causes: parsing heuristics (hours.ts, reddit.ts), repetitive null checks (validate.ts), and route guard clauses (vote routes)"
+      ],
+      "suggestion": "Address by cause: (1) lib/validate.ts \u2014 extend the loop abstraction from validateRedditPost to cover all validator string fields, reducing the branch count significantly. (2) lib/hours.ts and lib/reddit.ts \u2014 no change needed; complexity is inherent to format diversity. (3) Route handlers \u2014 no change needed; guard clauses are appropriate here. Adding a lint rule (e.g. complexity: [warn, 15]) would surface new additions before they accumulate.",
+      "confidence": "medium",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "systemic_complexity",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "975a48fc7b86f11b"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "try_transition_to_verified_post_commit_throw",
+      "summary": "tryTransitionToVerified can throw from Prisma after callers have committed their transaction, with no error handling at the callsite",
+      "related_files": [
+        "lib/rules.ts",
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts"
+      ],
+      "evidence": [
+        "lib/rules.ts tryTransitionToVerified: calls prisma.restaurant.findUnique and prisma.restaurant.update \u2014 both can throw on network/DB failure",
+        "app/api/vote/route.ts line 83: `await tryTransitionToVerified(recommendation.restaurant_id)` called after the $transaction block at line 60-80 commits",
+        "app/api/restaurant-vote/route.ts line 83: same pattern \u2014 tryTransitionToVerified called post-commit",
+        "If tryTransitionToVerified throws, the outer catch in the route handler would return HTTP 500 even though the vote was successfully committed \u2014 the client sees an error but the vote was recorded"
+      ],
+      "suggestion": "Wrap the tryTransitionToVerified call in a try-catch in both vote route handlers: `try { await tryTransitionToVerified(...); } catch (e) { console.error('Status transition failed after vote commit:', e); }`. The vote was committed successfully; the status transition failure should not fail the HTTP response.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "post_commit_error"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "state_machine_dead_exports",
+      "summary": "lib/state-machine.ts exports isValidTransition and validNextStates with zero production callers \u2014 speculative API that cannot be verified",
+      "related_files": [
+        "lib/state-machine.ts"
+      ],
+      "evidence": [
+        "Only assertValidTransition is imported in production code (app/api/scrape/route.ts line 9)",
+        "isValidTransition (line 49) and validNextStates (line 57) have no production importers per the import graph",
+        "Speculative API surface creates maintenance burden: changes to VALID_TRANSITIONS must keep all three functions aligned"
+      ],
+      "suggestion": "Remove isValidTransition and validNextStates from lib/state-machine.ts exports unless a specific production caller is added. If they are needed for tests, keep them unexported and test assertValidTransition's observable behavior instead.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "trending_section_hardcoded_ottawa_fallback",
+      "summary": "TrendingSection.tsx hardcodes 'Ottawa' as a city fallback when city is null, silently showing wrong city header",
+      "related_files": [
+        "components/TrendingSection.tsx"
+      ],
+      "evidence": [
+        "Line 80: `const displayCity = city ?? 'Ottawa';`",
+        "When the geo API returns city: null (private IP, geolocation timeout, API failure), the header shows 'Trending in Ottawa' regardless of where the user actually is",
+        "The same data fetch may render legitimate results for a different city under the Ottawa header"
+      ],
+      "suggestion": "Replace with `const displayCity = city ?? 'your area';` or conditionally hide the city name: `city ? \\`Trending in ${city}\\` : 'Trending nearby'`. This is a small change but prevents misleading UI.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "vote_routes_enum_bypass",
+      "summary": "Both vote route handlers use raw string comparison against 'up'/'down' instead of VoteDirection enum, bypassing available type safety",
+      "related_files": [
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts"
+      ],
+      "evidence": [
+        "app/api/vote/route.ts lines 27-29: `if (direction !== 'up' && direction !== 'down')` \u2014 magic string validation",
+        "Line 56: `const voteDirection = direction === 'up' ? VoteDirection.up : VoteDirection.down;` \u2014 mapping done manually",
+        "VoteDirection is imported from @prisma/client (line 5) but used only at the Prisma call site",
+        "app/api/restaurant-vote/route.ts lines 27-29, 56: identical pattern",
+        "TypeScript cannot narrow direction's type from string to 'up' | 'down' without an explicit Literal type, so subsequent code treats it as string"
+      ],
+      "suggestion": "Add a type guard: `function isVoteDirection(d: string): d is 'up' | 'down' { return d === 'up' || d === 'down'; }` and use it for the validation check. Then `direction` is narrowed to `'up' | 'down'` in the success path, and the ternary mapping becomes type-safe.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "enum_bypass"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "search_ts_double_cast_structural_mismatch",
+      "summary": "lib/search.ts groupRestaurantsByName uses `as unknown as GroupableRestaurant[]` to paper over a real structural type mismatch in scraped_at field",
+      "related_files": [
+        "lib/search.ts",
+        "lib/restaurant-grouping.ts"
+      ],
+      "evidence": [
+        "lib/search.ts line 61: `return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[]);`",
+        "RestaurantWithRecommendations.recommendations[].scraped_at is typed as Date (Prisma returns Date objects)",
+        "GroupableRecommendation.scraped_at is typed as `string | Date` in lib/restaurant-grouping.ts line 22",
+        "The mismatch is real: a Date is structurally assignable to `string | Date` but the inverse is not true \u2014 grouping code that reads scraped_at as string would fail at runtime"
+      ],
+      "suggestion": "Change GroupableRecommendation.scraped_at to `Date` to match the actual Prisma type, or align RestaurantWithRecommendations to use `string | Date`. The simpler fix is to broaden GroupableRecommendation.scraped_at since it is already typed that way and the component code (RestaurantCard.tsx) also receives `string | Date`.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "parallel_parsedquery_interface_definitions",
+      "summary": "ParsedQuery is defined twice with diverging shapes: lib/search.ts has required city/terms/raw, lib/validate.ts has all fields optional",
+      "related_files": [
+        "lib/search.ts",
+        "lib/validate.ts"
+      ],
+      "evidence": [
+        "lib/search.ts lines 8-12: `export interface ParsedQuery { city: string | null; terms: string; raw: string; }`",
+        "lib/validate.ts lines 18-22: `interface ParsedQuery { city?: string | null; terms?: string | null; raw?: string | null; }`",
+        "The validate.ts version intentionally uses optional fields to avoid circular imports (documented in the file header), but the two interfaces diverge: validate.ts ParsedQuery allows all fields to be missing, while search.ts ParsedQuery requires terms and raw",
+        "A function accepting validate.ts's ParsedQuery cannot be safely passed a search.ts ParsedQuery without widening"
+      ],
+      "suggestion": "The lib/validate.ts approach (optional fields for circular import avoidance) is documented and intentional. No change needed to the interface shapes, but add a comment in lib/search.ts's ParsedQuery: `// Canonical shape; lib/validate.ts uses a structurally similar optional interface for circular-import safety`. This documents why two interfaces exist.",
+      "confidence": "low",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "context_updates": {
+    "cross_module_architecture": {
+      "confirmed_open": [
+        "IP extraction duplicated between lib/fingerprint.ts and lib/geo.ts",
+        "lib/search.ts wraps and re-exports lib/restaurant-grouping.ts obscuring the true boundary"
+      ],
+      "new_findings": [
+        "app/api/scrape/route.ts calls parseQuery twice in the same request \u2014 once in fetchWithFallback and once at line 194 \u2014 potentially making two LLM calls"
+      ]
+    },
+    "high_level_elegance": {
+      "confirmed_open": [
+        "Scrape route acts as both HTTP handler and pipeline orchestrator",
+        "Restaurant status badge map duplicated across three files with inconsistent shapes",
+        "Scrape triggered both server-side in api/search and client-side in SearchPoller"
+      ],
+      "new_findings": []
+    },
+    "convention_outlier": {
+      "confirmed_open": [
+        "PRICE_ORDER constant defined identically in components/LoadMoreButton.tsx and app/search/page.tsx"
+      ],
+      "new_findings": [
+        "Status badge display map uses three different variable names (STATUS_LABELS, STATUS_INFO, STATUS_BADGE) across sibling components that render the same domain concept"
+      ]
+    },
+    "error_consistency": {
+      "confirmed_open": [
+        "tryTransitionToVerified called after transaction commits in both vote routes",
+        "getRedditRecommendations returns [] on API failure making network errors indistinguishable from no-results",
+        "LoadMoreButton loadMore() has no catch on fetch failure leaving hasMore and offset stale",
+        "validateRedditPost and validateExtractedRestaurant throw ValidationError but callers silently catch and continue"
+      ],
+      "new_findings": []
+    },
+    "naming_quality": {
+      "confirmed_open": [
+        "lib/rules.ts functions named after opaque rule codes (checkRule01, checkRule03, checkRule05) rather than business intent",
+        "SearchPoller.tsx named as passive poller but actively initiates a scrape POST request"
+      ],
+      "new_findings": []
+    },
+    "abstraction_fitness": [
+      {
+        "header": "Lean abstraction surface across lib/",
+        "description": "The lib/ layer contains 12 modules with real domain logic \u2014 no pass-through wrappers, no delegation-heavy classes, and no single-implementation interface ecosystems. Every module earns its indirection.",
+        "positive": true,
+        "settled": true
+      },
+      {
+        "header": "Unsafe cast in search.ts groupRestaurantsByName re-export",
+        "description": "lib/search.ts re-exports groupRestaurantsByName from lib/restaurant-grouping.ts but uses 'as unknown as GroupableRestaurant[]' to bridge a structural type mismatch between RestaurantWithRecommendations and GroupableRestaurant. This is a persistent open issue.",
+        "positive": false
+      },
+      {
+        "header": "Speculative exports on state-machine.ts",
+        "description": "isValidTransition and validNextStates are exported from lib/state-machine.ts but have no production callers \u2014 only test file imports. These add API surface without substitution value.",
+        "positive": false
+      }
+    ],
+    "dependency_health": [
+      {
+        "header": "Minimal runtime dependency set",
+        "description": "Only four runtime dependencies: next@14.1.3, react@^18.2.0, react-dom@^18.2.0, @prisma/client@^6.19.2. No overlapping libraries, no heavy deps for light use, no circular cycles detectable.",
+        "positive": true,
+        "settled": true
+      },
+      {
+        "header": "next version pinned to exact minor",
+        "description": "next is pinned to 14.1.3 (a specific minor version) while other deps use caret ranges. This inconsistency is minor and does not cause material risk.",
+        "positive": false
+      }
+    ],
+    "low_level_elegance": [
+      {
+        "header": "Clean control flow in restaurant-grouping.ts and state-machine.ts",
+        "description": "lib/restaurant-grouping.ts and lib/state-machine.ts have direct, intention-revealing control flow with well-bounded mutation. These modules serve as good examples of local craft in the codebase.",
+        "positive": true,
+        "settled": true
+      },
+      {
+        "header": "Validate.ts loop/manual inconsistency",
+        "description": "The validateRedditPost function uses a field array loop while all other seven validators use manual null/empty check pairs. This persistent inconsistency doubles code volume for field validation.",
+        "positive": false
+      },
+      {
+        "header": "search.ts where-condition construction duplicated",
+        "description": "searchRestaurants and countSearchResults both build identical Prisma where-condition logic (~35-40 LOC) in separate function bodies. Any filter change requires editing both.",
+        "positive": false
+      },
+      {
+        "header": "scrape/route.ts calls parseQuery twice for same input",
+        "description": "The POST handler calls parseQuery(query) once inside fetchWithFallback (line 24) and once directly (line 194) for the same query string, doubling LLM API usage and latency per scrape.",
+        "positive": false
+      }
+    ],
+    "mid_level_elegance": [
+      {
+        "header": "Inconsistent grouping responsibility across search boundary",
+        "description": "The initial search API groups results server-side; the paginated search API returns raw ungrouped restaurants requiring the client component to re-apply grouping logic. The boundary contract differs between the two sibling endpoints.",
+        "positive": false
+      },
+      {
+        "header": "fetchWithFallback advance() callback creates hidden shared state",
+        "description": "The function mutates caller-owned state through a passed callback rather than returning its computed state transitions, creating an opaque shared-state pattern across a function boundary.",
+        "positive": false
+      },
+      {
+        "header": "Background scrape trigger has no rate-limiting or deduplication",
+        "description": "triggerScrape in /api/search fires unconditionally on every low-result request with no guard against concurrent identical scrapes for the same city+query.",
+        "positive": false
+      }
+    ],
+    "test_strategy": [
+      {
+        "header": "Previously flagged test gaps resolved",
+        "description": "lib/hours.ts, lib/restaurant-grouping.ts (normalizeWebsite, groupRestaurantsByName), and lib/openrouter.ts (regexFallback, parseQueryWithLLM, getRedditRecommendations) all now have direct test coverage. These were flagged in prior reviews as untested critical paths.",
+        "positive": true,
+        "settled": true
+      },
+      {
+        "header": "API route test coverage solid",
+        "description": "All major API routes have dedicated test files: api-search.test.ts, api-search-more.test.ts, api-votes.test.ts, api-geo.test.ts, api-trending.test.ts. These cover happy paths and key error cases.",
+        "positive": true,
+        "settled": true
+      },
+      {
+        "header": "lib/rules.ts tests mock Prisma \u2014 DB query logic unexercised",
+        "description": "Rules tests validate mock call shape only. The actual Prisma where clauses in checkRule01, checkRule03, checkRule05 are never executed against real database behavior, leaving query correctness untested.",
+        "positive": false
+      },
+      {
+        "header": "reddit.ts pipeline filter functions untested",
+        "description": "isValidRestaurantName, isPostRelevantToQuery, and isRecommendationRequest are pure filter functions that gate all restaurant extraction but have no dedicated tests. Only extractRestaurantName is covered.",
+        "positive": false
+      }
+    ],
+    "api_surface_coherence": "Both previously-flagged issues confirmed open. Mixed sync/async exports: lib/geo.ts (detectCityFromIp async + extractIp sync), lib/search.ts (4 async + groupRestaurantsByName sync), lib/reddit.ts (2 async + extractRestaurantName sync). Envelope divergence: /api/search returns grouped RestaurantGroup[], /api/search-more returns ungrouped RestaurantWithRecommendations[], forcing LoadMoreButton to re-run groupRestaurantsByName client-side.",
+    "authorization_consistency": "Previously-flagged issue confirmed open: /api/geo returns raw IP in debug.ip field and full Nominatim address object in debug.address field on every response, ungated by environment. New finding: INTERNAL_API_TOKEN check on /api/scrape is conditional \u2014 absent env var means endpoint is fully open to the public.",
+    "ai_generated_debt": "Previously-flagged issue confirmed open: lib/validate.ts repeats null/undefined + empty-string check pairs ~20 times across 9 functions with a loop/manual inconsistency. Additional finding: validateExtractedRestaurant in lib/reddit.ts is called inside two catch-all try-catch blocks that swallow ValidationError with a console.warn, voiding the validation contract entirely.",
+    "incomplete_migration": "Dimension clean. No TODO/FIXME/DEPRECATED markers, no JS/TS mixed files, no old library coexistence, no stale migration shims found in any .ts/.tsx source file.",
+    "package_organization": "Previously-flagged issue confirmed open: lib/ flat with 12 files, 3 identifiable concern groups (external API clients, domain logic, infrastructure). state-machine.ts and google-places.ts are low-discovery stragglers with only 1 importer each. No new placement problems found.",
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "Prisma singleton follows canonical Next.js pattern",
+          "description": "lib/db.ts uses globalThis-based singleton to survive dev hot-reload. This is the recommended Next.js pattern and not an initialization coupling defect.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "reddit.ts captures env vars at module scope",
+          "description": "CLIENT_ID and CLIENT_SECRET are read into module-scope constants at import time, making them stale in tests that configure process.env after import. A module-level mutable OAuth token cache compounds the risk for concurrent requests.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "design_coherence": {
+      "add": [
+        {
+          "header": "scrape/route.ts calls parseQuery twice per request",
+          "description": "The POST handler calls parseQuery inside fetchWithFallback and again directly in the handler body \u2014 two LLM API calls for the same input on every scrape request.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Status badge map duplicated across two components",
+          "description": "STATUS_BADGE (TrendingSection.tsx) and STATUS_LABELS (RestaurantCard.tsx) define identical VERIFIED/UNREVIEWED/INCOMPLETE \u2192 label+classname mappings. Any badge change must be applied in two places.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "app/api/scrape/route.ts is an active Next.js route entry point",
+          "description": "The orphaned signal is a false positive \u2014 Next.js routes have zero static importers by design. The file is live production code triggered via HTTP POST.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "contract_coherence": {
+      "add": [
+        {
+          "header": "Validator functions have consistent throw contracts",
+          "description": "All 9 validator functions in lib/validate.ts throw ValidationError on invalid input and return void on success \u2014 a clean, uniform contract across the module.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "tryTransitionToVerified throws post-transaction in callers",
+          "description": "Both vote route handlers call tryTransitionToVerified after committing a Prisma transaction. If the transition Prisma call throws, the route returns HTTP 500 even though the vote was successfully persisted.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "logic_clarity": {
+      "add": [
+        {
+          "header": "Hardcoded Ottawa fallback in TrendingSection",
+          "description": "When city detection returns null, TrendingSection defaults to displaying 'Ottawa' \u2014 a misleading city label for non-Ottawa users with failed geolocation.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Guard clause pattern used consistently in lib/",
+          "description": "All lib/ async functions use early-return guard clauses on missing env vars and invalid inputs before proceeding to I/O. This makes the happy path easy to trace.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    },
+    "type_safety": {
+      "add": [
+        {
+          "header": "External API boundaries use appropriate loose typing",
+          "description": "lib/google-places.ts and lib/openrouter.ts correctly use Record<string, unknown> for untyped external JSON responses and add casts only after explicit shape checks.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "VoteDirection enum bypassed with raw string comparison in both vote routes",
+          "description": "Both vote handlers validate direction as 'up'|'down' strings and then map to VoteDirection manually. The enum is available but bypassed, weakening the type-narrowing contract.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "kind": "blind_review_batch_import",
+    "blind": true,
+    "runner": "claude",
+    "session_id": "ext_20260402_133457_80716c3c",
+    "created_at": "2026-04-02T13:44:49+00:00",
+    "packet_path": "/Users/ashzade/claude/localrecos/.desloppify/review_packet_blind.json",
+    "packet_sha256": "f86db3352a605360f37998647aee2941006e74cd475c5c7985d77d5d490f3a0a"
+  }
+}

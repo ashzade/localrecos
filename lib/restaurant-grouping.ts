@@ -4,6 +4,10 @@
  * No server-only imports — safe to use in 'use client' components.
  */
 
+export const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
+
+export type RestaurantStatus = 'UNREVIEWED' | 'VERIFIED' | 'INCOMPLETE';
+
 export const RESTAURANT_STATUS_BADGE: Record<string, { label: string; className: string }> = {
   VERIFIED: { label: 'Verified', className: 'bg-green-100 text-green-700' },
   UNREVIEWED: { label: 'New', className: 'bg-blue-100 text-blue-700' },
@@ -42,7 +46,7 @@ export interface GroupableRestaurant {
   hours: string | null;
   price_range: string | null;
   photo_url: string | null;
-  status: string;
+  status: RestaurantStatus;
   upvotes: number;
   downvotes: number;
   total_net_votes: number;
@@ -55,7 +59,7 @@ export interface RestaurantGroup {
   city: string;
   price_range: string | null;
   photo_url: string | null;
-  status: string;
+  status: RestaurantStatus;
   upvotes: number;
   downvotes: number;
   total_net_votes: number;

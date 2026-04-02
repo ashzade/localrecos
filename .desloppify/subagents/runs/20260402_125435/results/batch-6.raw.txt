@@ -1,0 +1,102 @@
+{
+  "batch": "abstraction_fitness",
+  "batch_index": 6,
+  "assessments": {"abstraction_fitness": 80.0},
+  "dimension_notes": {
+    "abstraction_fitness": {
+      "evidence": [
+        "lib/search.ts exports groupRestaurantsByName as a thin re-export of _groupRestaurantsByName from lib/restaurant-grouping.ts with only an `as unknown as GroupableRestaurant[]` cast — the wrapper adds no behavior, only type coercion noise",
+        "lib/search.ts also re-exports RestaurantLocation and RestaurantGroup types with `export type { ... } from '@/lib/restaurant-grouping'` — a barrel pattern, but the module already imports its own logic from the same file so this is mixed responsibility",
+        "fetchWithFallback in app/api/scrape/route.ts is a genuine abstraction — it encapsulates the multi-step reddit/LLM fallback strategy and state machine advances, reducing the POST handler's cognitive load",
+        "enrichAndUpsert in app/api/scrape/route.ts is a well-scoped helper that groups upsert+community-picks logic without leaking orchestration",
+        "upsertRestaurant is a focused, single-responsibility helper with clear input/output contract",
+        "lib/validate.ts local interfaces (ParsedQuery, RedditPost, etc.) duplicate shapes that already exist in lib/reddit.ts and lib/search.ts — these parallel definitions exist to avoid circular imports, which is a reasonable tradeoff, but means the same fields are declared twice",
+        "lib/state-machine.ts exports isValidTransition and validNextStates in addition to assertValidTransition — isValidTransition has zero callers in production code (only used in tests), validNextStates has zero callers anywhere — these are speculative API surface",
+        "lib/search.ts groupRestaurantsByName wrapper casts RestaurantWithRecommendations[] through `as unknown as GroupableRestaurant[]` — this is an abstraction that creates type unsafety to paper over a structural mismatch, rather than aligning the types",
+        "SUBREDDIT_MAP in lib/reddit.ts is a plain lookup constant, not an abstraction concern",
+        "No delegation-heavy classes found — the codebase uses module-level functions throughout, avoiding class ceremony"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "sub_axes": {
+        "abstraction_leverage": 78.0,
+        "indirection_cost": 82.0,
+        "interface_honesty": 72.0,
+        "delegation_density": 90.0,
+        "definition_directness": 80.0,
+        "type_discipline": 70.0
+      }
+    }
+  },
+  "dimension_judgment": {
+    "abstraction_fitness": {
+      "dimension_character": "The codebase applies abstraction purposefully in the scrape pipeline — fetchWithFallback and enrichAndUpsert are genuine extractions with real behavior boundaries. The main fitness gap is the groupRestaurantsByName re-export wrapper in lib/search.ts, which adds an unsafe type cast rather than aligning types structurally, and two unexported state-machine helpers (isValidTransition, validNextStates) that are speculative API surface with no production callers.",
+      "score_rationale": "The score reflects a codebase that uses abstraction well at the orchestration level but has a small set of concrete fitness failures: a type-coercing pass-through wrapper, parallel interface definitions driven by circular-import avoidance rather than domain modeling, and dead API surface on the state machine. These are moderate defects that a developer would notice when tracing through the grouping path but would not block productivity significantly."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "search_grouping_wrapper_unsafe_cast",
+      "summary": "lib/search.ts groupRestaurantsByName re-export uses `as unknown as GroupableRestaurant[]` to paper over a structural type mismatch rather than aligning types",
+      "related_files": ["lib/search.ts", "lib/restaurant-grouping.ts"],
+      "evidence": [
+        "lib/search.ts line 60-62: `export function groupRestaurantsByName(restaurants: RestaurantWithRecommendations[]): ReturnType<typeof _groupRestaurantsByName> { return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[]); }`",
+        "RestaurantWithRecommendations has `recommendations` typed with full Prisma-shaped fields including `scraped_at: Date`, while GroupableRestaurant.recommendations uses `scraped_at: string | Date` — the cast silences a real structural gap",
+        "The wrapper adds no behavior; its only purpose is to absorb the type mismatch at the boundary"
+      ],
+      "suggestion": "Align GroupableRestaurant.GroupableRecommendation.scraped_at to accept `Date` (or make RestaurantWithRecommendations implement GroupableRestaurant directly) so the cast is unnecessary. Then the re-export can be a direct alias or removed in favor of callers importing from lib/restaurant-grouping.ts directly.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "state_machine_dead_api_surface",
+      "summary": "lib/state-machine.ts exports isValidTransition and validNextStates which have no production callers — speculative API surface",
+      "related_files": ["lib/state-machine.ts"],
+      "evidence": [
+        "isValidTransition is exported but only appears in test files (state-machine.test.ts) — never called in production code",
+        "validNextStates is exported and never called anywhere in production or test code",
+        "assertValidTransition is the only function used in production (app/api/scrape/route.ts)"
+      ],
+      "suggestion": "Remove validNextStates entirely. Keep isValidTransition only if it will be used; otherwise remove it. If retained for testing purposes, consider not exporting it (make it package-internal or use assertValidTransition in tests instead).",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Circular import avoidance drove parallel interface definitions in lib/validate.ts — a structural constraint, not a design preference",
+      "The grouping abstraction was extracted from LoadMoreButton correctly, but the type alignment between the server-side rich type and the shared GroupableRestaurant was not completed"
+    ],
+    "likely_symptoms": ["search_grouping_wrapper_unsafe_cast"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "abstraction_fitness": {
+      "add": [
+        {
+          "header": "Scrape pipeline helpers are genuine abstractions",
+          "description": "fetchWithFallback and enrichAndUpsert in the scrape route each encapsulate real multi-step behavior with state machine coordination and I/O — they add value proportional to their indirection.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Validate.ts parallel interfaces driven by circular import constraint",
+          "description": "The local interface definitions in lib/validate.ts mirror types in lib/reddit.ts and lib/search.ts to break circular imports. This is a structural workaround, not an abstraction choice, and is documented in the file header.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Module-level functions avoid class ceremony throughout",
+          "description": "No delegation-heavy classes exist. All abstractions are module-level functions, keeping the codebase flat and easy to trace.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

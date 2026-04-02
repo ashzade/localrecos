@@ -27,7 +27,7 @@ export default function LoadMoreButton({ city, terms, sort, initialOffset, shown
         city, terms,
         offset: String(offset),
         limit: String(BATCH),
-        seenNames: [...seenNames].join(','),
+        seenNames: Array.from(seenNames).join(','),
       });
       const res = await fetch(`/api/search-more?${params}`);
       const data = await res.json();

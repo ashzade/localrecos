@@ -5,6 +5,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const bad = (x: unknown): any => x;
+
 // ── RULE_01: Query Must Be Non-Empty ──────────────────────────────────────────
 
 // parseQuery throws synchronously when trimmed input is empty, so we can test
@@ -75,7 +78,7 @@ describe('RULE_03: Extracted Restaurant Must Have a Name', () => {
   // T62 – name = ''
   it('T62: rejects an ExtractedRestaurant with empty name', () => {
     expect(() =>
-      validateExtractedRestaurant({ name: '', summary: 'Great place', source: 'r/ottawa' })
+      validateExtractedRestaurant(bad({ name: '', summary: 'Great place', source: 'r/ottawa' }))
     ).toThrow(ValidationError);
   });
 
@@ -84,7 +87,7 @@ describe('RULE_03: Extracted Restaurant Must Have a Name', () => {
   // that scraping with an empty city string produces no results (skips enrichment).
   it('T63: validateExtractedRestaurant still rejects empty name regardless of city context', () => {
     expect(() =>
-      validateExtractedRestaurant({ name: '', summary: 'x', source: 'r/test' })
+      validateExtractedRestaurant(bad({ name: '', summary: 'x', source: 'r/test' }))
     ).toThrow("Field 'name' must not be empty.");
   });
 });
@@ -156,7 +159,7 @@ describe('RULE_07: Google Places Must Confirm Food Venue', () => {
   // T67 – name = '' on ExtractedRestaurant is rejected before reaching Google Places
   it('T67: enrichment never starts when ExtractedRestaurant name is empty', () => {
     expect(() =>
-      validateExtractedRestaurant({ name: '', summary: 'x', source: 'r/test' })
+      validateExtractedRestaurant(bad({ name: '', summary: 'x', source: 'r/test' }))
     ).toThrow("Field 'name' must not be empty.");
   });
 });

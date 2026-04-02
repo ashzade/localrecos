@@ -42,7 +42,7 @@ describe('GET /api/geo', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.city).toBe('Montreal');
-      expect(body.debug.source).toBe('nominatim');
+      expect(body.debug).toBeUndefined();
     });
 
     it('falls back to town when city is absent in Nominatim response', async () => {
@@ -67,7 +67,6 @@ describe('GET /api/geo', () => {
       const res = await GET(makeRequest({ lat: '45.5', lon: '-73.6' }));
       const body = await res.json();
       expect(body.city).toBeNull();
-      expect(body.debug.source).toBe('nominatim_failed');
     });
 
     it('returns city: null when Nominatim throws a network error', async () => {
@@ -75,7 +74,6 @@ describe('GET /api/geo', () => {
       const res = await GET(makeRequest({ lat: '45.5', lon: '-73.6' }));
       const body = await res.json();
       expect(body.city).toBeNull();
-      expect(body.debug.source).toBe('nominatim_error');
     });
   });
 
@@ -86,7 +84,6 @@ describe('GET /api/geo', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.city).toBe('Toronto');
-      expect(body.debug.source).toBe('ip');
     });
 
     it('falls back to DEFAULT_CITY when IP detection returns null', async () => {

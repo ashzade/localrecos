@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { isOpenNow } from '@/lib/hours';
+import { RESTAURANT_STATUS_BADGE } from '@/lib/restaurant-grouping';
 
 interface TrendingRestaurant {
   id: string;
@@ -16,11 +17,6 @@ interface TrendingRestaurant {
 }
 
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  VERIFIED: { label: 'Verified', className: 'bg-green-100 text-green-700' },
-  UNREVIEWED: { label: 'New', className: 'bg-blue-100 text-blue-700' },
-  INCOMPLETE: { label: 'Unconfirmed', className: 'bg-gray-100 text-gray-500' },
-};
 
 export default function TrendingSection() {
   const [city, setCity] = useState<string | null>(null);
@@ -77,7 +73,7 @@ export default function TrendingSection() {
     );
   }
 
-  const displayCity = city ?? 'Ottawa';
+  const displayCity = city ?? 'your area';
 
   if (results.length === 0) {
     return (
@@ -111,7 +107,7 @@ export default function TrendingSection() {
                   {r.name}
                 </span>
                 {(() => {
-                  const badge = STATUS_BADGE[r.status] ?? STATUS_BADGE.UNREVIEWED;
+                  const badge = RESTAURANT_STATUS_BADGE[r.status] ?? RESTAURANT_STATUS_BADGE.UNREVIEWED;
                   return (
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.className}`}>
                       {badge.label}

@@ -4,6 +4,12 @@
  * No server-only imports — safe to use in 'use client' components.
  */
 
+export const RESTAURANT_STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  VERIFIED: { label: 'Verified', className: 'bg-green-100 text-green-700' },
+  UNREVIEWED: { label: 'New', className: 'bg-blue-100 text-blue-700' },
+  INCOMPLETE: { label: 'Unconfirmed', className: 'bg-gray-100 text-gray-500' },
+};
+
 export interface RestaurantLocation {
   id: string;
   address: string | null;

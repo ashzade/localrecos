@@ -5,6 +5,7 @@ import Image from 'next/image';
 import RecommendationCard from './RecommendationCard';
 import RestaurantFeedbackButton from './RestaurantFeedbackButton';
 import { isOpenNow } from '@/lib/hours';
+import { RESTAURANT_STATUS_BADGE } from '@/lib/restaurant-grouping';
 
 interface Recommendation {
   id: string;
@@ -48,11 +49,6 @@ interface RestaurantCardProps {
   restaurant: Restaurant;
 }
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  VERIFIED: { label: 'Verified', className: 'bg-green-100 text-green-700' },
-  UNREVIEWED: { label: 'New', className: 'bg-blue-100 text-blue-700' },
-  INCOMPLETE: { label: 'Unconfirmed', className: 'bg-gray-100 text-gray-500' },
-};
 
 
 function getSentimentSummary(recommendations: Recommendation[]): string | null {
@@ -67,7 +63,7 @@ const VISIBLE_COUNT = 3;
 export default function RestaurantCard({ restaurant: r }: RestaurantCardProps) {
   const [showAll, setShowAll] = useState(false);
   const [copied, setCopied] = useState(false);
-  const statusInfo = STATUS_LABELS[r.status] ?? STATUS_LABELS.UNREVIEWED;
+  const statusInfo = RESTAURANT_STATUS_BADGE[r.status] ?? RESTAURANT_STATUS_BADGE.UNREVIEWED;
   const sentiment = getSentimentSummary(r.recommendations);
   const visible = showAll ? r.recommendations : r.recommendations.slice(0, VISIBLE_COUNT);
   const hidden = r.recommendations.length - VISIBLE_COUNT;

@@ -80,7 +80,13 @@ export async function POST(request: NextRequest) {
   });
 
   // Attempt state transition UNREVIEWED/INCOMPLETE → VERIFIED
-  await tryTransitionToVerified(recommendation.restaurant_id);
+  // Wrapped in try-catch: vote is already committed; a transition failure must not return 500
+  try {
+    await tryTransitionToVerified(recommendation.restaurant_id);
+  } catch {
+    // Non-fatal: log and continue
+    console.error('[vote] tryTransitionToVerified failed after committed vote for', recommendation.restaurant_id);
+  }
 
   const updated = await prisma.communityRecommendation.findUnique({
     where: { id: recommendation_id },

@@ -139,9 +139,13 @@ async function upsertRestaurant(city: string, name: string, placeData?: PlaceDet
 }
 
 export async function POST(request: NextRequest) {
+  // Require token in all environments where it is configured.
+  // Omitting INTERNAL_API_TOKEN is only safe in local dev (no external access).
   const internalToken = process.env.INTERNAL_API_TOKEN;
-  if (internalToken && request.headers.get('x-internal-token') !== internalToken) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (internalToken) {
+    if (request.headers.get('x-internal-token') !== internalToken) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   let body: { city?: string; q?: string };

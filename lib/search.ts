@@ -97,6 +97,22 @@ function parseWords(terms: string): string[] {
     .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
 }
 
+function buildWhereCondition(normalizedCity: string, words: string[]): Prisma.RestaurantWhereInput {
+  if (words.length === 0) {
+    return { city: { equals: normalizedCity, mode: 'insensitive' } };
+  }
+  const nameConditions: Prisma.RestaurantWhereInput[] = words.map((word) => ({
+    name: { contains: word, mode: 'insensitive' as Prisma.QueryMode },
+  }));
+  const summaryConditions: Prisma.CommunityRecommendationWhereInput[] = words.map((word) => ({
+    summary: { contains: word, mode: 'insensitive' as Prisma.QueryMode },
+  }));
+  return {
+    city: { equals: normalizedCity, mode: 'insensitive' },
+    OR: [...nameConditions, { recommendations: { some: { OR: summaryConditions } } }],
+  };
+}
+
 export async function searchRestaurants(
   city: string,
   terms: string,
@@ -105,38 +121,7 @@ export async function searchRestaurants(
 ): Promise<RestaurantWithRecommendations[]> {
   const normalizedCity = city.trim();
   const words = parseWords(terms);
-
-  // Build a condition that matches any of the search words in the recommendation summary
-  // or matches the restaurant name
-  let whereCondition: Prisma.RestaurantWhereInput;
-
-  if (words.length === 0) {
-    whereCondition = {
-      city: { equals: normalizedCity, mode: 'insensitive' },
-    };
-  } else {
-    const summaryConditions: Prisma.CommunityRecommendationWhereInput[] = words.map((word) => ({
-      summary: { contains: word, mode: 'insensitive' as Prisma.QueryMode },
-    }));
-
-    const nameConditions: Prisma.RestaurantWhereInput[] = words.map((word) => ({
-      name: { contains: word, mode: 'insensitive' as Prisma.QueryMode },
-    }));
-
-    whereCondition = {
-      city: { equals: normalizedCity, mode: 'insensitive' },
-      OR: [
-        ...nameConditions,
-        {
-          recommendations: {
-            some: {
-              OR: summaryConditions,
-            },
-          },
-        },
-      ],
-    };
-  }
+  const whereCondition = buildWhereCondition(normalizedCity, words);
 
   const restaurants = await prisma.restaurant.findMany({
     where: whereCondition,
@@ -169,34 +154,5 @@ export async function searchRestaurants(
 export async function countSearchResults(city: string, terms: string): Promise<number> {
   const normalizedCity = city.trim();
   const words = parseWords(terms);
-
-  if (words.length === 0) {
-    return prisma.restaurant.count({
-      where: { city: { equals: normalizedCity, mode: 'insensitive' } },
-    });
-  }
-
-  const summaryConditions: Prisma.CommunityRecommendationWhereInput[] = words.map((word) => ({
-    summary: { contains: word, mode: 'insensitive' as Prisma.QueryMode },
-  }));
-
-  const nameConditions: Prisma.RestaurantWhereInput[] = words.map((word) => ({
-    name: { contains: word, mode: 'insensitive' as Prisma.QueryMode },
-  }));
-
-  return prisma.restaurant.count({
-    where: {
-      city: { equals: normalizedCity, mode: 'insensitive' },
-      OR: [
-        ...nameConditions,
-        {
-          recommendations: {
-            some: {
-              OR: summaryConditions,
-            },
-          },
-        },
-      ],
-    },
-  });
+  return prisma.restaurant.count({ where: buildWhereCondition(normalizedCity, words) });
 }

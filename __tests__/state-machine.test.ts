@@ -6,7 +6,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   assertValidTransition,
-  isValidTransition,
   InvalidTransitionError,
   type ScrapeState,
 } from '@/lib/state-machine';
@@ -24,12 +23,10 @@ function expectReject(from: ScrapeState, to: ScrapeState) {
   expect(() => assertValidTransition(from, to)).toThrow(
     `Transition from ${from} to ${to} is not permitted.`
   );
-  expect(isValidTransition(from, to)).toBe(false);
 }
 
 function expectAllow(from: ScrapeState, to: ScrapeState) {
   expect(() => assertValidTransition(from, to)).not.toThrow();
-  expect(isValidTransition(from, to)).toBe(true);
 }
 
 // ── PENDING transitions ───────────────────────────────────────────────────────

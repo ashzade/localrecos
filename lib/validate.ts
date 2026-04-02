@@ -13,6 +13,21 @@ export class ValidationError extends Error {
   }
 }
 
+function requireString(obj: Record<string, unknown>, field: string, entity: string): void {
+  if (obj[field] === null || obj[field] === undefined) {
+    throw new ValidationError(`Field '${field}' is required on ${entity}.`);
+  }
+  if (obj[field] === '') {
+    throw new ValidationError(`Field '${field}' must not be empty.`);
+  }
+}
+
+function requirePresent(obj: Record<string, unknown>, field: string, entity: string): void {
+  if (obj[field] === null || obj[field] === undefined) {
+    throw new ValidationError(`Field '${field}' is required on ${entity}.`);
+  }
+}
+
 // ── ParsedQuery (in-memory) ──────────────────────────────────────────────────
 
 interface ParsedQuery {
@@ -22,18 +37,9 @@ interface ParsedQuery {
 }
 
 export function validateParsedQuery(obj: ParsedQuery): void {
-  if (obj.terms === null || obj.terms === undefined) {
-    throw new ValidationError("Field 'terms' is required on ParsedQuery (in-memory).");
-  }
-  if (obj.terms === '') {
-    throw new ValidationError("Field 'terms' must not be empty.");
-  }
-  if (obj.raw === null || obj.raw === undefined) {
-    throw new ValidationError("Field 'raw' is required on ParsedQuery (in-memory).");
-  }
-  if (obj.raw === '') {
-    throw new ValidationError("Field 'raw' must not be empty.");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'terms', 'ParsedQuery (in-memory)');
+  requireString(o, 'raw', 'ParsedQuery (in-memory)');
 }
 
 // ── RedditPost (in-memory) ───────────────────────────────────────────────────
@@ -52,20 +58,12 @@ interface RedditPost {
 const REDDIT_POST_STRING_FIELDS = ['id', 'title', 'selftext', 'url', 'permalink', 'subreddit'] as const;
 
 export function validateRedditPost(obj: RedditPost): void {
+  const o = obj as unknown as Record<string, unknown>;
   for (const field of REDDIT_POST_STRING_FIELDS) {
-    if (obj[field] === null || obj[field] === undefined) {
-      throw new ValidationError(`Field '${field}' is required on RedditPost (in-memory).`);
-    }
-    if (obj[field] === '') {
-      throw new ValidationError(`Field '${field}' must not be empty.`);
-    }
+    requireString(o, field, 'RedditPost (in-memory)');
   }
-  if (obj.score === null || obj.score === undefined) {
-    throw new ValidationError("Field 'score' is required on RedditPost (in-memory).");
-  }
-  if (obj.created_utc === null || obj.created_utc === undefined) {
-    throw new ValidationError("Field 'created_utc' is required on RedditPost (in-memory).");
-  }
+  requirePresent(o, 'score', 'RedditPost (in-memory)');
+  requirePresent(o, 'created_utc', 'RedditPost (in-memory)');
 }
 
 // ── ExtractedRestaurant (in-memory) ─────────────────────────────────────────
@@ -79,24 +77,10 @@ interface ExtractedRestaurant {
 }
 
 export function validateExtractedRestaurant(obj: ExtractedRestaurant): void {
-  if (obj.name === null || obj.name === undefined) {
-    throw new ValidationError("Field 'name' is required on ExtractedRestaurant (in-memory).");
-  }
-  if (obj.name === '') {
-    throw new ValidationError("Field 'name' must not be empty.");
-  }
-  if (obj.summary === null || obj.summary === undefined) {
-    throw new ValidationError("Field 'summary' is required on ExtractedRestaurant (in-memory).");
-  }
-  if (obj.summary === '') {
-    throw new ValidationError("Field 'summary' must not be empty.");
-  }
-  if (obj.source === null || obj.source === undefined) {
-    throw new ValidationError("Field 'source' is required on ExtractedRestaurant (in-memory).");
-  }
-  if (obj.source === '') {
-    throw new ValidationError("Field 'source' must not be empty.");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'name', 'ExtractedRestaurant (in-memory)');
+  requireString(o, 'summary', 'ExtractedRestaurant (in-memory)');
+  requireString(o, 'source', 'ExtractedRestaurant (in-memory)');
 }
 
 // ── PlaceDetails (in-memory) ─────────────────────────────────────────────────
@@ -113,15 +97,9 @@ interface PlaceDetails {
 }
 
 export function validatePlaceDetails(obj: PlaceDetails): void {
-  if (obj.name === null || obj.name === undefined) {
-    throw new ValidationError("Field 'name' is required on PlaceDetails (in-memory).");
-  }
-  if (obj.name === '') {
-    throw new ValidationError("Field 'name' must not be empty.");
-  }
-  if (obj.service_options === null || obj.service_options === undefined) {
-    throw new ValidationError("Field 'service_options' is required on PlaceDetails (in-memory).");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'name', 'PlaceDetails (in-memory)');
+  requirePresent(o, 'service_options', 'PlaceDetails (in-memory)');
 }
 
 // ── Restaurant (DB entity — application-layer pre-write guard) ───────────────
@@ -142,30 +120,13 @@ interface RestaurantInput {
 }
 
 export function validateRestaurantInput(obj: RestaurantInput): void {
-  if (obj.name === null || obj.name === undefined) {
-    throw new ValidationError("Field 'name' is required on Restaurant.");
-  }
-  if (obj.name === '') {
-    throw new ValidationError("Field 'name' must not be empty.");
-  }
-  if (obj.city === null || obj.city === undefined) {
-    throw new ValidationError("Field 'city' is required on Restaurant.");
-  }
-  if (obj.city === '') {
-    throw new ValidationError("Field 'city' must not be empty.");
-  }
-  if (obj.service_options === null || obj.service_options === undefined) {
-    throw new ValidationError("Field 'service_options' is required on Restaurant.");
-  }
-  if (obj.status === null || obj.status === undefined) {
-    throw new ValidationError("Field 'status' is required on Restaurant.");
-  }
-  if (obj.upvotes === null || obj.upvotes === undefined) {
-    throw new ValidationError("Field 'upvotes' is required on Restaurant.");
-  }
-  if (obj.downvotes === null || obj.downvotes === undefined) {
-    throw new ValidationError("Field 'downvotes' is required on Restaurant.");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'name', 'Restaurant');
+  requireString(o, 'city', 'Restaurant');
+  requirePresent(o, 'service_options', 'Restaurant');
+  requirePresent(o, 'status', 'Restaurant');
+  requirePresent(o, 'upvotes', 'Restaurant');
+  requirePresent(o, 'downvotes', 'Restaurant');
 }
 
 // ── CommunityRecommendation (DB entity — application-layer pre-write guard) ──
@@ -182,42 +143,15 @@ interface CommunityRecommendationInput {
 }
 
 export function validateCommunityRecommendationInput(obj: CommunityRecommendationInput): void {
-  if (obj.restaurant_id === null || obj.restaurant_id === undefined) {
-    throw new ValidationError("Field 'restaurant_id' is required on CommunityRecommendation.");
-  }
-  if (obj.restaurant_id === '') {
-    throw new ValidationError("Field 'restaurant_id' must not be empty.");
-  }
-  if (obj.source === null || obj.source === undefined) {
-    throw new ValidationError("Field 'source' is required on CommunityRecommendation.");
-  }
-  if (obj.source === '') {
-    throw new ValidationError("Field 'source' must not be empty.");
-  }
-  if (obj.post_url === null || obj.post_url === undefined) {
-    throw new ValidationError("Field 'post_url' is required on CommunityRecommendation.");
-  }
-  if (obj.post_url === '') {
-    throw new ValidationError("Field 'post_url' must not be empty.");
-  }
-  if (obj.summary === null || obj.summary === undefined) {
-    throw new ValidationError("Field 'summary' is required on CommunityRecommendation.");
-  }
-  if (obj.summary === '') {
-    throw new ValidationError("Field 'summary' must not be empty.");
-  }
-  if (obj.mention_count === null || obj.mention_count === undefined) {
-    throw new ValidationError("Field 'mention_count' is required on CommunityRecommendation.");
-  }
-  if (obj.source_upvotes === null || obj.source_upvotes === undefined) {
-    throw new ValidationError("Field 'source_upvotes' is required on CommunityRecommendation.");
-  }
-  if (obj.upvotes === null || obj.upvotes === undefined) {
-    throw new ValidationError("Field 'upvotes' is required on CommunityRecommendation.");
-  }
-  if (obj.downvotes === null || obj.downvotes === undefined) {
-    throw new ValidationError("Field 'downvotes' is required on CommunityRecommendation.");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'restaurant_id', 'CommunityRecommendation');
+  requireString(o, 'source', 'CommunityRecommendation');
+  requireString(o, 'post_url', 'CommunityRecommendation');
+  requireString(o, 'summary', 'CommunityRecommendation');
+  requirePresent(o, 'mention_count', 'CommunityRecommendation');
+  requirePresent(o, 'source_upvotes', 'CommunityRecommendation');
+  requirePresent(o, 'upvotes', 'CommunityRecommendation');
+  requirePresent(o, 'downvotes', 'CommunityRecommendation');
 }
 
 // ── RestaurantVote (DB entity — application-layer pre-write guard) ────────────
@@ -229,21 +163,10 @@ interface RestaurantVoteInput {
 }
 
 export function validateRestaurantVoteInput(obj: RestaurantVoteInput): void {
-  if (obj.restaurant_id === null || obj.restaurant_id === undefined) {
-    throw new ValidationError("Field 'restaurant_id' is required on RestaurantVote.");
-  }
-  if (obj.restaurant_id === '') {
-    throw new ValidationError("Field 'restaurant_id' must not be empty.");
-  }
-  if (obj.fingerprint === null || obj.fingerprint === undefined) {
-    throw new ValidationError("Field 'fingerprint' is required on RestaurantVote.");
-  }
-  if (obj.fingerprint === '') {
-    throw new ValidationError("Field 'fingerprint' must not be empty.");
-  }
-  if (obj.direction === null || obj.direction === undefined) {
-    throw new ValidationError("Field 'direction' is required on RestaurantVote.");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'restaurant_id', 'RestaurantVote');
+  requireString(o, 'fingerprint', 'RestaurantVote');
+  requirePresent(o, 'direction', 'RestaurantVote');
 }
 
 // ── Vote (DB entity — application-layer pre-write guard) ─────────────────────
@@ -255,19 +178,8 @@ interface VoteInput {
 }
 
 export function validateVoteInput(obj: VoteInput): void {
-  if (obj.recommendation_id === null || obj.recommendation_id === undefined) {
-    throw new ValidationError("Field 'recommendation_id' is required on Vote.");
-  }
-  if (obj.recommendation_id === '') {
-    throw new ValidationError("Field 'recommendation_id' must not be empty.");
-  }
-  if (obj.fingerprint === null || obj.fingerprint === undefined) {
-    throw new ValidationError("Field 'fingerprint' is required on Vote.");
-  }
-  if (obj.fingerprint === '') {
-    throw new ValidationError("Field 'fingerprint' must not be empty.");
-  }
-  if (obj.direction === null || obj.direction === undefined) {
-    throw new ValidationError("Field 'direction' is required on Vote.");
-  }
+  const o = obj as unknown as Record<string, unknown>;
+  requireString(o, 'recommendation_id', 'Vote');
+  requireString(o, 'fingerprint', 'Vote');
+  requirePresent(o, 'direction', 'Vote');
 }

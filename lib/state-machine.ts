@@ -43,17 +43,11 @@ export function assertValidTransition(from: ScrapeState, to: ScrapeState): void 
   }
 }
 
-/**
- * Check whether a state transition is valid without throwing.
- */
-export function isValidTransition(from: ScrapeState, to: ScrapeState): boolean {
+function isValidTransition(from: ScrapeState, to: ScrapeState): boolean {
   const allowed = VALID_TRANSITIONS[from] ?? [];
   return allowed.includes(to);
 }
 
-/**
- * Return all valid next states from a given state.
- */
-export function validNextStates(from: ScrapeState): ScrapeState[] {
+function validNextStates(from: ScrapeState): ScrapeState[] {
   return VALID_TRANSITIONS[from] ?? [];
 }

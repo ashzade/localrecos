@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import RestaurantCard from './RestaurantCard';
-import { groupRestaurantsByName, type GroupableRestaurant, type RestaurantGroup } from '@/lib/restaurant-grouping';
+import type { RestaurantGroup } from '@/lib/restaurant-grouping';
 
 const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
 const BATCH = 30; // fetch enough raw rows to produce ~10 grouped results
@@ -25,25 +25,27 @@ export default function LoadMoreButton({ city, terms, sort, initialOffset, shown
   async function loadMore() {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ city, terms, offset: String(offset), limit: String(BATCH) });
+      const params = new URLSearchParams({
+        city, terms,
+        offset: String(offset),
+        limit: String(BATCH),
+        seenNames: [...seenNames].join(','),
+      });
       const res = await fetch(`/api/search-more?${params}`);
       const data = await res.json();
 
-      const newGroups = groupRestaurantsByName(data.results as GroupableRestaurant[], seenNames);
+      const newGroups: RestaurantGroup[] = data.results ?? [];
       const sorted = sort === 'price'
         ? [...newGroups].sort((a, b) => (PRICE_ORDER[a.price_range ?? ''] ?? 99) - (PRICE_ORDER[b.price_range ?? ''] ?? 99))
         : newGroups;
 
-      const shownIds = new Set(newGroups.flatMap((g) => g.locations.map((l) => l.id)));
       const newSeen = new Set(seenNames);
-      for (const r of (data.results as GroupableRestaurant[])) {
-        if (shownIds.has(r.id)) newSeen.add(r.name.toLowerCase().trim());
-      }
+      for (const g of newGroups) newSeen.add(g.name.toLowerCase().trim());
 
       setGroups((prev) => [...prev, ...sorted]);
       setSeenNames(newSeen);
-      setOffset(offset + data.results.length);
-      setHasMore(data.hasMore && data.results.length > 0);
+      setOffset(data.nextOffset ?? offset + BATCH);
+      setHasMore(data.hasMore && newGroups.length > 0);
     } catch {
       // Network or parse failure — leave existing results and hasMore intact
       setHasMore(false);

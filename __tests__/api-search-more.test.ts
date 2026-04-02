@@ -14,7 +14,22 @@ import { searchRestaurants } from '@/lib/search';
 
 const mockSearchRestaurants = vi.mocked(searchRestaurants);
 
-const fakeRestaurant = (n: number) => ({ id: `r${n}`, name: `Restaurant ${n}`, city: 'Ottawa' });
+const fakeRestaurant = (n: number) => ({
+  id: `r${n}`,
+  name: `Restaurant ${n}`,
+  city: 'Ottawa',
+  address: null,
+  phone: null,
+  website: null,
+  hours: null,
+  price_range: null,
+  photo_url: null,
+  status: 'UNREVIEWED',
+  upvotes: 0,
+  downvotes: 0,
+  total_net_votes: 0,
+  recommendations: [],
+});
 
 function makeRequest(params: Record<string, string>): NextRequest {
   const qs = new URLSearchParams(params).toString();
@@ -48,14 +63,16 @@ describe('GET /api/search-more', () => {
   });
 
   it('returns hasMore: true and trims to limit when extra result exists', async () => {
-    // default limit is 10; return 11 items → hasMore true
+    // default limit is 10; return 11 items → hasMore true, results grouped to 10
     const items = Array.from({ length: 11 }, (_, i) => fakeRestaurant(i));
     mockSearchRestaurants.mockResolvedValue(items as never);
     const res = await GET(makeRequest({ city: 'Ottawa' }));
     expect(res.status).toBe(200);
     const body = await res.json();
+    // 10 unique names → 10 groups
     expect(body.results).toHaveLength(10);
     expect(body.hasMore).toBe(true);
+    expect(typeof body.nextOffset).toBe('number');
   });
 
   it('passes terms, offset, and limit to searchRestaurants', async () => {

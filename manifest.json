@@ -1228,7 +1228,7 @@
       "scope": [],
       "type": "Validation",
       "entity": "RedditPost",
-      "condition": "entity.post_id != '' AND entity.title != ''",
+      "condition": "entity.id != '' AND entity.title != ''",
       "message": "Reddit post is missing required fields; cannot extract restaurants."
     },
     "RULE_03": {
@@ -1240,8 +1240,8 @@
       ],
       "type": "Validation",
       "entity": "ExtractedRestaurant",
-      "condition": "entity.name != '' AND entity.city != ''",
-      "message": "Extracted restaurant must have a name and city to proceed with enrichment."
+      "condition": "entity.name != ''",
+      "message": "Extracted restaurant must have a name to proceed with enrichment."
     },
     "RULE_05": {
       "id": "RULE_05",
@@ -1276,8 +1276,8 @@
         "scrape"
       ],
       "type": "Business",
-      "entity": "ExtractedRestaurant",
-      "condition": "entity.google_places_primary_type != '' AND entity.name != ''",
+      "entity": "PlaceDetails",
+      "condition": "entity.name != ''",
       "message": "Google Places returned a non-food venue for this name; skipping."
     }
   }

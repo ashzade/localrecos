@@ -308,7 +308,7 @@ Message: Query text and city are required to begin restaurant search.
 
 Type: Validation
 Entity: RedditPost
-Condition: entity.post_id != '' AND entity.title != ''
+Condition: entity.id != '' AND entity.title != ''
 Message: Reddit post is missing required fields; cannot extract restaurants.
 
 #### RULE_03: Extracted Restaurant Must Have a Name
@@ -319,8 +319,8 @@ Scope: scrape
 
 Type: Validation
 Entity: ExtractedRestaurant
-Condition: entity.name != '' AND entity.city != ''
-Message: Extracted restaurant must have a name and city to proceed with enrichment.
+Condition: entity.name != ''
+Message: Extracted restaurant must have a name to proceed with enrichment.
 
 ### Business Rules
 
@@ -352,6 +352,6 @@ Message: No city provided and DEFAULT_CITY environment variable is not set; cann
 Scope: scrape
 
 Type: Business
-Entity: ExtractedRestaurant
-Condition: entity.google_places_primary_type != '' AND entity.name != ''
+Entity: PlaceDetails
+Condition: entity.name != ''
 Message: Google Places returned a non-food venue for this name; skipping.

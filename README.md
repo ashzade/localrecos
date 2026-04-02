@@ -18,7 +18,7 @@ Accepts natural-language queries, searches real Reddit community discussions usi
 
 - **Query Must Be Non-Empty** _(HIGH)_ — Query text and city are required to begin restaurant search.
 - **Reddit Posts Must Be Present Before Extraction** _(MEDIUM)_ — Reddit post is missing required fields; cannot extract restaurants.
-- **Extracted Restaurant Must Have a Name** _(MEDIUM)_ — Extracted restaurant must have a name and city to proceed with enrichment.
+- **Extracted Restaurant Must Have a Name** _(MEDIUM)_ — Extracted restaurant must have a name to proceed with enrichment.
 
 ## Diagrams
 
@@ -39,10 +39,10 @@ LLM-powered natural language …"]
     Ingest[/"📄 Document
 query received, scrape not ye…"/]
     subgraph Knowledge["🗂️ Structured Knowledge"]
-        ParsedQuery (in-memory)[("Parsed Query (in-memory)")]
-        RedditPost (in-memory)[("Reddit Post (in-memory)")]
-        ExtractedRestaurant (in-memory)[("Extracted Restaurant (in-memory)")]
-        PlaceDetails (in-memory)[("Place Details (in-memory)")]
+        ParsedQueryInMemory[("Parsed Query (in-memory)")]
+        RedditPostInMemory[("Reddit Post (in-memory)")]
+        ExtractedRestaurantInMemory[("Extracted Restaurant (in-memory)")]
+        PlaceDetailsInMemory[("Place Details (in-memory)")]
         Restaurant[("Restaurant")]
         CommunityRecommendation[("Community Recommendation")]
         RestaurantVote[("Restaurant Vote")]
@@ -51,10 +51,10 @@ query received, scrape not ye…"/]
     RedditAPI --> Ingest
     GooglePlacesAPI --> Ingest
     OpenRouterAPI --> Ingest
-    Ingest --> ParsedQuery (in-memory)
-    Ingest --> RedditPost (in-memory)
-    Ingest --> ExtractedRestaurant (in-memory)
-    Ingest --> PlaceDetails (in-memory)
+    Ingest --> ParsedQueryInMemory
+    Ingest --> RedditPostInMemory
+    Ingest --> ExtractedRestaurantInMemory
+    Ingest --> PlaceDetailsInMemory
     Ingest --> Restaurant
     Ingest --> CommunityRecommendation
     Ingest --> RestaurantVote
@@ -68,7 +68,8 @@ States a parsed query (in-memory) moves through from creation to completion.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> COMPLETE
+    [*] --> PENDING
+    COMPLETE --> [*]
     PENDING --> PARSING: query submitted by user
     PARSING --> FETCHING: city and terms extracted from query
     FETCHING --> EXTRACTING: Reddit posts retrieved and food-filte…

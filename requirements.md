@@ -352,6 +352,6 @@ Message: No city provided and DEFAULT_CITY environment variable is not set; cann
 Scope: scrape
 
 Type: Business
-Entity: PlaceDetails
+Entity: ExtractedRestaurant
 Condition: entity.name != ''
 Message: Google Places returned a non-food venue for this name; skipping.

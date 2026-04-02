@@ -1276,7 +1276,7 @@
         "scrape"
       ],
       "type": "Business",
-      "entity": "PlaceDetails",
+      "entity": "ExtractedRestaurant",
       "condition": "entity.name != ''",
       "message": "Google Places returned a non-food venue for this name; skipping."
     }

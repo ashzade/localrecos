@@ -1,4 +1,4 @@
-# localrecos — Find great local restaurants recommended by real people in your community
+# Local Reocs — Find great local restaurants recommended by real people in your community
 
 Tired of generic "top 10" lists that feel like ads? localrecos finds restaurants that actual people are talking about and recommending in online communities. Type in what you're looking for — like "cozy ramen spots in Austin" — and get back real suggestions backed by community discussion, complete with addresses, hours, and photos.
 

@@ -1,0 +1,1146 @@
+{
+  "command": "show",
+  "query": "review",
+  "status_filter": "open",
+  "total": 37,
+  "summary": {
+    "by_tier": {
+      "T1": 8,
+      "T2": 29
+    },
+    "by_detector": {
+      "review": 37
+    },
+    "files": 1
+  },
+  "by_file": {
+    ".": [
+      {
+        "id": "review::.::holistic::contract_coherence::validate_interfaces_weaker_than_runtime",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "lib/validate.ts interfaces declare all fields as optional but validators throw if fields are absent \u2014 TypeScript type is weaker than the runtime contract",
+        "detail": {
+          "holistic": true,
+          "dimension": "contract_coherence",
+          "related_files": [
+            "lib/validate.ts"
+          ],
+          "evidence": [
+            "interface RestaurantInput { name?: string | null; city?: string | null; ... } \u2014 all fields optional",
+            "validateRestaurantInput calls requireString(o, 'name', 'Restaurant') which throws if name is null/undefined/empty",
+            "Caller can pass {} without TypeScript error, but runtime throws ValidationError",
+            "Same pattern across all 8 validator functions and their interfaces"
+          ],
+          "suggestion": "For fields that validateX enforces as required, remove the '?' optional marker and remove '| null' where null is invalid. Fields that are genuinely optional in the domain should remain optional. This aligns the TypeScript type with the runtime enforcement.",
+          "reasoning": "",
+          "summary_hash": "1d19d094"
+        }
+      },
+      {
+        "id": "review::.::holistic::design_coherence::restaurant_card_duplicated_maps_url",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "components/RestaurantCard.tsx constructs the same Google Maps URL template string twice within the file",
+        "detail": {
+          "holistic": true,
+          "dimension": "design_coherence",
+          "related_files": [
+            "components/RestaurantCard.tsx"
+          ],
+          "evidence": [
+            "Line 73-75: mapsUrl computed from primaryLocation.address using Google Maps search URL template",
+            "Line 137: locMapsUrl computed from loc.address using the same Google Maps search URL template",
+            "The string 'https://www.google.com/maps/search/?api=1&query=' appears twice with only the address argument differing"
+          ],
+          "suggestion": "Extract a buildMapsUrl(address: string): string helper at module level and call it in both places. Single-file extraction, no new shared module needed.",
+          "reasoning": "",
+          "summary_hash": "d13fc42a"
+        }
+      },
+      {
+        "id": "review::.::holistic::design_coherence::state_machine_dead_private_functions",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "lib/state-machine.ts defines isValidTransition and validNextStates as private functions with no callers",
+        "detail": {
+          "holistic": true,
+          "dimension": "design_coherence",
+          "related_files": [
+            "lib/state-machine.ts"
+          ],
+          "evidence": [
+            "Line 46: function isValidTransition(from: ScrapeState, to: ScrapeState): boolean \u2014 not exported, no callers in codebase",
+            "Line 51: function validNextStates(from: ScrapeState): ScrapeState[] \u2014 not exported, no callers in codebase",
+            "assertValidTransition (line 39) is the only exported function and the only one used in production"
+          ],
+          "suggestion": "Delete isValidTransition and validNextStates. They are not referenced anywhere and add dead weight to the file. Re-add with export if they become needed.",
+          "reasoning": "",
+          "summary_hash": "4810f92f"
+        }
+      },
+      {
+        "id": "review::.::holistic::initialization_coupling::reddit_module_scope_env_reads",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "lib/reddit.ts reads OAuth credentials from process.env at module scope, making them stale if env vars are set after import",
+        "detail": {
+          "holistic": true,
+          "dimension": "initialization_coupling",
+          "related_files": [
+            "lib/reddit.ts"
+          ],
+          "evidence": [
+            "Line 54: const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0'",
+            "Line 55: const CLIENT_ID = process.env.REDDIT_CLIENT_ID",
+            "Line 56: const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET",
+            "Tests that set process.env.REDDIT_CLIENT_ID after require/import will see undefined in CLIENT_ID"
+          ],
+          "suggestion": "Move CLIENT_ID, CLIENT_SECRET reads inside getAccessToken() so they reflect the current env at call time. USER_AGENT can stay as a module constant since it has a safe default.",
+          "reasoning": "",
+          "summary_hash": "9b0152dd"
+        }
+      },
+      {
+        "id": "review::.::holistic::logic_clarity::count_search_results_redundant_async",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "lib/search.ts countSearchResults is declared async but never uses await \u2014 the async keyword is redundant",
+        "detail": {
+          "holistic": true,
+          "dimension": "logic_clarity",
+          "related_files": [
+            "lib/search.ts"
+          ],
+          "evidence": [
+            "Line 154: export async function countSearchResults(city: string, terms: string): Promise<number>",
+            "Line 157: return prisma.restaurant.count({ where: buildWhereCondition(normalizedCity, words) }) \u2014 returns Promise directly without await",
+            "The async keyword adds an implicit promise wrapper around an already-promise-returning expression"
+          ],
+          "suggestion": "Remove the async keyword: 'export function countSearchResults(city: string, terms: string): Promise<number>'. This makes the intent explicit \u2014 the function returns a Promise from Prisma directly.",
+          "reasoning": "",
+          "summary_hash": "83e76587"
+        }
+      },
+      {
+        "id": "review::.::holistic::logic_clarity::fetch_with_fallback_dead_state_param",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "fetchWithFallback in app/api/scrape/route.ts receives a 'state' parameter that is never read and returns a stale value",
+        "detail": {
+          "holistic": true,
+          "dimension": "logic_clarity",
+          "related_files": [
+            "app/api/scrape/route.ts"
+          ],
+          "evidence": [
+            "Line 22: async function fetchWithFallback(city, query, state: ScrapeState, advance) \u2014 state parameter declared",
+            "Inside the function, 'state' is never read \u2014 all state transitions go through advance() callback which closes over the outer state variable in POST scope",
+            "Line 46: return { results, state, empty: false, terms } \u2014 returns the parameter value unchanged, which is always 'PENDING' because it was captured by value at call time",
+            "The advance() callbacks inside the function mutate the outer scope's state, not this parameter"
+          ],
+          "suggestion": "Remove the state parameter from fetchWithFallback. Remove 'state' from its return type. The caller already owns the authoritative state variable via the advance closure.",
+          "reasoning": "",
+          "summary_hash": "65a764d3"
+        }
+      },
+      {
+        "id": "review::.::holistic::type_safety::restaurant_status_type_divergence",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "RestaurantWithRecommendations.status typed as RestaurantStatus enum but GroupableRestaurant.status typed as string \u2014 double cast required at every boundary",
+        "detail": {
+          "holistic": true,
+          "dimension": "type_safety",
+          "related_files": [
+            "lib/search.ts",
+            "app/api/search-more/route.ts",
+            "lib/restaurant-grouping.ts"
+          ],
+          "evidence": [
+            "lib/search.ts line 39: status: RestaurantStatus in RestaurantWithRecommendations",
+            "lib/restaurant-grouping.ts line 46: status: string in GroupableRestaurant",
+            "lib/search.ts line 61: restaurants as unknown as GroupableRestaurant[] \u2014 double cast to cross the type boundary",
+            "app/api/search-more/route.ts line 25: page as unknown as GroupableRestaurant[] \u2014 same double cast",
+            "Both casts will silently break if the enum-to-string mismatch ever causes runtime shape differences"
+          ],
+          "suggestion": "Change GroupableRestaurant.status from string to RestaurantStatus (importing the enum from @prisma/client). The grouping module has no server-only imports per its file comment and can safely import from @prisma/client. Alternatively change RestaurantWithRecommendations.status to string if the domain logic never needs to discriminate by enum value. Either eliminates both double casts.",
+          "reasoning": "",
+          "summary_hash": "49efb7ca"
+        }
+      },
+      {
+        "id": "review::.::holistic::type_safety::validate_interfaces_optionality_mismatch",
+        "tier": 1,
+        "confidence": "high",
+        "summary": "lib/validate.ts validator input interfaces declare required fields as optional, undermining TypeScript enforcement on pre-write guards",
+        "detail": {
+          "holistic": true,
+          "dimension": "type_safety",
+          "related_files": [
+            "lib/validate.ts",
+            "app/api/scrape/route.ts",
+            "app/api/vote/route.ts",
+            "app/api/restaurant-vote/route.ts"
+          ],
+          "evidence": [
+            "interface RestaurantInput { name?: string | null; city?: string | null; status?: string | null; upvotes?: number | null; downvotes?: number | null; ... } \u2014 all optional",
+            "validateRestaurantInput enforces name, city, status, upvotes, downvotes as required via requireString/requirePresent \u2014 but TypeScript does not enforce this",
+            "A caller can pass validateRestaurantInput({}) and TypeScript will compile without error, only failing at runtime",
+            "Same mismatch in 7 other interfaces: ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails, CommunityRecommendationInput, RestaurantVoteInput, VoteInput"
+          ],
+          "suggestion": "For fields that validateX enforces as required, remove the '?' optional marker and remove '| null' from the type where null is not a valid value. Fields that are genuinely optional in the data model should remain optional.",
+          "reasoning": "",
+          "summary_hash": "62cddb7d"
+        }
+      },
+      {
+        "id": "review::.::holistic::abstraction_fitness::search_groupby_unsafe_cast",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/search.ts groupRestaurantsByName uses 'as unknown as GroupableRestaurant[]' to paper over a structural type mismatch; same cast in api/search-more/route.ts",
+        "detail": {
+          "holistic": true,
+          "dimension": "abstraction_fitness",
+          "related_files": [
+            "lib/search.ts",
+            "app/api/search-more/route.ts",
+            "lib/restaurant-grouping.ts"
+          ],
+          "evidence": [
+            "lib/search.ts line 61: 'return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[])' \u2014 RestaurantWithRecommendations.recommendations contains restaurant_id; GroupableRecommendation does not",
+            "app/api/search-more/route.ts line 25: 'groupRestaurantsByName(page as unknown as GroupableRestaurant[], excludeNames)' \u2014 same structural mismatch at the call site in the route handler",
+            "The wrapper function in lib/search.ts adds zero behavior \u2014 its sole purpose is to accept RestaurantWithRecommendations[] at the type level while casting to GroupableRestaurant[] at runtime"
+          ],
+          "suggestion": "Align the two interfaces: either add restaurant_id to GroupableRecommendation, or produce an explicit mapping function that translates RestaurantWithRecommendations to GroupableRestaurant. Removing the unsafe cast makes the type boundary explicit and eliminates the need for the wrapper function.",
+          "reasoning": "",
+          "summary_hash": "343eb5d6"
+        }
+      },
+      {
+        "id": "review::.::holistic::abstraction_fitness::state_machine_dead_private_functions",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/state-machine.ts defines isValidTransition and validNextStates as private, dead functions with no callers",
+        "detail": {
+          "holistic": true,
+          "dimension": "abstraction_fitness",
+          "related_files": [
+            "lib/state-machine.ts"
+          ],
+          "evidence": [
+            "lib/state-machine.ts lines 46-48: 'function isValidTransition(from: ScrapeState, to: ScrapeState): boolean' \u2014 no export keyword, no callers in any file",
+            "lib/state-machine.ts lines 51-53: 'function validNextStates(from: ScrapeState): ScrapeState[]' \u2014 same situation",
+            "assertValidTransition (line 39, exported, used in scrape/route.ts) already covers production needs; the two dead functions duplicate its VALID_TRANSITIONS lookup with no additional callers"
+          ],
+          "suggestion": "Delete isValidTransition and validNextStates. If future callers need a predicate form, they can be re-added then. Tests for assertValidTransition can directly verify throw behavior without needing the predicate form.",
+          "reasoning": "",
+          "summary_hash": "7d461a58"
+        }
+      },
+      {
+        "id": "review::.::holistic::ai_generated_debt::lib_validate_ts_repeats_identical_null_u",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/validate.ts repeats identical null/undefined + empty-string check pairs ~20 times with a loop/manual inconsistency",
+        "detail": {
+          "holistic": true,
+          "dimension": "ai_generated_debt",
+          "related_files": [
+            "lib/validate.ts"
+          ],
+          "evidence": [
+            "9 validator functions each call requireString/requirePresent manually per field, repeating the same two-line pattern approximately 20 times across the file. The exception is validateRedditPost, which uses a REDDIT_POST_STRING_FIELDS constant array and a for-loop for its string fields (lines 58-66). The loop-vs-manual inconsistency within the same file is characteristic of LLM-generated code mixing two generation passes. The redundancy inflates the file and makes adding or modifying validators error-prone."
+          ],
+          "suggestion": "See summary for recommended fix.",
+          "reasoning": "",
+          "summary_hash": "e64fede2"
+        }
+      },
+      {
+        "id": "review::.::holistic::ai_generated_debt::validateextractedrestaurant_is_called_in",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "validateExtractedRestaurant is called in lib/reddit.ts inside silent try-catch blocks that void the validation contract",
+        "detail": {
+          "holistic": true,
+          "dimension": "ai_generated_debt",
+          "related_files": [
+            "lib/reddit.ts"
+          ],
+          "evidence": [
+            "Lines 320-324 and 341-345 both call validateExtractedRestaurant(extracted) inside try-catch blocks that catch all errors and emit console.warn with the identical message 'Extracted restaurant must have a name and city to proceed with enrichment.' The warn message is also stale \u2014 the validator checks name, summary, and source (not city). Since the catch block never rethrows and processing continues regardless, the validate call provides no protection. Both occurrences are copy-pasted boilerplate that undermines the validation contract established in lib/validate.ts."
+          ],
+          "suggestion": "See summary for recommended fix.",
+          "reasoning": "",
+          "summary_hash": "1c600387"
+        }
+      },
+      {
+        "id": "review::.::holistic::api_surface_coherence::get_api_search_and_get_api_search_more",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "GET /api/search and GET /api/search-more return structurally incompatible response envelopes for the same resource type",
+        "detail": {
+          "holistic": true,
+          "dimension": "api_surface_coherence",
+          "related_files": [
+            "app/api/search-more/route.ts"
+          ],
+          "evidence": [
+            "GET /api/search returns { city, terms, results: RestaurantGroup[], count: number }. GET /api/search-more returns { results: RestaurantGroup[], hasMore: boolean, nextOffset: number }. Both serve the same resource (grouped restaurants) but use different envelope keys. The /search endpoint echoes city and terms; /search-more does not. The pagination-specific keys (hasMore, nextOffset) in /search-more vs count in /search mean callers must implement different logic to determine result completeness. Note: the previous issue about /search-more returning ungrouped data appears resolved \u2014 grouping now happens server-side."
+          ],
+          "suggestion": "See summary for recommended fix.",
+          "reasoning": "",
+          "summary_hash": "a06ae2aa"
+        }
+      },
+      {
+        "id": "review::.::holistic::api_surface_coherence::lib_geo_ts_lib_search_ts_and_lib_reddi",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/geo.ts, lib/search.ts, and lib/reddit.ts mix sync and async exports in their public API surfaces",
+        "detail": {
+          "holistic": true,
+          "dimension": "api_surface_coherence",
+          "related_files": [
+            "lib/geo.ts"
+          ],
+          "evidence": [
+            "lib/geo.ts exports detectCityFromIp (async) alongside extractIp (sync). lib/search.ts exports parseQuery, searchRestaurants, countSearchResults, findRestaurantGroup (all async) alongside groupRestaurantsByName (sync). lib/reddit.ts exports scrapeRedditForRestaurants and fetchCommunityPicksForRestaurant (async) alongside isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName, and extractRestaurantName (all sync). The sync helpers are pure domain utilities co-located for proximity, but the mixed API surface means a caller sees siblings with different execution models without any convention to distinguish them."
+          ],
+          "suggestion": "See summary for recommended fix.",
+          "reasoning": "",
+          "summary_hash": "38faeb17"
+        }
+      },
+      {
+        "id": "review::.::holistic::authorization_consistency::internal_api_token_check_on_api_scrape",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "INTERNAL_API_TOKEN check on /api/scrape is conditional \u2014 endpoint is fully open when env var is unset",
+        "detail": {
+          "holistic": true,
+          "dimension": "authorization_consistency",
+          "related_files": [
+            "app/api/scrape/route.ts"
+          ],
+          "evidence": [
+            "Lines 144-148: `const internalToken = process.env.INTERNAL_API_TOKEN; if (internalToken) { if (request.headers.get('x-internal-token') !== internalToken) { return 403 } }`. When INTERNAL_API_TOKEN is absent from the environment, the outer `if (internalToken)` evaluates to false and the entire auth check is skipped. Any caller can POST to /api/scrape, triggering Reddit API calls, Google Places API calls, and DB writes without restriction. There is no fallback rejection when the env var is absent. The comment 'Omitting INTERNAL_API_TOKEN is only safe in local dev' is correct but does not enforce the constraint."
+          ],
+          "suggestion": "See summary for recommended fix.",
+          "reasoning": "",
+          "summary_hash": "e95e1ae2"
+        }
+      },
+      {
+        "id": "review::.::holistic::contract_coherence::validate_direction_redundant_call",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "Vote routes call validateVoteInput after already enforcing direction values \u2014 validation is redundant after explicit guard",
+        "detail": {
+          "holistic": true,
+          "dimension": "contract_coherence",
+          "related_files": [
+            "app/api/vote/route.ts",
+            "app/api/restaurant-vote/route.ts"
+          ],
+          "evidence": [
+            "app/api/vote/route.ts line 27: if (direction !== 'up' && direction !== 'down') return 400",
+            "app/api/vote/route.ts line 58: validateVoteInput({ recommendation_id, fingerprint, direction }) \u2014 direction already guaranteed to be 'up'|'down' at this point",
+            "requirePresent(o, 'direction') in validateVoteInput will never throw because direction is already validated"
+          ],
+          "suggestion": "Either remove the explicit guard and let validateVoteInput enforce it, or remove the validateVoteInput call and rely on the explicit guard. The explicit guard produces a cleaner error message and is the preferred approach.",
+          "reasoning": "",
+          "summary_hash": "1e09af6d"
+        }
+      },
+      {
+        "id": "review::.::holistic::convention_outlier::price_order_constant_defined_identically",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "PRICE_ORDER constant defined identically in two sibling consumer files",
+        "detail": {
+          "holistic": true,
+          "dimension": "convention_outlier",
+          "related_files": [
+            "app/search/page.tsx",
+            "components/LoadMoreButton.tsx"
+          ],
+          "evidence": [
+            "const PRICE_ORDER: Record<string, number> = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 } is defined verbatim at app/search/page.tsx line 11 and components/LoadMoreButton.tsx line 7. Both files use it for sorting by price_range. Adding a tier or changing ordering requires two edits."
+          ],
+          "suggestion": "Define PRICE_ORDER once in lib/restaurant-grouping.ts alongside the price_range field on RestaurantGroup, and import it in both consumer files.",
+          "reasoning": "",
+          "summary_hash": "425128f7"
+        }
+      },
+      {
+        "id": "review::.::holistic::convention_outlier::status_badge_display_map_uses_different",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "Status badge display map uses different names and shapes across consumer files",
+        "detail": {
+          "holistic": true,
+          "dimension": "convention_outlier",
+          "related_files": [
+            "lib/restaurant-grouping.ts",
+            "app/restaurant/[id]/page.tsx"
+          ],
+          "evidence": [
+            "The mapping from restaurant status code to display label+style is named RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts and STATUS_INFO in app/restaurant/[id]/page.tsx (which adds a description field). These are two separate definitions of the same domain concept with divergent names. Navigating from a status badge in the UI to its source requires checking multiple files."
+          ],
+          "suggestion": "Consolidate into a single constant with a canonical name (e.g. RESTAURANT_STATUS_DISPLAY) in lib/restaurant-grouping.ts, with the description field included, imported by all consumers.",
+          "reasoning": "",
+          "summary_hash": "6a61cb67"
+        }
+      },
+      {
+        "id": "review::.::holistic::cross_module_architecture::ip_extraction_logic_duplicated_between_l",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "IP extraction logic duplicated between lib/fingerprint.ts and lib/geo.ts",
+        "detail": {
+          "holistic": true,
+          "dimension": "cross_module_architecture",
+          "related_files": [
+            "lib/fingerprint.ts",
+            "lib/geo.ts"
+          ],
+          "evidence": [
+            "lib/fingerprint.ts lines 10-13 read x-forwarded-for and x-real-ip headers inline, implementing identical logic to lib/geo.ts's exported extractIp(). computeFingerprint() does not call extractIp(). Changes to header fallback order must be made in two files."
+          ],
+          "suggestion": "Have computeFingerprint import and call extractIp from lib/geo.ts, or move extractIp to a shared lib/http.ts that both can import.",
+          "reasoning": "",
+          "summary_hash": "c1947da3"
+        }
+      },
+      {
+        "id": "review::.::holistic::cross_module_architecture::lib_search_ts_re_exports_lib_restaurant",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/search.ts re-exports lib/restaurant-grouping.ts types and wraps its function, obscuring the true boundary",
+        "detail": {
+          "holistic": true,
+          "dimension": "cross_module_architecture",
+          "related_files": [
+            "lib/search.ts",
+            "lib/restaurant-grouping.ts"
+          ],
+          "evidence": [
+            "lib/search.ts line 6 re-exports RestaurantLocation and RestaurantGroup from lib/restaurant-grouping.ts. Lines 60-62 define groupRestaurantsByName as a pass-through that casts 'as unknown as GroupableRestaurant[]'. Callers importing from lib/search do not know they are reaching into restaurant-grouping logic, and the cast papers over a real type mismatch."
+          ],
+          "suggestion": "Remove the wrapper from lib/search.ts. Callers needing groupRestaurantsByName should import directly from lib/restaurant-grouping.ts. Fix the underlying type mismatch (RestaurantWithRecommendations vs GroupableRestaurant) structurally rather than with a cast.",
+          "reasoning": "",
+          "summary_hash": "789c5f50"
+        }
+      },
+      {
+        "id": "review::.::holistic::cross_module_architecture::parsequery_called_twice_per_scrape_trigg",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "parseQuery called twice per scrape-triggering search \u2014 potential duplicate LLM calls",
+        "detail": {
+          "holistic": true,
+          "dimension": "cross_module_architecture",
+          "related_files": [
+            "app/api/scrape/route.ts",
+            "app/api/search/route.ts",
+            "components/SearchPoller.tsx"
+          ],
+          "evidence": [
+            "app/api/search/route.ts calls parseQuery (line 29) then may trigger /api/scrape. app/api/scrape/route.ts calls parseQuery again inside fetchWithFallback (line 24). Additionally SearchPoller fires its own POST to /api/scrape independently on mount, producing a third parseQuery call for a low-results query. Each call may hit the OpenRouter LLM."
+          ],
+          "suggestion": "Pass the pre-parsed query terms to /api/scrape in the request body, or cache the parsed result. Eliminate the dual-trigger pattern so scrape is invoked once per user query.",
+          "reasoning": "",
+          "summary_hash": "48945779"
+        }
+      },
+      {
+        "id": "review::.::holistic::error_consistency::getredditrecommendations_returns_on_a",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "getRedditRecommendations returns [] on API failure, making network errors indistinguishable from genuine no-results",
+        "detail": {
+          "holistic": true,
+          "dimension": "error_consistency",
+          "related_files": [
+            "lib/openrouter.ts",
+            "app/api/scrape/route.ts"
+          ],
+          "evidence": [
+            "lib/openrouter.ts getRedditRecommendations returns [] on: missing API key (line 79), non-OK HTTP response (line 113-115), parse exception (line 135-138), and malformed response shape (line 127). The caller in app/api/scrape/route.ts checks llmRecs.length === 0 to decide if the fallback found nothing, then advances the state machine to FAILED. A transient API outage produces the same FAILED outcome as a genuine no-results response."
+          ],
+          "suggestion": "Return a discriminated result from getRedditRecommendations (e.g. { ok: true, results } | { ok: false, error }) or throw on API failure. The caller can then distinguish error paths from genuine empty results.",
+          "reasoning": "",
+          "summary_hash": "5be06e3f"
+        }
+      },
+      {
+        "id": "review::.::holistic::error_consistency::loadmorebutton_loadmore_sets_hasmore_f",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "LoadMoreButton loadMore() sets hasMore=false on any error, preventing future loads after transient failures",
+        "detail": {
+          "holistic": true,
+          "dimension": "error_consistency",
+          "related_files": [
+            "components/LoadMoreButton.tsx"
+          ],
+          "evidence": [
+            "components/LoadMoreButton.tsx catch block (line 49-52) catches all errors and calls setHasMore(false). A transient network failure permanently disables the Load More button for the session. The offset is not incremented either, so the next click (if hasMore were preserved) would retry with the same offset."
+          ],
+          "suggestion": "On network or parse failure, preserve hasMore=true and show a retry affordance or error message rather than silently disabling further loading.",
+          "reasoning": "",
+          "summary_hash": "ea86e257"
+        }
+      },
+      {
+        "id": "review::.::holistic::error_consistency::validateredditpost_and_validateextracted",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "validateRedditPost and validateExtractedRestaurant throw ValidationError but callers silently catch and continue, undermining the validation contract",
+        "detail": {
+          "holistic": true,
+          "dimension": "error_consistency",
+          "related_files": [
+            "lib/reddit.ts",
+            "lib/validate.ts"
+          ],
+          "evidence": [
+            "lib/reddit.ts fetchSubredditPosts (lines 136-140) and scrapeRedditForRestaurants (lines 320-324) both catch ValidationError thrown by validators and log a console.warn, then continue. The validator is designed as a hard guard (throws on invalid data) but the catch silently degrades it to an optional filter. Any data that fails validation is silently dropped rather than surfacing the problem."
+          ],
+          "suggestion": "If the intent is to filter invalid items without halting, use a guard predicate instead of a throwing validator. If the intent is to enforce correctness, propagate the error. The current mixed pattern (throw + silent catch) is misleading.",
+          "reasoning": "",
+          "summary_hash": "8c9fcf9e"
+        }
+      },
+      {
+        "id": "review::.::holistic::high_level_elegance::restaurant_status_badge_map_duplicated_w",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "Restaurant status badge map duplicated with inconsistent shapes across files",
+        "detail": {
+          "holistic": true,
+          "dimension": "high_level_elegance",
+          "related_files": [
+            "lib/restaurant-grouping.ts",
+            "app/restaurant/[id]/page.tsx",
+            "components/RestaurantCard.tsx"
+          ],
+          "evidence": [
+            "RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts has {label, className} shape (no description). STATUS_INFO in app/restaurant/[id]/page.tsx adds a description field, making it a superset. RestaurantCard.tsx imports from lib/restaurant-grouping.ts. Ownership of this display mapping is split; the page-level variant cannot reuse the shared constant because it needs the extra field."
+          ],
+          "suggestion": "Add the description field to RESTAURANT_STATUS_BADGE in lib/restaurant-grouping.ts. The restaurant page can then import the same constant. This consolidates ownership without requiring RestaurantCard to change.",
+          "reasoning": "",
+          "summary_hash": "ff6c22b7"
+        }
+      },
+      {
+        "id": "review::.::holistic::high_level_elegance::scrape_route_acts_as_both_http_handler_a",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "Scrape route acts as both HTTP handler and pipeline orchestrator; orchestration logic belongs in lib/",
+        "detail": {
+          "holistic": true,
+          "dimension": "high_level_elegance",
+          "related_files": [
+            "app/api/scrape/route.ts"
+          ],
+          "evidence": [
+            "app/api/scrape/route.ts contains three substantial private functions \u2014 fetchWithFallback, enrichAndUpsert, upsertRestaurant \u2014 that implement domain pipeline logic with no HTTP-specific content. These cannot be unit tested without HTTP. The route file is 225 LOC of which the handler itself is ~80 LOC."
+          ],
+          "suggestion": "Extract fetchWithFallback, enrichAndUpsert, and upsertRestaurant to lib/scrape-pipeline.ts. The route file should parse the request, call the pipeline function, and format the response.",
+          "reasoning": "",
+          "summary_hash": "43b89693"
+        }
+      },
+      {
+        "id": "review::.::holistic::high_level_elegance::scrape_triggered_both_server_side_in_api",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "Scrape triggered both server-side in api/search and client-side in SearchPoller, creating potential duplicate pipeline invocations",
+        "detail": {
+          "holistic": true,
+          "dimension": "high_level_elegance",
+          "related_files": [
+            "app/api/search/route.ts",
+            "components/SearchPoller.tsx"
+          ],
+          "evidence": [
+            "app/api/search/route.ts calls triggerScrape() fire-and-forget when grouped.length < 3 (line 52-54). SearchPoller unconditionally fires POST /api/scrape on every mount (line 31). For low-results queries both fire concurrently \u2014 two scrape pipelines run for the same city+query. The upsertRestaurant deduplicates by name/address, preventing data corruption, but Reddit and Google Places API quota is wasted."
+          ],
+          "suggestion": "Remove triggerScrape() from api/search/route.ts. SearchPoller is already the client-side trigger. If server-side triggering is desired, have SearchPoller conditionally render based on a flag from the search API response rather than unconditionally firing.",
+          "reasoning": "",
+          "summary_hash": "a82d8503"
+        }
+      },
+      {
+        "id": "review::.::holistic::initialization_coupling::reddit_mutable_token_cache",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/reddit.ts cachedToken is a module-level mutable singleton that persists across test runs when the module is cached",
+        "detail": {
+          "holistic": true,
+          "dimension": "initialization_coupling",
+          "related_files": [
+            "lib/reddit.ts"
+          ],
+          "evidence": [
+            "Line 58: let cachedToken: { token: string; expiresAt: number } | null = null",
+            "cachedToken is written by getAccessToken() and read on subsequent calls \u2014 module cache means tests sharing the same process will see a stale token from a previous test"
+          ],
+          "suggestion": "This is an acceptable production pattern but tests need isolation. Exporting a resetTokenCacheForTest() function or moving the cache into a closure returned by a factory would allow test isolation without changing the production pattern.",
+          "reasoning": "",
+          "summary_hash": "b77dbcc0"
+        }
+      },
+      {
+        "id": "review::.::holistic::low_level_elegance::reddit_duplicate_validate_trycatch",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/reddit.ts duplicates the validateExtractedRestaurant try-catch block at two call sites with identical warn message and behavior",
+        "detail": {
+          "holistic": true,
+          "dimension": "low_level_elegance",
+          "related_files": [
+            "lib/reddit.ts"
+          ],
+          "evidence": [
+            "lib/reddit.ts lines 319-324: try { validateExtractedRestaurant(extracted); results.push(extracted); } catch { console.warn('Extracted restaurant must have a name and city to proceed with enrichment.'); }",
+            "lib/reddit.ts lines 339-344: identical block \u2014 same extracted variable shape, same warn message, same results.push pattern",
+            "The two call sites are in the isRecommendationRequest branch and the else branch of the same loop respectively"
+          ],
+          "suggestion": "Extract a small pushIfValid(extracted, results) helper that encapsulates the validate-then-push-or-warn pattern, then call it from both branches. Reduces the duplication to a one-liner at each call site.",
+          "reasoning": "",
+          "summary_hash": "89ce57a8"
+        }
+      },
+      {
+        "id": "review::.::holistic::low_level_elegance::validate_inconsistent_loop_vs_manual",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/validate.ts uses a declarative field-array loop for RedditPost but manual null/empty call-pairs for all seven other validators",
+        "detail": {
+          "holistic": true,
+          "dimension": "low_level_elegance",
+          "related_files": [
+            "lib/validate.ts"
+          ],
+          "evidence": [
+            "lib/validate.ts lines 58-67: validateRedditPost iterates REDDIT_POST_STRING_FIELDS with a for-of loop \u2014 adding a field requires one array entry",
+            "validateExtractedRestaurant, validateParsedQuery, validateRestaurantInput, validateCommunityRecommendationInput, validateVoteInput, validateRestaurantVoteInput \u2014 all call requireString/requirePresent once per field explicitly, two lines per field",
+            "This inconsistency makes the file look partially refactored; the manual-pair pattern across six validators is approximately 80 lines that could be data-driven"
+          ],
+          "suggestion": "Define STRING_FIELDS and PRESENT_FIELDS arrays for each entity and iterate them, as done for RedditPost. This eliminates the inconsistency and makes adding a field a single-line change across the board.",
+          "reasoning": "",
+          "summary_hash": "991c59e0"
+        }
+      },
+      {
+        "id": "review::.::holistic::mid_level_elegance::fetchwithfallback_advance_callback_mutation",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "fetchWithFallback in scrape/route.ts mutates caller-owned state via an advance() callback \u2014 shared-mutable-state pattern across a function boundary",
+        "detail": {
+          "holistic": true,
+          "dimension": "mid_level_elegance",
+          "related_files": [
+            "app/api/scrape/route.ts"
+          ],
+          "evidence": [
+            "app/api/scrape/route.ts lines 17-47: fetchWithFallback signature includes 'advance: (s: ScrapeState) => void' \u2014 a callback into caller state",
+            "Lines 23, 26, 30, 33, 45: advance() is called at six transition points inside fetchWithFallback, silently mutating the POST handler's local state variable",
+            "The function's return type is '{ results, state, empty, terms }' but the 'state' in the return is the function parameter's stale value, not the mutated caller state \u2014 it is unused at the call site (line 193)"
+          ],
+          "suggestion": "Return the terminal ScrapeState from fetchWithFallback instead of mutating caller state through a callback. The POST handler can drive its own state variable from the return value. This makes the function's side effects zero and the state lifecycle explicit at the call site.",
+          "reasoning": "",
+          "summary_hash": "ee3054dc"
+        }
+      },
+      {
+        "id": "review::.::holistic::mid_level_elegance::search_scrape_no_deduplication",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "Background scrape trigger in /api/search fires on every low-result request with no rate-limiting or in-flight deduplication guard",
+        "detail": {
+          "holistic": true,
+          "dimension": "mid_level_elegance",
+          "related_files": [
+            "app/api/search/route.ts"
+          ],
+          "evidence": [
+            "app/api/search/route.ts lines 9-19: triggerScrape fire-and-forget POST with .catch(() => undefined) \u2014 no record of in-flight scrapes",
+            "Lines 52-54: triggerScrape is called whenever grouped.length < 3 with no cooldown, no (city, query) deduplication key, and no check for whether a scrape is already running",
+            "Concurrent searches for the same low-result query will each independently trigger the full pipeline, producing N parallel enrichment runs against Reddit and Google Places for the same input"
+          ],
+          "suggestion": "Add a simple module-level Set of active scrape keys (e.g. `${city}:${query}` hash). Skip triggerScrape if the key is already present; remove the key when the scrape resolves or times out. This is a single-file change requiring no external infrastructure.",
+          "reasoning": "",
+          "summary_hash": "5f422342"
+        }
+      },
+      {
+        "id": "review::.::holistic::naming_quality::lib_rules_ts_functions_named_after_opaqu",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/rules.ts functions named after opaque rule codes rather than business intent",
+        "detail": {
+          "holistic": true,
+          "dimension": "naming_quality",
+          "related_files": [
+            "lib/rules.ts"
+          ],
+          "evidence": [
+            "checkRule01, checkRule03, checkRule05 communicate only that a numbered rule exists. A reader of the vote routes must navigate to lib/rules.ts and read the JSDoc to learn: checkRule01 = does restaurant have recommendations, checkRule03 = has fingerprint already voted on this recommendation, checkRule05 = has fingerprint already voted on this restaurant. The rule code is an internal cross-reference that should not be the exported function name."
+          ],
+          "suggestion": "Rename: checkRule01 \u2192 hasRecommendation (or canTransitionToVerified), checkRule03 \u2192 isRecommendationVoteAllowed, checkRule05 \u2192 isRestaurantVoteAllowed. Rule code references can remain in JSDoc.",
+          "reasoning": "",
+          "summary_hash": "05d4ed00"
+        }
+      },
+      {
+        "id": "review::.::holistic::naming_quality::searchpoller_tsx_is_named_as_a_passive_p",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "SearchPoller.tsx is named as a passive poller but actively initiates a scrape POST request",
+        "detail": {
+          "holistic": true,
+          "dimension": "naming_quality",
+          "related_files": [
+            "components/SearchPoller.tsx"
+          ],
+          "evidence": [
+            "components/SearchPoller.tsx fires POST /api/scrape (line 31) as its primary action on mount. It then polls via router.refresh() on an interval while waiting for results. The name 'Poller' implies passive read-only observation and hides the active write-side trigger role of this component."
+          ],
+          "suggestion": "Rename to ScrapeInitiator, ScrapeTrigger, or SearchScrapePoller to communicate that the component actively starts a scrape and observes its completion.",
+          "reasoning": "",
+          "summary_hash": "8ecafdab"
+        }
+      },
+      {
+        "id": "review::.::holistic::package_organization::lib_is_flat_with_12_files_spanning_thre",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/ is flat with 12 files spanning three distinct concern groups with no directory-level navigation aid",
+        "detail": {
+          "holistic": true,
+          "dimension": "package_organization",
+          "related_files": [
+            "lib/"
+          ],
+          "evidence": [
+            "lib/ contains 12 files that span three concern groups: external API clients (openrouter.ts, reddit.ts, google-places.ts, geo.ts), domain logic (rules.ts, state-machine.ts, validate.ts, hours.ts, restaurant-grouping.ts), and infrastructure (db.ts, fingerprint.ts, search.ts). At 34 total project files the project exceeds the small-project flat-structure threshold. A developer unfamiliar with the codebase must scan all 12 files to locate related logic. google-places.ts (1 importer) and state-machine.ts (1 importer) are low-discovery within the flat structure. No bidirectional coupling or import-affinity mismatches found \u2014 the issue is purely navigability."
+          ],
+          "suggestion": "See summary for recommended fix.",
+          "reasoning": "",
+          "summary_hash": "df8363f1"
+        }
+      },
+      {
+        "id": "review::.::holistic::test_strategy::rules_db_logic_never_exercised",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "lib/rules.ts tests mock all Prisma calls \u2014 the actual DB query structure is never exercised against real behavior",
+        "detail": {
+          "holistic": true,
+          "dimension": "test_strategy",
+          "related_files": [
+            "lib/rules.ts",
+            "__tests__/rules.test.ts"
+          ],
+          "evidence": [
+            "__tests__/rules.test.ts lines 7-13: vi.mock('@/lib/db', ...) mocks the entire prisma client before any function under test is imported",
+            "checkRule01 (lib/rules.ts line 8): prisma.communityRecommendation.count({ where: { restaurant_id: restaurantId } }) \u2014 the filter field name 'restaurant_id' and relation name 'communityRecommendation' are never validated against the real schema",
+            "lib/rules.ts is imported by 4 production modules; a Prisma schema rename or field typo would pass all current tests silently"
+          ],
+          "suggestion": "Add integration tests that run the rule functions against a real SQLite or Postgres test database using Prisma's test environment. At minimum, add a comment in rules.test.ts noting that tests validate call shape only, not query correctness, so future engineers understand the gap.",
+          "reasoning": "",
+          "summary_hash": "97adab1c"
+        }
+      },
+      {
+        "id": "review::.::holistic::test_strategy::scrape_route_no_coverage",
+        "tier": 2,
+        "confidence": "medium",
+        "summary": "app/api/scrape/route.ts (222 LOC, highest signal density) has no direct test coverage",
+        "detail": {
+          "holistic": true,
+          "dimension": "test_strategy",
+          "related_files": [
+            "app/api/scrape/route.ts"
+          ],
+          "evidence": [
+            "Blind packet scan_evidence: scrape/route.ts has the highest detector_count (4) and issue_count (6) of any file in the codebase",
+            "No test file in __tests__/ targets scrape/route.ts directly \u2014 the enrichAndUpsert function, upsertRestaurant deduplication logic, and state machine advance path are all untested",
+            "The fetchWithFallback function (lines 17-47) orchestrates LLM fallback, Reddit scraping, and state transitions \u2014 this is the core of the pipeline and has no test coverage"
+          ],
+          "suggestion": "Add tests for scrape/route.ts that mock external dependencies (reddit, openrouter, google-places, prisma) and verify the happy path (successful enrichment), the empty-results path (both Reddit and LLM return nothing), and the INTERNAL_API_TOKEN auth guard. Focus first on enrichAndUpsert and upsertRestaurant as self-contained functions that can be tested without HTTP.",
+          "reasoning": "",
+          "summary_hash": "5f0aa1e8"
+        }
+      }
+    ]
+  },
+  "total_matching": 37,
+  "noise_budget": 0,
+  "noise_global_budget": 0,
+  "narrative": {
+    "phase": "middle_grind",
+    "headline": "140 issues open. Test health (5.1%) needs attention \u2014 run `desloppify next` to start. (37 review work items \u2014 run `desloppify show review --status open`)",
+    "dimensions": {
+      "lowest_dimensions": [
+        {
+          "name": "Test health",
+          "strict": 5.1,
+          "failing": 33,
+          "impact": 0.0
+        },
+        {
+          "name": "API coherence",
+          "strict": 58.0,
+          "failing": 2,
+          "impact": 0.0,
+          "subjective": true,
+          "impact_description": "re-review to improve"
+        },
+        {
+          "name": "AI generated debt",
+          "strict": 60.0,
+          "failing": 2,
+          "impact": 0.0,
+          "subjective": true,
+          "impact_description": "re-review to improve"
+        }
+      ],
+      "biggest_gap_dimensions": [
+        {
+          "name": "Test health",
+          "lenient": 8.2,
+          "strict": 5.1,
+          "gap": 3.1,
+          "wontfix_count": 0
+        }
+      ],
+      "stagnant_dimensions": [
+        {
+          "name": "Security",
+          "strict": 100.0,
+          "stuck_scans": 5
+        },
+        {
+          "name": "File health",
+          "strict": 97.9,
+          "stuck_scans": 5
+        },
+        {
+          "name": "Duplication",
+          "strict": 90.0,
+          "stuck_scans": 5
+        }
+      ]
+    },
+    "actions": [
+      {
+        "type": "auto_fix",
+        "detector": "unused",
+        "count": 3,
+        "description": "3 unused issues \u2014 run `desloppify autofix unused-imports --dry-run` to preview, then apply",
+        "command": "desloppify autofix unused-imports --dry-run",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 1,
+        "lane": "cleanup"
+      },
+      {
+        "type": "auto_fix",
+        "detector": "logs",
+        "count": 3,
+        "description": "3 logs issues \u2014 run `desloppify autofix debug-logs --dry-run` to preview, then apply",
+        "command": "desloppify autofix debug-logs --dry-run",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 2,
+        "lane": "cleanup"
+      },
+      {
+        "type": "reorganize",
+        "detector": "orphaned",
+        "count": 12,
+        "description": "12 orphaned issues \u2014 delete dead files or relocate with `desloppify move`",
+        "command": "desloppify show orphaned --status open",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 3,
+        "lane": "restructure"
+      },
+      {
+        "type": "reorganize",
+        "detector": "single_use",
+        "count": 4,
+        "description": "4 single_use issues \u2014 inline or relocate with `desloppify move`",
+        "command": "desloppify show single_use --status open",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 4,
+        "lane": "restructure"
+      },
+      {
+        "type": "refactor",
+        "detector": "structural",
+        "count": 1,
+        "description": "1 structural work items \u2014 review large files \u2014 split only when responsibilities are clearly separable",
+        "command": "desloppify show structural --status open",
+        "impact": 0.0,
+        "dimension": "File health",
+        "priority": 5,
+        "lane": "refactor_0"
+      },
+      {
+        "type": "refactor",
+        "detector": "test_coverage",
+        "count": 33,
+        "description": "33 test_coverage work items \u2014 review test coverage gaps \u2014 focus on critical modules with many importers first; defer test writing until code quality issues are resolved",
+        "command": "desloppify show test_coverage --status open",
+        "impact": 0.0,
+        "dimension": "Test health",
+        "priority": 6,
+        "lane": "test_coverage"
+      },
+      {
+        "type": "refactor",
+        "detector": "signature",
+        "count": 1,
+        "description": "1 signature work items \u2014 consolidate inconsistent function signatures",
+        "command": "desloppify show signature --status open",
+        "impact": 0.0,
+        "dimension": "Unknown",
+        "priority": 7,
+        "lane": "refactor_0"
+      },
+      {
+        "type": "refactor",
+        "detector": "boilerplate_duplication",
+        "count": 8,
+        "description": "8 boilerplate_duplication work items \u2014 extract shared boilerplate into reusable helpers or base classes",
+        "command": "desloppify show boilerplate_duplication --status open",
+        "impact": 0.0,
+        "dimension": "Duplication",
+        "priority": 8,
+        "lane": "refactor_0"
+      },
+      {
+        "type": "refactor",
+        "detector": "review",
+        "count": 37,
+        "description": "37 review work items need investigation \u2014 run `desloppify show review --status open` to see them",
+        "command": "desloppify show review --status open",
+        "impact": 0.0,
+        "dimension": "Unknown",
+        "priority": 9,
+        "lane": "refactor_1"
+      },
+      {
+        "type": "manual_fix",
+        "detector": "smells",
+        "count": 38,
+        "description": "38 smells issues \u2014 inspect with `desloppify next` and fix manually",
+        "command": "desloppify show smells --status open",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 10,
+        "lane": "refactor_0"
+      }
+    ],
+    "strategy": {
+      "fixer_leverage": {
+        "auto_fixable_count": 6,
+        "total_count": 214,
+        "coverage": 0.028,
+        "impact_ratio": 0.0,
+        "recommendation": "none"
+      },
+      "lanes": {
+        "cleanup": {
+          "actions": [
+            2,
+            1
+          ],
+          "file_count": 5,
+          "total_impact": 0.0,
+          "automation": "full",
+          "run_first": true
+        },
+        "restructure": {
+          "actions": [
+            3,
+            4
+          ],
+          "file_count": 13,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        },
+        "refactor_0": {
+          "actions": [
+            5,
+            7,
+            8,
+            10
+          ],
+          "file_count": 28,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        },
+        "refactor_1": {
+          "actions": [
+            9
+          ],
+          "file_count": 1,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        },
+        "test_coverage": {
+          "actions": [
+            6
+          ],
+          "file_count": 32,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        }
+      },
+      "can_parallelize": true,
+      "hint": "4 independent workstreams, safe to parallelize. Rescan after each phase to verify. Review: 37 issue(s) \u2014 `desloppify show review --status open`."
+    },
+    "tools": {
+      "fixers": [
+        {
+          "name": "unused-imports",
+          "detector": "unused",
+          "open_count": 3,
+          "command": "desloppify autofix unused-imports --dry-run"
+        },
+        {
+          "name": "unused-vars",
+          "detector": "unused",
+          "open_count": 3,
+          "command": "desloppify autofix unused-vars --dry-run"
+        },
+        {
+          "name": "unused-params",
+          "detector": "unused",
+          "open_count": 3,
+          "command": "desloppify autofix unused-params --dry-run"
+        },
+        {
+          "name": "debug-logs",
+          "detector": "logs",
+          "open_count": 3,
+          "command": "desloppify autofix debug-logs --dry-run"
+        },
+        {
+          "name": "dead-useeffect",
+          "detector": "smells",
+          "open_count": 38,
+          "command": "desloppify autofix dead-useeffect --dry-run"
+        },
+        {
+          "name": "empty-if-chain",
+          "detector": "smells",
+          "open_count": 38,
+          "command": "desloppify autofix empty-if-chain --dry-run"
+        }
+      ],
+      "move": {
+        "available": true,
+        "relevant": true,
+        "reason": "12 orphaned files + 4 single-use files",
+        "usage": "desloppify move <source> <dest> [--dry-run]"
+      },
+      "plan": {
+        "command": "desloppify plan",
+        "description": "Generate prioritized markdown cleanup plan"
+      },
+      "badge": {
+        "generated": true,
+        "in_readme": false,
+        "path": "scorecard.png",
+        "recommendation": "Add to README: <img src=\"scorecard.png\" width=\"100%\">"
+      }
+    },
+    "debt": {
+      "overall_gap": 0.1,
+      "wontfix_count": 1,
+      "worst_dimension": "Test health",
+      "worst_gap": 3.1,
+      "trend": "stable"
+    },
+    "milestone": null,
+    "primary_action": {
+      "command": "desloppify autofix unused-imports --dry-run",
+      "description": "3 unused issues \u2014 run `desloppify autofix unused-imports --dry-run` to preview, then apply"
+    },
+    "why_now": "4 independent workstreams, safe to parallelize. Rescan after each phase to verify. Review: 37 issue(s) \u2014 `desloppify show review --status open`.",
+    "verification_step": {
+      "command": "desloppify scan",
+      "reason": "revalidate after changes"
+    },
+    "risk_flags": [
+      {
+        "type": "wontfix_gap",
+        "severity": "medium",
+        "message": "Strict/lenient gap is 0.1 pts with 1 wontfix issues"
+      }
+    ],
+    "strict_target": {
+      "target": 85.0,
+      "current": 66.0,
+      "gap": 19.0,
+      "state": "below",
+      "warning": null
+    },
+    "reminders": [],
+    "reminder_history": {
+      "auto_fixers_available": 3,
+      "zone_classification": 3,
+      "dry_run_first": 3,
+      "report_scores": 11,
+      "feedback_nudge": 3,
+      "review_issues_pending": 3,
+      "stagnant_nudge": 4
+    }
+  },
+  "config": {
+    "target_strict_score": 85,
+    "review_max_age_days": 30,
+    "review_batch_max_files": 80,
+    "holistic_max_age_days": 30,
+    "generate_scorecard": true,
+    "badge_path": "scorecard.png",
+    "exclude": [],
+    "ignore": [],
+    "ignore_metadata": {},
+    "zone_overrides": {},
+    "review_dimensions": [],
+    "large_files_threshold": 0,
+    "props_threshold": 0,
+    "issue_noise_budget": 10,
+    "issue_noise_global_budget": 0,
+    "execution_log_max_entries": 10000,
+    "needs_rescan": false,
+    "languages": {},
+    "commit_tracking_enabled": true,
+    "commit_pr": 0,
+    "commit_default_branch": "",
+    "commit_message_template": "desloppify: {status} {count} issue(s) \u2014 {summary}",
+    "trust_plugins": false,
+    "transition_messages": {},
+    "hermes_enabled": false,
+    "hermes_models": {
+      "execute": "openrouter:x-ai/grok-4.20-beta",
+      "review": "openrouter:google/gemini-3.1-pro-preview"
+    }
+  }
+}

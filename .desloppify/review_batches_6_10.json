@@ -1,0 +1,148 @@
+{
+  "session": {
+    "id": "ext_20260402_142847_81867bed",
+    "token": "1d40e292d3ef85287875eed2673fe9e7"
+  },
+  "assessments": {
+    "abstraction_fitness": 74,
+    "dependency_health": 90,
+    "low_level_elegance": 78,
+    "mid_level_elegance": 68,
+    "test_strategy": 76
+  },
+  "dimension_notes": {
+    "abstraction_fitness": "Two previously flagged issues remain open. (1) lib/search.ts line 61 wraps _groupRestaurantsByName with an 'as unknown as GroupableRestaurant[]' cast — the wrapper adds no behavior and exists purely because RestaurantWithRecommendations does not structurally satisfy GroupableRestaurant. The same unsound cast recurs in app/api/search-more/route.ts line 25. Both are confirmed still present. (2) lib/state-machine.ts defines isValidTransition (line 46) and validNextStates (line 51) without the export keyword — they are private but dead: no internal callers either. They duplicate the lookup logic already inside assertValidTransition and add unnecessary file volume. No new abstraction fitness issues found. The scan evidence confirms wrapper_rate=0, one_impl_interface_count=0, zero delegation-heavy classes; the codebase is generally abstraction-lean outside these two known items.",
+    "dependency_health": "Production dependencies are minimal and purposeful: @prisma/client, next, react, react-dom. No duplicate-purpose libraries exist (native fetch is used throughout; no axios or wrapper). No heavy dependencies pulled in for light use. No circular dependency cycles visible in the import graph. No version conflict indicators in package.json. The only minor observation: next is pinned to exact version 14.1.3 while all other runtime dependencies use caret ranges — an inconsistency in pinning strategy, not a material risk.",
+    "low_level_elegance": "Two of the three previously flagged issues have been fixed: (1) searchRestaurants and countSearchResults in lib/search.ts now share a buildWhereCondition helper (lines 100-114) — the ~40 LOC duplication is resolved. (2) The double-parseQuery call in scrape/route.ts has been resolved — parseQuery is called only once inside fetchWithFallback (line 24) and its return value is used throughout. One previously flagged issue remains open: lib/validate.ts uses a field-array loop for validateRedditPost (lines 58-67) but manual requireString/requirePresent call-pairs for all other seven validators. This inconsistency makes field changes require two lines instead of one. A new minor issue found: lib/reddit.ts duplicates the validateExtractedRestaurant try-catch block at lines 320-323 and 340-343 with identical console.warn messages and identical skip behavior — a small extract opportunity.",
+    "mid_level_elegance": "One previously flagged issue has been fixed: /api/search-more now calls groupRestaurantsByName server-side and returns RestaurantGroup[], with seenNames accepted as a query param. LoadMoreButton no longer imports or calls groupRestaurantsByName. Two previously flagged issues remain open. (1) fetchWithFallback in scrape/route.ts accepts an advance() callback that mutates the caller's local state variable through a closure — the function drives caller-owned state as a side effect rather than returning its computed transitions, making it impossible to unit-test in isolation and obscuring the state lifecycle at the call site. (2) triggerScrape in app/api/search/route.ts fires a fire-and-forget POST on every request where grouped.length < 3, with no guard against concurrent requests for the same (city, query) pair each independently triggering the scrape pipeline.",
+    "test_strategy": "One previously flagged issue has been fixed: isRecommendationRequest, isPostRelevantToQuery, and isValidRestaurantName now have comprehensive dedicated tests in __tests__/reddit-filters.test.ts (confirmed present, 132 LOC with good edge case coverage). One previously flagged issue remains open: lib/rules.ts tests in rules.test.ts mock all Prisma calls — checkRule01/checkRule03/checkRule05 control flow is tested but the actual DB query shapes (field names, filter structure) are never exercised. A regression in the where-clause structure would pass tests silently. Additional observation: app/api/scrape/route.ts (222 LOC, highest signal density in the codebase — 4 detectors, 6 issues) has no direct test coverage. The enrichAndUpsert logic, upsertRestaurant deduplication, and state machine advance path are all exercised only at runtime."
+  },
+  "dimension_judgment": {
+    "abstraction_fitness": "ADEQUATE — two open issues, both known and persistent from prior reviews. The as-unknown-as casts at two call sites are medium severity since they hide a genuine type contract gap. The dead private functions in state-machine.ts are low severity. No systemic abstraction overuse elsewhere.",
+    "dependency_health": "STRONG — production dependency set is minimal and purpose-aligned with no actionable issues. The version pinning inconsistency for next is a minor style note.",
+    "low_level_elegance": "ADEQUATE-TO-GOOD — meaningful progress since last review: two major issues fixed (where-condition duplication eliminated, double-parse eliminated). The validate.ts inconsistency and the reddit.ts duplicate try-catch remain; both are low severity but real maintenance friction in two of the most-imported modules.",
+    "mid_level_elegance": "WEAK — two open issues with real runtime implications. The advance() callback pattern makes the scrape route harder to test and reason about. The unbounded fire-and-forget scrape trigger is a correctness risk under concurrent load. One issue was fixed (search-more grouping) which prevents score from being lower.",
+    "test_strategy": "ADEQUATE — meaningful progress: reddit filter functions are now tested. The critical remaining gap is that lib/rules.ts DB query logic is never exercised against real behavior, and the highest-complexity file (scrape/route.ts) has no direct test coverage at all."
+  },
+  "issues": [
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "search_groupby_unsafe_cast",
+      "summary": "lib/search.ts groupRestaurantsByName uses 'as unknown as GroupableRestaurant[]' to paper over a structural type mismatch; same cast in api/search-more/route.ts",
+      "status": "open",
+      "severity": "medium",
+      "related_files": ["lib/search.ts", "app/api/search-more/route.ts", "lib/restaurant-grouping.ts"],
+      "evidence": [
+        "lib/search.ts line 61: 'return _groupRestaurantsByName(restaurants as unknown as GroupableRestaurant[])' — RestaurantWithRecommendations.recommendations contains restaurant_id; GroupableRecommendation does not",
+        "app/api/search-more/route.ts line 25: 'groupRestaurantsByName(page as unknown as GroupableRestaurant[], excludeNames)' — same structural mismatch at the call site in the route handler",
+        "The wrapper function in lib/search.ts adds zero behavior — its sole purpose is to accept RestaurantWithRecommendations[] at the type level while casting to GroupableRestaurant[] at runtime"
+      ],
+      "suggestion": "Align the two interfaces: either add restaurant_id to GroupableRecommendation, or produce an explicit mapping function that translates RestaurantWithRecommendations to GroupableRestaurant. Removing the unsafe cast makes the type boundary explicit and eliminates the need for the wrapper function."
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "state_machine_dead_private_functions",
+      "summary": "lib/state-machine.ts defines isValidTransition and validNextStates as private, dead functions with no callers",
+      "status": "open",
+      "severity": "low",
+      "related_files": ["lib/state-machine.ts"],
+      "evidence": [
+        "lib/state-machine.ts lines 46-48: 'function isValidTransition(from: ScrapeState, to: ScrapeState): boolean' — no export keyword, no callers in any file",
+        "lib/state-machine.ts lines 51-53: 'function validNextStates(from: ScrapeState): ScrapeState[]' — same situation",
+        "assertValidTransition (line 39, exported, used in scrape/route.ts) already covers production needs; the two dead functions duplicate its VALID_TRANSITIONS lookup with no additional callers"
+      ],
+      "suggestion": "Delete isValidTransition and validNextStates. If future callers need a predicate form, they can be re-added then. Tests for assertValidTransition can directly verify throw behavior without needing the predicate form."
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "validate_inconsistent_loop_vs_manual",
+      "summary": "lib/validate.ts uses a declarative field-array loop for RedditPost but manual null/empty call-pairs for all seven other validators",
+      "status": "open",
+      "severity": "low",
+      "related_files": ["lib/validate.ts"],
+      "evidence": [
+        "lib/validate.ts lines 58-67: validateRedditPost iterates REDDIT_POST_STRING_FIELDS with a for-of loop — adding a field requires one array entry",
+        "validateExtractedRestaurant, validateParsedQuery, validateRestaurantInput, validateCommunityRecommendationInput, validateVoteInput, validateRestaurantVoteInput — all call requireString/requirePresent once per field explicitly, two lines per field",
+        "This inconsistency makes the file look partially refactored; the manual-pair pattern across six validators is approximately 80 lines that could be data-driven"
+      ],
+      "suggestion": "Define STRING_FIELDS and PRESENT_FIELDS arrays for each entity and iterate them, as done for RedditPost. This eliminates the inconsistency and makes adding a field a single-line change across the board."
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "reddit_duplicate_validate_trycatch",
+      "summary": "lib/reddit.ts duplicates the validateExtractedRestaurant try-catch block at two call sites with identical warn message and behavior",
+      "status": "open",
+      "severity": "low",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "lib/reddit.ts lines 319-324: try { validateExtractedRestaurant(extracted); results.push(extracted); } catch { console.warn('Extracted restaurant must have a name and city to proceed with enrichment.'); }",
+        "lib/reddit.ts lines 339-344: identical block — same extracted variable shape, same warn message, same results.push pattern",
+        "The two call sites are in the isRecommendationRequest branch and the else branch of the same loop respectively"
+      ],
+      "suggestion": "Extract a small pushIfValid(extracted, results) helper that encapsulates the validate-then-push-or-warn pattern, then call it from both branches. Reduces the duplication to a one-liner at each call site."
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "fetchwithfallback_advance_callback_mutation",
+      "summary": "fetchWithFallback in scrape/route.ts mutates caller-owned state via an advance() callback — shared-mutable-state pattern across a function boundary",
+      "status": "open",
+      "severity": "medium",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "app/api/scrape/route.ts lines 17-47: fetchWithFallback signature includes 'advance: (s: ScrapeState) => void' — a callback into caller state",
+        "Lines 23, 26, 30, 33, 45: advance() is called at six transition points inside fetchWithFallback, silently mutating the POST handler's local state variable",
+        "The function's return type is '{ results, state, empty, terms }' but the 'state' in the return is the function parameter's stale value, not the mutated caller state — it is unused at the call site (line 193)"
+      ],
+      "suggestion": "Return the terminal ScrapeState from fetchWithFallback instead of mutating caller state through a callback. The POST handler can drive its own state variable from the return value. This makes the function's side effects zero and the state lifecycle explicit at the call site."
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "search_scrape_no_deduplication",
+      "summary": "Background scrape trigger in /api/search fires on every low-result request with no rate-limiting or in-flight deduplication guard",
+      "status": "open",
+      "severity": "medium",
+      "related_files": ["app/api/search/route.ts"],
+      "evidence": [
+        "app/api/search/route.ts lines 9-19: triggerScrape fire-and-forget POST with .catch(() => undefined) — no record of in-flight scrapes",
+        "Lines 52-54: triggerScrape is called whenever grouped.length < 3 with no cooldown, no (city, query) deduplication key, and no check for whether a scrape is already running",
+        "Concurrent searches for the same low-result query will each independently trigger the full pipeline, producing N parallel enrichment runs against Reddit and Google Places for the same input"
+      ],
+      "suggestion": "Add a simple module-level Set of active scrape keys (e.g. `${city}:${query}` hash). Skip triggerScrape if the key is already present; remove the key when the scrape resolves or times out. This is a single-file change requiring no external infrastructure."
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "rules_db_logic_never_exercised",
+      "summary": "lib/rules.ts tests mock all Prisma calls — the actual DB query structure is never exercised against real behavior",
+      "status": "open",
+      "severity": "medium",
+      "related_files": ["lib/rules.ts", "__tests__/rules.test.ts"],
+      "evidence": [
+        "__tests__/rules.test.ts lines 7-13: vi.mock('@/lib/db', ...) mocks the entire prisma client before any function under test is imported",
+        "checkRule01 (lib/rules.ts line 8): prisma.communityRecommendation.count({ where: { restaurant_id: restaurantId } }) — the filter field name 'restaurant_id' and relation name 'communityRecommendation' are never validated against the real schema",
+        "lib/rules.ts is imported by 4 production modules; a Prisma schema rename or field typo would pass all current tests silently"
+      ],
+      "suggestion": "Add integration tests that run the rule functions against a real SQLite or Postgres test database using Prisma's test environment. At minimum, add a comment in rules.test.ts noting that tests validate call shape only, not query correctness, so future engineers understand the gap."
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "scrape_route_no_coverage",
+      "summary": "app/api/scrape/route.ts (222 LOC, highest signal density) has no direct test coverage",
+      "status": "open",
+      "severity": "medium",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "Blind packet scan_evidence: scrape/route.ts has the highest detector_count (4) and issue_count (6) of any file in the codebase",
+        "No test file in __tests__/ targets scrape/route.ts directly — the enrichAndUpsert function, upsertRestaurant deduplication logic, and state machine advance path are all untested",
+        "The fetchWithFallback function (lines 17-47) orchestrates LLM fallback, Reddit scraping, and state transitions — this is the core of the pipeline and has no test coverage"
+      ],
+      "suggestion": "Add tests for scrape/route.ts that mock external dependencies (reddit, openrouter, google-places, prisma) and verify the happy path (successful enrichment), the empty-results path (both Reddit and LLM return nothing), and the INTERNAL_API_TOKEN auth guard. Focus first on enrichAndUpsert and upsertRestaurant as self-contained functions that can be tested without HTTP."
+    }
+  ],
+  "context_updates": {
+    "abstraction_fitness": "Both previously flagged issues remain open and unresolved. No new issues found. The codebase remains abstraction-lean outside these two known items — wrapper_rate=0, one_impl_interface_count=0 per scan evidence.",
+    "dependency_health": "No open issues. Production dependencies remain minimal (4 packages). next version pinning inconsistency is a minor style note, not a health risk.",
+    "low_level_elegance": "Two previously flagged issues are now fixed: buildWhereCondition helper eliminates the search.ts where-condition duplication; parseQuery is called only once per scrape request. One previously flagged issue remains (validate.ts loop/manual inconsistency). One new minor issue found: duplicate validateExtractedRestaurant try-catch blocks in reddit.ts.",
+    "mid_level_elegance": "One previously flagged issue fixed: /api/search-more now groups server-side; LoadMoreButton no longer re-implements grouping. Two previously flagged issues remain open: advance() callback mutation pattern and unbounded scrape trigger with no deduplication.",
+    "test_strategy": "One previously flagged issue fixed: reddit filter functions (isRecommendationRequest, isPostRelevantToQuery, isValidRestaurantName) now have comprehensive dedicated tests in reddit-filters.test.ts. One previously flagged issue remains: rules.ts tests mock all Prisma calls, leaving DB query logic unexercised. One new issue confirmed: scrape/route.ts has zero direct test coverage despite being the highest-complexity, highest-signal-density file in the codebase."
+  }
+}

@@ -3,6 +3,9 @@
  * Tests that only valid transitions in the scrape pipeline state machine are permitted.
  */
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const bad = (x: unknown): any => x;
+
 import { describe, it, expect } from 'vitest';
 import {
   assertValidTransition,
@@ -217,7 +220,7 @@ describe('Guard violations (T120–T132)', () => {
   // T131: EXTRACTING → VALIDATING guard RULE_03 — empty name
   it('T131: EXTRACTING → VALIDATING blocked when ExtractedRestaurant name is empty (RULE_03)', () => {
     expect(() =>
-      validateExtractedRestaurant({ name: '', summary: 'x', source: 'r/test' })
+      validateExtractedRestaurant(bad({ name: '', summary: 'x', source: 'r/test' }))
     ).toThrow(ValidationError);
   });
 

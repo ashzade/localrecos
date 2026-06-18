@@ -1,0 +1,82 @@
+{
+  "batch": "dependency_health",
+  "batch_index": 7,
+  "assessments": {
+    "dependency_health": 91.0
+  },
+  "dimension_notes": {
+    "dependency_health": {
+      "evidence": [
+        "package.json production dependencies are minimal: `next`, `react`, `react-dom` only — 3 runtime deps for the whole application",
+        "All third-party integrations (Prisma, Tailwind, TypeScript, Vitest, ESLint) are in devDependencies as appropriate",
+        "No HTTP client library present — all external calls use the native `fetch` API consistently throughout (lib/geo.ts, lib/openrouter.ts, lib/reddit.ts, app/api/scrape/route.ts, app/api/geo/route.ts)",
+        "No date/time library (no moment.js, dayjs, date-fns) — the codebase uses only `new Date()` and direct arithmetic, appropriate for the limited date parsing done",
+        "@prisma/client is in devDependencies (generated client), with prisma CLI also in devDependencies — this is unconventional; in a deployed Next.js app the generated Prisma client typically needs to be a production dependency for the runtime to find it. However, postinstall script runs `prisma generate` which may handle this in the build pipeline.",
+        "No duplicate libraries for the same purpose identified: single HTTP client (fetch), single ORM (Prisma), single UI framework (React/Next.js)",
+        "No lodash or utility belt libraries pulled in for single-function use",
+        "lock file (package-lock.json) present — version pinning in place",
+        "holistic_context.dependencies is empty `{}` — no mechanical signals of circular deps or version conflicts detected"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "@prisma/client is listed in devDependencies rather than dependencies. In a production Next.js deployment, the generated Prisma client must be available at runtime. If the build pipeline's postinstall handles this, it is an implicit assumption that may silently break in some deployment environments (e.g., when devDependencies are pruned after build)."
+    }
+  },
+  "dimension_judgment": {
+    "dependency_health": {
+      "dimension_character": "The dependency set is exceptionally lean for a Next.js application: three runtime dependencies covering only the framework itself, with all tooling appropriately placed in devDependencies. Every external integration (Reddit API, Google Places, OpenRouter, Nominatim) is accessed via native fetch rather than a client library, avoiding the common pattern of pulling in SDKs for light use. The one genuine concern is @prisma/client sitting in devDependencies — unconventional for a runtime ORM client, but potentially managed by the postinstall build step.",
+      "score_rationale": "This is a near-exemplary dependency profile for its scale — no duplicate libraries, no heavy deps for light use, no unused packages, no version conflicts visible. The @prisma/client placement in devDependencies is the only real concern: it is a known deployment footgun for Prisma apps (Vercel, Railway, etc. expect it in `dependencies`), and while the postinstall script may compensate, the placement is unconventional and could silently break in prune-devdeps deployment workflows. This single issue prevents a score above 90."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "dependency_health",
+      "identifier": "prisma_client_in_devdeps",
+      "summary": "@prisma/client is in devDependencies rather than dependencies, risking runtime breakage when devDeps are pruned during deployment",
+      "related_files": [
+        "package.json"
+      ],
+      "evidence": [
+        "package.json devDependencies: `\"@prisma/client\": \"^6.19.2\"` — the generated client is imported at runtime by lib/db.ts which has 9 importers across the application",
+        "Prisma's own documentation places @prisma/client in `dependencies`, not `devDependencies`, because the generated client is required at runtime",
+        "The postinstall script runs `prisma generate` which generates the client, but if devDependencies are pruned post-build (common in Docker/CI), the generated client artifacts may still be present while the package resolution chain breaks"
+      ],
+      "suggestion": "Move `@prisma/client` from `devDependencies` to `dependencies` in package.json. Keep the `prisma` CLI in devDependencies (it is build-time only). This matches the official Prisma setup guide and prevents silent breakage in prune-devdeps deployment environments.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The @prisma/client/devDeps placement is a common initial setup mistake when developers treat the generated client as a build artifact rather than a runtime dependency"
+    ],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "dependency_health": {
+      "add": [
+        {
+          "header": "Minimal production dependency surface",
+          "description": "Only next, react, and react-dom are production dependencies. All external API integrations use native fetch, avoiding SDK-for-light-use bloat entirely.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Native fetch used uniformly for all external calls",
+          "description": "No HTTP client library (axios, got, ky) is present. All five external services (Reddit, Google Places, OpenRouter, ip-api, Nominatim) are called via native fetch, maintaining a single consistent HTTP boundary.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "@prisma/client misplaced in devDependencies",
+          "description": "@prisma/client is in devDependencies despite being a runtime dependency (imported by lib/db.ts, the most-imported file in the codebase). The postinstall `prisma generate` step may compensate in some environments but this is non-standard and deployment-fragile.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "batch": "initialization_coupling",
+  "batch_index": 16,
+  "assessments": {"initialization_coupling": 74.0},
+  "dimension_notes": {
+    "initialization_coupling": {
+      "evidence": [
+        "lib/db.ts: module-level singleton creation via `globalForPrisma.prisma ?? new PrismaClient(...)` — PrismaClient is instantiated at import time, not deferred. NODE_ENV is read at module scope to configure logging.",
+        "lib/reddit.ts lines 54-56: `const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0'`, `const CLIENT_ID = process.env.REDDIT_CLIENT_ID`, `const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET` — all three env vars are read at module scope, meaning tests importing this module must have those env vars set before import.",
+        "lib/reddit.ts line 58: `let cachedToken: { token: string; expiresAt: number } | null = null` — mutable module-level singleton for OAuth token caching. This state persists across requests in serverless environments and is shared across all callers.",
+        "lib/openrouter.ts lines 1-3: `const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'`, `const MODEL = 'meta-llama/llama-3.2-3b-instruct:free'`, `const REDDIT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free'` — module-level constants with hardcoded model identifiers. No env-var overrides, so model changes require code changes.",
+        "lib/google-places.ts lines 3-30: `const GOOGLE_PLACES_BASE`, `const FIELD_MASK`, `const FOOD_TYPES` — module-level constants computed at import time. Benign here since they are pure constants.",
+        "lib/db.ts: The `globalForPrisma` pattern is the recommended Next.js workaround to avoid creating multiple PrismaClient instances in development due to hot-reload. This is a framework idiom, not a defect.",
+        "No circular import dependencies detected between lib modules.",
+        "No import-time DB connections, file I/O, or network calls — the PrismaClient is instantiated but not connected at import time (connection is lazy in Prisma).",
+        "Environment variable reads for API keys (GOOGLE_PLACES_API_KEY, OPENROUTER_API_KEY) are correctly deferred to function call time, not read at module scope."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Module-level env var reads in lib/reddit.ts make this module fragile in test environments. The mutable cachedToken singleton can cause cross-request state leaks in serverless contexts."
+    }
+  },
+  "dimension_judgment": {
+    "initialization_coupling": {
+      "dimension_character": "The codebase is largely clean from initialization coupling defects — no network calls or file I/O at module scope, no circular init dependencies, and API key reads are correctly deferred to call time. The main concerns are in lib/reddit.ts, where three environment variables are read at import time and a mutable OAuth token cache is a module-level singleton that crosses request boundaries.",
+      "score_rationale": "The lib/db.ts globalForPrisma pattern is a known Next.js idiom and not a defect. The env-var reads in lib/reddit.ts are a moderate concern for testability but not a runtime bug. The mutable cachedToken is a minor correctness risk in serverless environments. Overall the codebase sits at a middling-good score — most initialization is clean but a few module-level patterns introduce coupling fragility."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_env_module_scope",
+      "summary": "Reddit API credentials read at module scope, fragile in testing",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "Line 54: `const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0'`",
+        "Line 55: `const CLIENT_ID = process.env.REDDIT_CLIENT_ID`",
+        "Line 56: `const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET`",
+        "These are captured once at import time — any test that imports lib/reddit.ts after setting env vars will use stale values if the import was cached."
+      ],
+      "suggestion": "Move these reads inside `getAccessToken()` or into a lazy getter so that the values are resolved at call time, not import time. This makes the module testable without env var setup before import.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_mutable_module_singleton",
+      "summary": "Mutable OAuth token cache is module-level singleton, leaks across requests in serverless",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "Line 58: `let cachedToken: { token: string; expiresAt: number } | null = null`",
+        "In Next.js serverless (Vercel), each function invocation may reuse the module instance across requests, meaning one user's token refresh can affect another's timing window.",
+        "`getAccessToken()` reads and writes this singleton without any lock, creating a potential race condition under concurrent requests."
+      ],
+      "suggestion": "The current caching is acceptable in a long-running server context. For serverless, consider moving token caching to an external store (Redis/KV) or accepting that each cold start re-fetches. At minimum, document that this module assumes single-process execution.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["Convenience-driven module-level env reads that work in local dev but are fragile in test/serverless contexts"],
+    "likely_symptoms": ["Test isolation failures if lib/reddit.ts is imported before env vars are set"],
+    "possible_false_positives": ["lib/db.ts globalForPrisma pattern — this is a framework idiom explicitly recommended by Next.js/Prisma, not a defect"]
+  },
+  "context_updates": {
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "PrismaClient globalForPrisma is framework idiom",
+          "description": "The lib/db.ts singleton pattern using globalThis is the official Next.js + Prisma recommended approach to avoid multiple client instances during hot reload. It is not an initialization coupling defect.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "API keys deferred to call time except in reddit.ts",
+          "description": "lib/openrouter.ts and lib/google-places.ts correctly read OPENROUTER_API_KEY and GOOGLE_PLACES_API_KEY inside the function body at call time. lib/reddit.ts is the outlier that reads credentials at module scope.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

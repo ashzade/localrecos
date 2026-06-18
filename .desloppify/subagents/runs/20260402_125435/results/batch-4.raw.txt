@@ -1,0 +1,135 @@
+{
+  "batch": "error_consistency",
+  "batch_index": 4,
+  "assessments": {
+    "error_consistency": 62.0
+  },
+  "dimension_notes": {
+    "error_consistency": {
+      "evidence": [
+        "OPEN ISSUE CONFIRMED: app/api/vote/route.ts and app/api/restaurant-vote/route.ts both call tryTransitionToVerified() after the transaction commits. If tryTransitionToVerified() throws (e.g., a DB error during the status update), the route returns a 500 even though the vote was already committed. The vote is lost from the client's perspective but exists in the DB — a split-brain error.",
+        "OPEN ISSUE CONFIRMED: lib/openrouter.ts getRedditRecommendations() returns [] on any API failure (catch block) and also when the API returns a non-ok response. No error is surfaced to the caller. The scrape route treats an empty array as a definitive 'no results', making network errors and genuine empty results indistinguishable.",
+        "OPEN ISSUE CONFIRMED: components/LoadMoreButton.tsx loadMore() has a try/finally but no catch on the fetch or the JSON parse. If fetch() or res.json() throws, the finally block runs (setLoading(false)) but hasMore remains true, offset remains stale, and no user feedback is shown — the button silently re-enables for a retry that may repeat the same failure.",
+        "lib/ error strategy is mixed: lib/search.ts throws (Error for RULE_01), lib/openrouter.ts returns null/[] on failure, lib/geo.ts returns null on failure, lib/rules.ts returns boolean. This is a multi-strategy pattern within the same layer.",
+        "lib/reddit.ts fetchSubredditPosts() returns [] on any network or parse failure. fetchPostComments() returns [] on failure. scrapeRedditForRestaurants() and fetchCommunityPicksForRestaurant() swallow all errors silently from these helpers — callers receive empty arrays with no signal that a network error occurred.",
+        "lib/reddit.ts: validateRedditPost and validateExtractedRestaurant throw ValidationError but are called inside try-catch blocks that swallow the error with a console.warn. The validation contract (throws) is undermined by the caller silently catching and discarding.",
+        "app/api/scrape/route.ts has a top-level try-catch that returns 500 with `details: String(error)` — this is an intentional top-level boundary. However, the inner pipeline functions (fetchWithFallback, enrichAndUpsert) do not propagate errors — they catch or swallow internally, making the top-level catch mostly redundant.",
+        "lib/geo.ts detectCityFromIp() returns null on any fetch error — appropriate for a fallback-optional operation. extractIp() has no try-catch but cannot throw (pure string operations).",
+        "lib/hours.ts isOpenNow() wraps all logic in try-catch returning null — appropriate for a parse utility.",
+        "components/RestaurantFeedbackButton.tsx cast() function: on fetch failure or non-ok response, it rolls back the optimistic update and resets voted state. No error message is shown to the user. Silent rollback without feedback.",
+        "error strategy_by_directory shows lib/ has 49 throws, 21 returns_null, 14 try_catch — the mix within a single layer is the core concern."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "error_consistency": {
+      "dimension_character": "The codebase applies multiple error strategies within the same lib/ layer without a coherent design: some functions throw, others return null/[], others return booleans. At the component layer, errors are either silently swallowed (LoadMoreButton) or silently rolled back (RestaurantFeedbackButton) without user feedback. Three pre-existing issues remain open and are confirmed valid: the post-transaction tryTransitionToVerified split-brain, the getRedditRecommendations silent empty return, and the LoadMoreButton missing catch.",
+      "score_rationale": "The score sits at 62: the codebase has some intentional boundaries (top-level catches in routes, null returns for optional operations like geo detection) but the lib/ layer mixes strategies without rationale, and multiple I/O paths silently discard errors. At this score level the code functions but a developer debugging a silent failure would have to trace through multiple layers to determine whether an empty result means 'not found' or 'network error'."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_try_transition_post_commit",
+      "summary": "tryTransitionToVerified called after transaction commits in both vote routes; transition failure returns 500 on a committed vote",
+      "related_files": ["app/api/vote/route.ts", "app/api/restaurant-vote/route.ts"],
+      "evidence": [
+        "app/api/vote/route.ts: `await prisma.$transaction(...)` completes, then `await tryTransitionToVerified(recommendation.restaurant_id)` is called outside the transaction",
+        "app/api/restaurant-vote/route.ts: same pattern — transaction commits, then tryTransitionToVerified called",
+        "tryTransitionToVerified() does a DB read + conditional update; if the DB is under load or the record is locked, it can throw",
+        "A throw propagates to the caller's unhandled path, returning 500 — client sees failure, but vote was already written"
+      ],
+      "suggestion": "Wrap tryTransitionToVerified() in a try-catch in both routes. Log the error but do not fail the request — the vote was successfully committed. Alternatively, move the transition check inside the transaction if atomicity is desired.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "post_commit_side_effect"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_openrouter_silent_empty",
+      "summary": "getRedditRecommendations returns [] on API failure, making network errors indistinguishable from genuine no-results",
+      "related_files": ["lib/openrouter.ts", "app/api/scrape/route.ts"],
+      "evidence": [
+        "lib/openrouter.ts getRedditRecommendations(): catch block returns []",
+        "Also returns [] when response is not ok (non-200 status)",
+        "Also returns [] when API key is missing",
+        "app/api/scrape/route.ts fetchWithFallback(): treats llmRecs.length === 0 as FAILED — so a transient network error to OpenRouter permanently marks the scrape as FAILED rather than retryable"
+      ],
+      "suggestion": "Distinguish the three empty cases: (1) no API key — return [] is appropriate (graceful skip); (2) API error — throw or return a typed Result so the caller can decide to retry or log; (3) empty results — return []. This allows the scrape pipeline to treat network failures differently from genuine empty recommendations.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "silent_error_swallowing"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_loadmore_no_catch",
+      "summary": "LoadMoreButton loadMore() has no catch on fetch failure; hasMore and offset remain stale after network error",
+      "related_files": ["components/LoadMoreButton.tsx"],
+      "evidence": [
+        "loadMore() has `try { ... } finally { setLoading(false) }` but no catch block",
+        "If fetch() throws (network error) or res.json() throws (malformed response), the error propagates uncaught",
+        "setGroups, setSeenNames, setOffset, setHasMore are not updated — state is stale",
+        "No error UI is shown to the user; button re-enables silently"
+      ],
+      "suggestion": "Add a catch clause to loadMore() that sets an error state (e.g. `setHasMore(false)` or a dedicated error message) so the user gets feedback when load-more fails. At minimum, catch the error to prevent an unhandled promise rejection.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "silent_error_swallowing"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "ec_reddit_validation_swallowed",
+      "summary": "validateRedditPost and validateExtractedRestaurant throw ValidationError but callers silently catch and continue, undermining the validation contract",
+      "related_files": ["lib/reddit.ts", "lib/validate.ts"],
+      "evidence": [
+        "lib/reddit.ts fetchSubredditPosts(): `try { validateRedditPost(redditPost); posts.push(redditPost); } catch { console.warn(...) }` — ValidationError is caught and swallowed",
+        "lib/reddit.ts scrapeRedditForRestaurants(): `try { validateExtractedRestaurant(extracted); results.push(extracted); } catch { console.warn(...) }` — same pattern",
+        "lib/validate.ts defines ValidationError as a typed custom error class intended to signal invalid data",
+        "The console.warn message for validateExtractedRestaurant is misleading: 'must have a name and city' — but the extracted object never has a city field, so this message is inaccurate"
+      ],
+      "suggestion": "For validateRedditPost, log the specific validation error message rather than a static string, so failures are diagnosable. For validateExtractedRestaurant, fix the warn message to accurately reflect which fields are validated. Consider whether silent skip (current behavior) is the right policy — it is reasonable for scraping, but the warning text should be accurate.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "silent_error_swallowing"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "No explicit error strategy defined for lib/ layer — functions independently chose throw vs null/[] based on what felt natural at authoring time",
+      "Silent swallowing is used broadly in I/O paths (Reddit, OpenRouter) where retry logic doesn't exist, leading to empty-results masking failures"
+    ],
+    "likely_symptoms": ["ec_try_transition_post_commit", "ec_openrouter_silent_empty", "ec_loadmore_no_catch", "ec_reddit_validation_swallowed"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "error_consistency": {
+      "add": [
+        {
+          "header": "lib/ layer uses mixed error strategies without rationale",
+          "description": "lib/search.ts throws, lib/openrouter.ts returns [], lib/geo.ts returns null, lib/rules.ts returns boolean — all within the same layer. The variety is not documented and creates unpredictable caller behavior.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "I/O boundary helpers silently return empty on failure",
+          "description": "Reddit fetching, OpenRouter calls, and comment fetching all return [] on any error. This makes callers unable to distinguish network failures from genuine empty results, which affects pipeline state transitions.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Top-level route catch blocks provide consistent 500 boundary",
+          "description": "All API routes wrap their main logic in try-catch returning { error, details } with status 500 — a consistent top-level boundary pattern. The weakness is that inner helpers swallow errors before reaching this boundary.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

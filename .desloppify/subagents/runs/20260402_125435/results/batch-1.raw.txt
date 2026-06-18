@@ -1,0 +1,97 @@
+{
+  "batch": "cross_module_architecture",
+  "batch_index": 1,
+  "assessments": {
+    "cross_module_architecture": 76.5
+  },
+  "dimension_notes": {
+    "cross_module_architecture": {
+      "evidence": [
+        "lib/ is the clear logic layer (12 files, avg fan-in 4.2) and app/api/ is the HTTP boundary — dependency direction is consistently one-way: routes import lib, lib does not import routes.",
+        "lib/db.ts (9 importers) and lib/validate.ts (9 importers) are hub modules; any schema change in Prisma or any ValidationError shape change propagates to the majority of the codebase.",
+        "lib/search.ts re-exports types from lib/restaurant-grouping.ts (`export type { RestaurantLocation, RestaurantGroup }`) while also wrapping _groupRestaurantsByName with a thin adapter. This is a narrow but real boundary blur: callers importing types from lib/search.ts are actually depending on lib/restaurant-grouping.ts without knowing it.",
+        "app/api/scrape/route.ts acts as both HTTP handler and pipeline orchestrator (fetchWithFallback, enrichAndUpsert, upsertRestaurant are all defined inside or alongside the route file). This concentrates orchestration logic in the HTTP layer rather than in lib/, which is a dependency-direction violation consistent with the pre-existing open issue.",
+        "lib/fingerprint.ts duplicates IP extraction logic: it reads x-forwarded-for and x-real-ip inline. lib/geo.ts exports extractIp() which does the same. Both modules exist in the same layer and perform identical header parsing. app/api routes that need fingerprinting (vote, restaurant-vote) use lib/fingerprint.ts; routes that need IP for geo (search, trending, geo) use lib/geo.ts extractIp(). This cross-module duplication indicates a missing shared boundary.",
+        "components/LoadMoreButton.tsx imports groupRestaurantsByName from lib/restaurant-grouping.ts directly (correct), while lib/search.ts also imports and wraps it (adding an adapter function groupRestaurantsByName). The wrapper in lib/search.ts is only used by app/search/page.tsx, making it a thin shim that blurs the boundary.",
+        "No cycles detected in the import graph — the dependency graph is acyclic.",
+        "lib/rules.ts is imported by app/api/vote/route.ts and app/api/restaurant-vote/route.ts. The rules module itself imports lib/db.ts. The chain (route → rules → db) is properly directional.",
+        "lib/state-machine.ts is used only within app/api/scrape/route.ts. Its primary consumer is in the HTTP layer, which is acceptable since the state machine models the scrape pipeline. However, the advance() callback defined in the route captures local mutable state — a form of cross-module coordination through a closure over mutable state.",
+        "package_size_census: lib/ dominates at 1730 LOC across 12 files; components/ is 930 LOC; the codebase is small enough (~34 files, 3901 LOC) that this is expected, not a red flag."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "cross_module_architecture": {
+      "dimension_character": "The codebase has a clear and consistently respected lib → app dependency direction with no cycles. The main structural weaknesses are: IP extraction logic duplicated between lib/fingerprint.ts and lib/geo.ts (missing shared boundary), orchestration logic concentrated in the scrape route rather than lib/ (pre-existing open issue), and a thin groupRestaurantsByName wrapper in lib/search.ts that partly obscures the restaurant-grouping boundary.",
+      "score_rationale": "The codebase scores in the mid-70s: it earns credit for clean acyclic dependencies, proper layer separation in most routes, and the successful extraction of restaurant-grouping into a shared module. It loses ground for the duplicated IP extraction across two lib modules (a concrete missing boundary), the orchestration-in-HTTP-handler pattern in the scrape route (pre-existing), and the re-export shim in lib/search.ts that blurs the restaurant-grouping boundary."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "cma_ip_extraction_duplication",
+      "summary": "IP extraction duplicated between lib/fingerprint.ts and lib/geo.ts; two lib modules own the same concern",
+      "related_files": ["lib/fingerprint.ts", "lib/geo.ts", "app/api/vote/route.ts", "app/api/restaurant-vote/route.ts"],
+      "evidence": [
+        "lib/fingerprint.ts lines 6-9: reads x-forwarded-for and x-real-ip inline, identical logic to lib/geo.ts extractIp()",
+        "lib/geo.ts exports extractIp(headers: Headers) which does the same split/trim/fallback",
+        "Both modules are in the same layer (lib/); neither has a dependency on the other, so the extraction is duplicated rather than shared"
+      ],
+      "suggestion": "Move extractIp() to lib/fingerprint.ts (or a new lib/http.ts) as the single source of truth. Have lib/geo.ts import and call extractIp() instead of duplicating the header reads. This resolves the missing shared boundary without adding a new abstraction layer.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "cma_search_grouping_shim",
+      "summary": "lib/search.ts wraps and re-exports lib/restaurant-grouping.ts, obscuring the true boundary for callers",
+      "related_files": ["lib/search.ts", "lib/restaurant-grouping.ts", "app/search/page.tsx"],
+      "evidence": [
+        "lib/search.ts line 5: `import { groupRestaurantsByName as _groupRestaurantsByName ... } from '@/lib/restaurant-grouping'`",
+        "lib/search.ts exports its own groupRestaurantsByName() that just calls _groupRestaurantsByName with a cast — single caller is app/search/page.tsx",
+        "lib/search.ts also re-exports types: `export type { RestaurantLocation, RestaurantGroup } from '@/lib/restaurant-grouping'` — callers see these types as coming from lib/search, hiding the true origin",
+        "components/LoadMoreButton.tsx correctly imports directly from lib/restaurant-grouping.ts, creating inconsistency"
+      ],
+      "suggestion": "Remove the groupRestaurantsByName wrapper and type re-exports from lib/search.ts. Have app/search/page.tsx import groupRestaurantsByName and its types directly from lib/restaurant-grouping.ts, consistent with how LoadMoreButton already does it.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Incremental growth without auditing existing lib functions for overlap — IP extraction grew in two places because fingerprint.ts and geo.ts were authored independently",
+      "lib/search.ts accumulated wrapper concerns as a convenience hub, blurring the restaurant-grouping boundary"
+    ],
+    "likely_symptoms": ["cma_ip_extraction_duplication", "cma_search_grouping_shim"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "cross_module_architecture": {
+      "add": [
+        {
+          "header": "Clean one-way dependency graph, no cycles",
+          "description": "All lib/ modules flow upward to app/api/ routes; no circular imports detected. The acyclic structure is consistently maintained across 34 files.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "IP extraction split across two lib modules",
+          "description": "lib/fingerprint.ts and lib/geo.ts both parse x-forwarded-for and x-real-ip independently. This duplication exists because the modules were authored for separate concerns (fingerprinting vs geolocation) without coordinating on the shared header-reading step.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "lib/search.ts acts as a partial facade over restaurant-grouping",
+          "description": "lib/search.ts re-exports types and wraps groupRestaurantsByName from lib/restaurant-grouping.ts, creating an inconsistency since LoadMoreButton.tsx imports from restaurant-grouping directly. The wrapper adds no logic and blurs the boundary.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

@@ -1,5 +1,14 @@
 import { validateRedditPost, validateExtractedRestaurant } from '@/lib/validate';
 
+function pushIfValid(results: ExtractedRestaurant[], extracted: ExtractedRestaurant): void {
+  try {
+    validateExtractedRestaurant(extracted);
+    results.push(extracted);
+  } catch {
+    console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');
+  }
+}
+
 export interface RedditPost {
   id: string;
   title: string;
@@ -310,19 +319,13 @@ export async function scrapeRedditForRestaurants(
             const key = name.toLowerCase();
             if (seen.has(key)) continue;
             seen.add(key);
-            const extracted = {
+            pushIfValid(results, {
               name,
               postUrl: post.permalink,
               summary: extractRelevantSentences(comment, name),
               source: `r/${post.subreddit}`,
               redditScore: post.score,
-            };
-            try {
-              validateExtractedRestaurant(extracted);
-              results.push(extracted);
-            } catch {
-              console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');
-            }
+            });
           }
         } else {
           // Direct review/mention post — extract from title
@@ -331,19 +334,13 @@ export async function scrapeRedditForRestaurants(
           const key = name.toLowerCase();
           if (seen.has(key)) continue;
           seen.add(key);
-          const extracted = {
+          pushIfValid(results, {
             name,
             postUrl: post.permalink,
             summary: buildSummary(post),
             source: `r/${post.subreddit}`,
             redditScore: post.score,
-          };
-          try {
-            validateExtractedRestaurant(extracted);
-            results.push(extracted);
-          } catch {
-            console.warn('Extracted restaurant must have a name and city to proceed with enrichment.');
-          }
+          });
         }
       }
     })

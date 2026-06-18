@@ -1,0 +1,108 @@
+{
+  "batch": "contract_coherence",
+  "batch_index": 18,
+  "assessments": {"contract_coherence": 77.0},
+  "dimension_notes": {
+    "contract_coherence": {
+      "evidence": [
+        "lib/geo.ts `extractIp(headers: Headers): string` — return type is `string` but the function can return the literal 'unknown' when neither x-forwarded-for nor x-real-ip is present. This is a documented string value, but callers (app/api/search/route.ts, app/api/trending/route.ts) then pass this 'unknown' string to detectCityFromIp which explicitly checks for it. The contract is implicit: callers must know that 'unknown' is a sentinel, not a real IP.",
+        "lib/search.ts `findRestaurantGroup(restaurantId, city, name)` — return type is inferred as `RestaurantGroup | null` (via the `.find()` expression). No explicit return type annotation. The function name suggests a finder, which is coherent with returning null, but the missing annotation makes the contract implicit.",
+        "lib/search.ts `groupRestaurantsByName` — re-exported as a thin wrapper that casts its argument to `unknown as GroupableRestaurant[]`. The wrapper adds no logic but creates a type lie: the input is typed as RestaurantWithRecommendations[] at the call site but cast away. The inner function from lib/restaurant-grouping.ts has a more honest signature.",
+        "app/api/scrape/route.ts `fetchWithFallback` — declared return type includes `state: ScrapeState` in the returned object but the returned state value is always the mutable local `state` variable from the outer closure (not the state at the moment of return). The state machine is advanced through side effects on a local variable, but the function signature implies it returns the resulting state. Actually on the `empty: true` path the returned state is 'FAILED', but on the success path the returned state is still whatever `state` was before `advance('EXTRACTING')` was called, since `advance` updates the outer `state` variable by reference through closure. This is confusing — the caller ignores the returned state anyway.",
+        "lib/validate.ts — all validate* functions declare `void` return type and throw ValidationError on failure. This is consistent across the module. The contract is clear.",
+        "lib/state-machine.ts `assertValidTransition(from, to): void` — throws InvalidTransitionError. The function name 'assert' implies throwing behavior, which matches. Contract is honest.",
+        "lib/rules.ts `checkRule03` and `checkRule05` return `Promise<boolean>` — the boolean meaning (true = allowed, false = rejected) is documented in the JSDoc comment. Contract is clear.",
+        "lib/reddit.ts `extractRestaurantName(title: string): string | null` — name says 'extract' not 'get', accurately signals possible null. Contract is honest.",
+        "lib/google-places.ts `searchGooglePlaces` returns `Promise<PlaceDetails[]>` — always returns an array (empty on failure), never throws to the caller. Promise<PlaceDetails[]> contract is honored.",
+        "lib/openrouter.ts `parseQueryWithLLM` and `getRedditRecommendations` — both return their respective types or fall back gracefully, never throw to callers. Contract is honest.",
+        "app/api/restaurant-vote/route.ts and app/api/vote/route.ts: both call `tryTransitionToVerified(restaurantId)` after the vote transaction. `tryTransitionToVerified` is declared `Promise<void>` and neither route awaits its result with error handling. If the transition throws (unlikely given the guard checks), the error would be swallowed silently.",
+        "lib/search.ts exports `ParsedQuery` interface — this duplicates the interface from lib/validate.ts (different field optionality: validate.ts has all fields optional, search.ts has city as nullable but terms and raw as required strings). Two interfaces with the same name representing the same domain concept create contract confusion for consumers.",
+        "components/RestaurantFeedbackButton.tsx `cast(direction)` — internal function, no export, no annotation concern. The `storageKey` is computed inline from restaurantId, creating an implicit storage contract with localStorage."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Two ParsedQuery interface definitions for the same concept with different optionality shapes create a contract inconsistency. The extractIp 'unknown' sentinel return is an undocumented implicit contract. The fetchWithFallback state return is misleading."
+    }
+  },
+  "dimension_judgment": {
+    "contract_coherence": {
+      "dimension_character": "Most of the codebase honors its contracts well — validate functions throw consistently, API route handlers return arrays-or-empty without throwing, and rule-check functions return booleans with clear boolean semantics. The main contract weaknesses are two ParsedQuery interface definitions with differing optionality (one in lib/validate.ts with all fields optional, one in lib/search.ts with terms and raw required), extractIp returning a sentinel string 'unknown' that callers must know about without it being in the type, and the fetchWithFallback function returning a state field that is redundant and potentially confusing.",
+      "score_rationale": "The codebase scores above average on contract coherence — no getter-that-mutates patterns, no docstring/signature divergences, and error contracts are consistent within modules. The deductions come from the duplicate ParsedQuery interface with different shapes (a genuine contract inconsistency callers could trip over) and the implicit 'unknown' sentinel from extractIp. These are real but not critical defects."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "contract_coherence",
+      "identifier": "dual_parsed_query_interface",
+      "summary": "ParsedQuery defined twice with different field optionality — lib/validate.ts vs lib/search.ts",
+      "related_files": ["lib/validate.ts", "lib/search.ts"],
+      "evidence": [
+        "lib/validate.ts lines 18-22: `interface ParsedQuery { city?: string | null; terms?: string | null; raw?: string | null; }` — all fields optional",
+        "lib/search.ts lines 8-12: `export interface ParsedQuery { city: string | null; terms: string; raw: string; }` — terms and raw are required strings",
+        "lib/validate.ts is used by lib/search.ts to validate a ParsedQuery after parseQueryWithLLM returns — the validate-time interface accepts optional fields while the post-validation export promises required fields. This is coherent in practice but a type contract divergence that could confuse consumers importing ParsedQuery from lib/search vs lib/validate."
+      ],
+      "suggestion": "Remove the private interface from lib/validate.ts and import the canonical ParsedQuery from lib/search.ts (or a shared types file) for the validation function signature. Alternatively, the validate module's interface is intentionally loose to avoid circular imports — in that case, add a comment explaining the divergence.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "extract_ip_unknown_sentinel",
+      "summary": "extractIp returns 'unknown' sentinel string not expressed in return type",
+      "related_files": ["lib/geo.ts"],
+      "evidence": [
+        "lib/geo.ts line 42: `export function extractIp(headers: Headers): string` — return type is `string`",
+        "lib/geo.ts lines 44-47: returns `headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || 'unknown'`",
+        "detectCityFromIp explicitly checks `ip === 'unknown'` as a sentinel — consumers must know this convention",
+        "The 'unknown' sentinel is invisible from the function's declared `string` return type"
+      ],
+      "suggestion": "Either return `string | null` (returning null when no IP is detectable) and update detectCityFromIp to check for null, or document the sentinel in a JSDoc comment. The null approach makes the contract self-documenting via types.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "find_restaurant_group_missing_annotation",
+      "summary": "findRestaurantGroup lacks explicit return type annotation on a public API function",
+      "related_files": ["lib/search.ts"],
+      "evidence": [
+        "lib/search.ts line 68: `export async function findRestaurantGroup(restaurantId: string, city: string, name: string)` — no return type annotation",
+        "The function is exported and called from app/restaurant/[id]/page.tsx, making it part of the public API",
+        "Return type is inferred as `Promise<RestaurantGroup | null>` from the .find() expression"
+      ],
+      "suggestion": "Add explicit return type `Promise<RestaurantGroup | null>` to make the null-returning contract visible without requiring callers to inspect the implementation.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The validate.ts module defines local interface mirrors to avoid circular imports — a reasonable workaround but it creates parallel type definitions with different shapes",
+      "extractIp was likely written with the sentinel pattern as a convenience to avoid null propagation, but it hides information from the type system"
+    ],
+    "likely_symptoms": ["dual_parsed_query_interface", "extract_ip_unknown_sentinel"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "contract_coherence": {
+      "add": [
+        {
+          "header": "Validate module uses local interface mirrors intentionally",
+          "description": "lib/validate.ts defines local interface copies (ParsedQuery, RedditPost, etc.) with all-optional fields to avoid circular imports from lib/search.ts and lib/reddit.ts. The comment in the file explains this design choice. The loose optionality is intentional for the validation layer.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Error contracts are consistent within each module",
+          "description": "All validate* functions throw ValidationError, all API route handlers return JSON responses without rethrowing, and all lib functions that may fail return null/empty-array rather than throwing. Error strategy is consistent within each layer.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "batch": "contract_coherence",
+  "batch_index": 18,
+  "assessments": {
+    "contract_coherence": 72.0
+  },
+  "dimension_notes": {
+    "contract_coherence": {
+      "evidence": [
+        "lib/geo.ts: `detect_city` is exported as the primary function, but `detectCityFromIp` is also exported as an alias (`export const detectCityFromIp = detect_city`). The alias is used in app/api/geo/route.ts while the canonical name is used in app/api/trending/route.ts and app/api/search/route.ts. The module presents two names for the same function without a clear migration comment — a surface-level API inconsistency.",
+        "lib/openrouter.ts: the file-level JSDoc says 'using Gemini Flash' but the actual model used is `meta-llama/llama-3.2-3b-instruct:free` (not Gemini Flash). The comment was written for a different model and was not updated when the model changed — a docstring/signature divergence.",
+        "lib/search.ts: `parseQuery` docstring says 'using Gemini Flash' (inherited from openrouter.ts comment style) but the function delegates to `parseQueryWithLLM` which uses a Llama model. Minor doc drift.",
+        "lib/validate.ts: all `validateX` functions declare `void` return type and throw on failure — they honor their contracts. No silent swallowing or hidden returns.",
+        "lib/rules.ts: `checkRule03` and `checkRule05` return `boolean` — `true` means vote allowed, `false` means rejected. The naming `checkRuleXX` doesn't communicate the boolean polarity. A caller unfamiliar with the codebase might misread `if (!allowed)` as a double-negative. The return value semantics diverge slightly from the function name's implied meaning (check ≠ allow).",
+        "lib/state-machine.ts: `assertValidTransition` and `isValidTransition` have complementary contracts that are both honored. The module exports three named functions with clear, distinct contracts — well-designed.",
+        "lib/google-places.ts: `searchGooglePlaces` declares `Promise<PlaceDetails[]>` return type. The function always returns an array (possibly empty) — no null path. Contract is honored.",
+        "lib/reddit.ts: `scrapeRedditForRestaurants` and `fetchCommunityPicksForRestaurant` both declare `Promise<ExtractedRestaurant[]>` / `Promise<CommunityPick[]>`. Both always return arrays. Contract honored.",
+        "lib/openrouter.ts: `parseQueryWithLLM` declares `Promise<{ city: string | null; terms: string }>`. All code paths return this shape (fallback also returns it). Contract honored.",
+        "app/api/* route handlers: all handlers declare no explicit return type (Next.js convention) but consistently return `NextResponse.json(...)`. No contract mismatch.",
+        "lib/reddit.ts: `foodQuery` function (line 100-102) takes a string and returns the same string unchanged — it is a no-op wrapper. Its name implies transformation but it performs none. This is a hidden contract lie (no-op with a meaningful name).",
+        "lib/geo.ts: the JSDoc for `detect_city` says 'Alias: detect_city (used by GeoDetector.detect_city in the spec)' which implies the primary name IS detect_city, yet the alias `detectCityFromIp` is exported for 'backward compatibility'. This reversal (alias documented as canonical, canonical exported as alias) is confusing.",
+        "lib/hours.ts: `isOpenNow` returns `boolean | null`. The null case is documented (cannot parse). All code paths return one of the three values. Contract is technically honored but callers must handle null, which is not communicated in the function name (`isOpenNow` implies boolean)."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "contract_coherence": {
+      "dimension_character": "Most functions honor their declared return type contracts — the lib layer is consistent about returning empty arrays on failure rather than null, and validators throw rather than silently returning. The main contract violations are in naming and documentation: the `foodQuery` no-op function claims to do something it doesn't, the `detect_city`/`detectCityFromIp` alias pair documents backward compatibility backwards, and the openrouter.ts JSDoc refers to 'Gemini Flash' while the actual model is Llama. These are correctness documentation failures rather than runtime failures.",
+      "score_rationale": "Score of 72 reflects a codebase where runtime contracts are largely honored but documentation contracts have accumulated drift. The `foodQuery` no-op is the only outright behavioral contract lie (a function that claims to be a transformer but is an identity function). The naming inversions and stale model references are lower severity. No functions were found that silently swallow errors while claiming to throw, or that mutate state while named as getters."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "contract_coherence",
+      "identifier": "foodquery_noop",
+      "summary": "foodQuery() is a named transformation function that returns its input unchanged",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "lib/reddit.ts lines 100-102: `function foodQuery(query: string): string { return query; }`",
+        "Called at line 108: `const encodedQuery = encodeURIComponent(foodQuery(query))`. The function adds no transformation — it is a pure identity wrapper with a name that promises food-specific query transformation.",
+        "Callers that read the call site assume the query has been transformed for food-domain searching. This assumption is false."
+      ],
+      "suggestion": "Remove foodQuery entirely and call `encodeURIComponent(query)` directly, or implement the food-domain transformation the name implies (e.g., appending 'restaurant' or 'food' to help Reddit's search). The name-behavior mismatch should be resolved either way.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "openrouter_stale_model_doc",
+      "summary": "openrouter.ts JSDoc says 'Gemini Flash' but code uses Llama model",
+      "related_files": ["lib/openrouter.ts"],
+      "evidence": [
+        "lib/openrouter.ts line 6-8: JSDoc says 'Parse a natural-language restaurant query into city + search terms using Gemini Flash.'",
+        "lib/openrouter.ts line 2: `const MODEL = 'meta-llama/llama-3.2-3b-instruct:free'` — not a Gemini model.",
+        "lib/search.ts line 13: same Gemini Flash reference in the docstring for parseQuery, which delegates to this function."
+      ],
+      "suggestion": "Update the JSDoc for parseQueryWithLLM (and parseQuery in search.ts) to reference the actual model or to describe the behavior generically ('using an LLM via OpenRouter') so the comment does not mislead readers about which model is in use.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "detect_city_alias_confusion",
+      "summary": "detect_city exported as primary name but alias detectCityFromIp documented as backward-compat alias — roles are inverted",
+      "related_files": ["lib/geo.ts"],
+      "evidence": [
+        "lib/geo.ts line 6: `export async function detect_city(ip: string)` — uses snake_case, comment says 'Alias: detect_city (used by GeoDetector.detect_city in the spec)'.",
+        "lib/geo.ts line 40: `export const detectCityFromIp = detect_city` — comment says 'Alias for backward compatibility'.",
+        "app/api/geo/route.ts imports `detectCityFromIp`; app/api/trending/route.ts and app/api/search/route.ts import `detect_city`. The codebase uses both names actively, contradicting the 'backward compatibility' framing of detectCityFromIp.",
+        "snake_case name (detect_city) is a convention outlier in a camelCase TypeScript codebase."
+      ],
+      "suggestion": "Rename the primary function to `detectCityFromIp` (camelCase, consistent with TS conventions), remove the alias, and update the three import sites. The snake_case form was introduced to match a spec/manifest name but violates the live codebase convention.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "openrouter.ts was originally written for Gemini Flash and docs were not updated when the model was changed",
+      "detect_city snake_case name was introduced to match a spec document but created a convention conflict with the camelCase codebase",
+      "foodQuery was likely a placeholder for future query enrichment that was never implemented"
+    ],
+    "likely_symptoms": ["openrouter_stale_model_doc", "detect_city_alias_confusion"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "contract_coherence": {
+      "add": [
+        {
+          "header": "Runtime return-type contracts are consistently honored",
+          "description": "All lib functions that declare array return types return arrays on all paths (never null). Validator functions throw or return void — no silent swallowing. The runtime behavior matches declared types throughout the lib layer.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "foodQuery is a documented no-op pending implementation",
+          "description": "The function exists as an identity wrapper with a meaningful name, suggesting food-domain query transformation was planned but not implemented. The name-behavior gap misleads callers.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "detect_city uses snake_case against camelCase codebase convention",
+          "description": "The function was named to match a spec document reference but the camelCase alias detectCityFromIp is the idiomatic name for this codebase. Both are actively used, creating a naming inconsistency at the API boundary.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

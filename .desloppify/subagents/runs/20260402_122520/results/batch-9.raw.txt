@@ -1,0 +1,108 @@
+{
+  "batch": "mid_level_elegance",
+  "batch_index": 9,
+  "assessments": {
+    "mid_level_elegance": 70.0
+  },
+  "dimension_notes": {
+    "mid_level_elegance": {
+      "evidence": [
+        "The search boundary is clean: `app/api/search/route.ts` calls `parseQuery → searchRestaurants → groupRestaurantsByName`, three collaborators composed in sequence with explicit inputs and outputs",
+        "The vote boundary is clean: route extracts fingerprint, checks rule, runs transaction, then calls `tryTransitionToVerified` — each step is a named collaborator, and the boundary concerns (HTTP body parsing, fingerprinting, DB write, state transition) are assigned to separate modules",
+        "Data translation at the API boundary is explicit: each route handler maps between the HTTP layer (request params, JSON body) and the lib layer in one place with clear transforms",
+        "The scrape flow orchestrates 6 collaborators (parseQuery, scrapeRedditForRestaurants, getRedditRecommendations, searchGooglePlaces, upsertRestaurant, fetchCommunityPicksForRestaurant) but all within a single 180-LOC function — the seam choreography is tangled rather than composed (see low_level_elegance issue)",
+        "The LoadMoreButton→search-more seam: client sends `city, terms, offset, limit` params to `/api/search-more`, receives `results + hasMore`. This is clean. However, the client then re-runs the grouping algorithm locally (duplicating lib/search.ts) rather than having the API return grouped results — the boundary forces the client to carry business logic it shouldn't own",
+        "Workflow integrity check — scrape trigger: `app/api/search/route.ts` fires a fire-and-forget `triggerScrape` when `grouped.length < 3`. This is a blind spot: there is no rate-limiting, deduplication, or backoff on the trigger. If the same query is searched repeatedly with few results, the scrape endpoint is called on every request with no guard that a scrape is already in progress for the same city+query. The FAILED→PENDING retry in the state machine exists but the trigger at the search layer ignores it.",
+        "Error propagation at boundaries: lib/ functions that return null on error (geo.ts returns null, hours.ts returns null) compose cleanly with callers that use `??` fallbacks. The inconsistency is that lib/search.ts throws while lib/geo.ts returns null — callers of both must handle two error contracts, but the routes handle them correctly with explicit fallback chains",
+        "The `triggerScrape` function in search/route.ts swallows errors with `.catch(() => undefined)` — this is intentional for fire-and-forget but makes it impossible to observe scrape failures from the search layer"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "mid_level_elegance": {
+      "dimension_character": "The vote and search read flows have well-composed seams — each collaborator has a clear input/output contract, and the route handlers act as thin translation layers. The two boundary weaknesses are structural: the search-more/LoadMoreButton seam forces business logic (restaurant grouping) onto the client because the API returns raw results rather than grouped ones, and the scrape trigger in the search handler fires blindly without knowing if a scrape is already running or has recently failed for the same query, creating potential thundering-herd behavior on popular low-result queries.",
+      "score_rationale": "The vote flows and basic search path read cleanly as composition — these would score in the 85-90 range alone. The LoadMoreButton grouping duplication is a boundary design failure: the server computed groups for the initial page, but the client must recompute them for additional pages, meaning the boundary was drawn at the wrong level. The uncapped scrape trigger is a workflow integrity issue — repeated queries with few results will spawn unbounded parallel scrapes. Together these two structural seam problems fit the 70 band: a developer making cross-module changes in the load-more or scrape-trigger flows will encounter implicit contracts and surprising re-implementations."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "search_more_returns_ungrouped",
+      "summary": "The /api/search-more endpoint returns raw (ungrouped) restaurants, forcing LoadMoreButton to re-implement the server-side grouping algorithm on the client",
+      "related_files": [
+        "app/api/search-more/route.ts",
+        "components/LoadMoreButton.tsx",
+        "lib/search.ts"
+      ],
+      "evidence": [
+        "app/api/search-more/route.ts returns `data.results` as raw restaurant rows (not grouped)",
+        "LoadMoreButton.tsx lines 78-145 implement `groupByName` which replicates `groupRestaurantsByName` from lib/search.ts",
+        "The /api/search endpoint returns `grouped` results (it calls `groupRestaurantsByName`), but the sibling /api/search-more endpoint does not — the two endpoints have inconsistent output shapes for the same concept",
+        "The normalizeWebsite in LoadMoreButton already diverges from lib/search.ts (trailing slash handling differs), demonstrating active drift"
+      ],
+      "suggestion": "Have /api/search-more call `groupRestaurantsByName` and return grouped results, matching the /api/search response shape. LoadMoreButton then receives `RestaurantGroup[]` directly and can remove its local grouping implementation. Pass `shownNames` as a query parameter so the server can exclude already-displayed restaurants, or accept that client-side deduplication on group names is simpler.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "client_server_boundary_duplication"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "scrape_trigger_no_deduplication",
+      "summary": "The background scrape trigger in the search route fires on every request with <3 results, with no rate-limiting or in-flight deduplication guard",
+      "related_files": [
+        "app/api/search/route.ts",
+        "app/api/scrape/route.ts"
+      ],
+      "evidence": [
+        "app/api/search/route.ts line 49: `if (grouped.length < 3) { triggerScrape(request.nextUrl.origin, city, q); }` — called unconditionally on every search with few results",
+        "triggerScrape does `.catch(() => undefined)` — no deduplication, no cooldown, no awareness of prior scrape state",
+        "The state machine has FAILED→PENDING retry but this is only relevant if the scrape handler stores state across requests, which it does not — it is stateless per invocation",
+        "A popular low-result search (e.g., 'best ramen in Ottawa') with no cached restaurants will trigger a new scrape on every page load or refresh, potentially spawning parallel Google Places + Reddit API calls for the same query"
+      ],
+      "suggestion": "Add a simple deduplication guard: before triggering a scrape, check if a recently scraped record or an in-progress marker exists for `(city, terms)`. The simplest approach is a DB timestamp check — if `scraped_at` for any restaurant matching this city+terms is within the last N minutes, skip the trigger. Alternatively, store a `scrape_job` table or use a KV store for in-flight tracking. At minimum, add a `triggerScrape` cooldown by checking restaurant `created_at` recency before firing.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "scrape_trigger_blind_spot"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The search-more boundary problem stems from building load-more as a separate client component late in development, when the initial page's grouping was already in a server component — easier to duplicate than to refactor the API shape",
+      "The scrape trigger deduplication was probably deferred as a 'nice to have' — fire-and-forget is simpler to implement and the duplicate-scrape consequence is wasteful but not immediately visible"
+    ],
+    "likely_symptoms": [
+      "search_more_returns_ungrouped — the diverging normalizeWebsite will cause a restaurant with a trailing-slash website to appear in both the initial results and the load-more results as separate entries",
+      "scrape_trigger_no_deduplication — under moderate traffic on low-result queries, multiple concurrent scrapes for the same city+query will hit Reddit and Google Places APIs simultaneously, potentially exhausting rate limits or quota"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "mid_level_elegance": {
+      "add": [
+        {
+          "header": "Vote and search read flows are clean seam compositions",
+          "description": "The POST /api/vote and POST /api/restaurant-vote handlers compose fingerprinting, rule checking, transaction, and state transition as clearly named collaborators. The GET /api/search handler composes parseQuery, searchRestaurants, and groupRestaurantsByName in a linear pipeline. These seams are explicit, minimal, and unsurprising.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Search-more boundary forces grouping logic onto client",
+          "description": "The /api/search endpoint returns grouped results but /api/search-more returns raw rows, pushing the grouping algorithm onto LoadMoreButton. This boundary asymmetry is the root cause of the client-side algorithm duplication.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Blind scrape trigger on every low-result search",
+          "description": "The search handler triggers a scrape unconditionally when grouped results are fewer than 3, with no deduplication, cooldown, or in-flight awareness. This is a potential source of redundant external API calls under normal traffic.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

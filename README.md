@@ -1,157 +1,26 @@
-# Restaurant Recommendations
+# localrecos — Find great local restaurants recommended by real people in your community
 
-Accepts natural-language queries, searches real Reddit community discussions using the Reddit OAuth API, extracts restaurant names from posts and comments, validates each result against Google Places (food venues only), enriches with address/hours/photos, and returns ranked recommendations backed by community votes.
+Tired of generic "top 10" lists that feel like ads? localrecos finds restaurants that actual people are talking about and recommending in online communities. Type in what you're looking for — like "cozy ramen spots in Austin" — and get back real suggestions backed by community discussion, complete with addresses, hours, and photos.
 
-## Integrations
+## Features
 
-- **RedditAPI** — real community Reddit posts and comments about local restaurants
-- **GooglePlacesAPI** — place details, hours, and photos for restaurants
-- **OpenRouterAPI** — LLM-powered natural language query parsing (free-tier llama models)
+- **Search in plain English** — just describe what you want and where, no filters or dropdowns required
+- **Results from real community discussions** — recommendations are pulled from genuine online conversations, not curated marketing lists
+- **Only real restaurants** — every result is cross-checked against a restaurant database, so you won't see parks, shops, or anything that isn't actually a place to eat
+- **Rich details for each spot** — see the address, opening hours, price range, photos, and contact info all in one place
+- **Community voting** — upvote or downvote restaurants and individual recommendations so the best spots rise to the top
+- **Fallback suggestions** — if community discussions don't turn up results for your search, the app still does its best to surface relevant options
+- **How often a place gets mentioned** — see whether a restaurant was a one-off mention or something people keep bringing up
 
-## Business rules
+## Getting started
 
-- **API Keys Required for Enrichment** _(HIGH)_ — Google Places API key must be configured; cannot enrich restaurant details.
-- **Default City Fallback Required** _(LOW)_ — No city provided and DEFAULT_CITY environment variable is not set; cannot resolve location.
-- **Google Places Must Confirm Food Venue** _(MEDIUM)_ — Google Places returned a non-food venue for this name; skipping.
+Before running the app, you'll need to set the following environment variables:
 
-## Validation rules
+1. **`REDDIT_CLIENT_ID`** — your Reddit app client ID (used to search community discussions)
+2. **`REDDIT_CLIENT_SECRET`** — your Reddit app client secret
+3. **`REDDIT_USER_AGENT`** — a name to identify your app when talking to Reddit (e.g. `localrecos/1.0`)
+4. **`GOOGLE_PLACES_API_KEY`** — your Google Places API key (used to look up and verify restaurant details)
+5. **`OPENROUTER_API_KEY`** — your OpenRouter API key (used to understand your natural-language search)
+6. **`DEFAULT_CITY`** *(optional)* — a fallback city to use when no city is included in a search query (e.g. `Chicago`)
 
-- **Query Must Be Non-Empty** _(HIGH)_ — Query text and city are required to begin restaurant search.
-- **Reddit Posts Must Be Present Before Extraction** _(MEDIUM)_ — Reddit post is missing required fields; cannot extract restaurants.
-- **Extracted Restaurant Must Have a Name** _(MEDIUM)_ — Extracted restaurant must have a name and city to proceed with enrichment.
-
-## Diagrams
-
-### Request flow
-
-How user input is interpreted, sent to RedditAPI, GooglePlacesAPI, OpenRouterAPI, and results are returned.
-
-```mermaid
-flowchart TD
-    subgraph Sources["📥 Content Sources"]
-        RedditAPI["RedditAPI\nreal community Reddit posts and comments"]
-        GooglePlacesAPI["GooglePlacesAPI\nplace details, hours, and photos"]
-        OpenRouterAPI["OpenRouterAPI\nLLM-powered natural language parsing"]
-    end
-    Ingest[/"📄 Document\nquery received, scrape not yet triggered"/]
-    subgraph Knowledge["🗂️ Structured Knowledge"]
-        ParsedQueryIM[("Parsed Query (in-memory)")]
-        RedditPostIM[("Reddit Post (in-memory)")]
-        ExtractedRestaurantIM[("Extracted Restaurant (in-memory)")]
-        PlaceDetailsIM[("Place Details (in-memory)")]
-        Restaurant[("Restaurant")]
-        CommunityRecommendation[("Community Recommendation")]
-        RestaurantVote[("Restaurant Vote")]
-        Vote[("Vote")]
-    end
-    RedditAPI --> Ingest
-    GooglePlacesAPI --> Ingest
-    OpenRouterAPI --> Ingest
-    Ingest --> ParsedQueryIM
-    Ingest --> RedditPostIM
-    Ingest --> ExtractedRestaurantIM
-    Ingest --> PlaceDetailsIM
-    Ingest --> Restaurant
-    Ingest --> CommunityRecommendation
-    Ingest --> RestaurantVote
-    Ingest --> Vote
-    Ingest -. "analysis complete" .-> Done{{"✅ analysis stored"}}
-```
-
-### Parsed Query (in-memory) lifecycle
-
-States a parsed query (in-memory) moves through from creation to completion.
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING
-    PENDING --> PARSING: query submitted by user
-    PARSING --> FETCHING: city and terms extracted from query
-    FETCHING --> EXTRACTING: Reddit posts retrieved and food-filte…
-    FETCHING --> FALLBACK: Reddit search returns zero food-relev…
-    FALLBACK --> EXTRACTING: LLM fallback returns restaurant list
-    FALLBACK --> FAILED: LLM fallback returns empty list
-    EXTRACTING --> VALIDATING: restaurant names extracted
-    EXTRACTING --> FAILED: extraction yields no results after fi…
-    VALIDATING --> ENRICHING: one or more names confirmed as food v…
-    VALIDATING --> FAILED: all extracted names rejected by Googl…
-    ENRICHING --> COMPLETE: restaurants and community recommendat…
-    ENRICHING --> FAILED: enrichment raises an unrecoverable ex…
-    FAILED --> PENDING: retry requested by user
-    note right of PENDING
-        query received, scrape not yet triggered
-    end note
-    note right of PARSING
-        LLM is extracting city and search terms from the raw query
-    end note
-    note right of FETCHING
-        Reddit OAuth API is being searched for relevant posts and comments
-    end note
-    note right of FALLBACK
-        Reddit returned no results; LLM is generating restaurant candidates instead
-    end note
-    note right of EXTRACTING
-        restaurant names are being extracted from Reddit posts/comments
-    end note
-    note right of VALIDATING
-        each extracted name is being checked against Google Places (food venues only)
-    end note
-    note right of ENRICHING
-        confirmed food venues are being enriched with address, hours, and photos
-    end note
-    note right of COMPLETE
-        all enrichment succeeded and recommendations are persisted and ready
-    end note
-    note right of FAILED
-        one or more unrecoverable errors occurred during processing
-    end note
-```
-
-## Data model
-
-- **ParsedQuery (in-memory)** (terms, raw)
-- **RedditPost (in-memory)** (id, title, selftext)
-- **ExtractedRestaurant (in-memory)** (name, summary, source)
-- **PlaceDetails (in-memory)** (name, service_options)
-- **Restaurant** (id, name, city)
-- **CommunityRecommendation** (id, restaurant_id, source)
-- **RestaurantVote** (id, restaurant_id, fingerprint)
-- **Vote** (id, recommendation_id, fingerprint)
-
-## Lifecycle
-
-- **PENDING** — query received, scrape not yet triggered
-- **PARSING** — LLM is extracting city and search terms from the raw query
-- **FETCHING** — Reddit OAuth API is being searched for relevant posts and comments
-- **FALLBACK** — Reddit returned no results; LLM is generating restaurant candidates instead
-- **EXTRACTING** — restaurant names are being extracted from Reddit posts/comments
-- **VALIDATING** — each extracted name is being checked against Google Places (food venues only)
-- **ENRICHING** — confirmed food venues are being enriched with address, hours, and photos
-- **COMPLETE** — all enrichment succeeded and recommendations are persisted and ready
-- **FAILED** — one or more unrecoverable errors occurred during processing
-
-- PENDING → **PARSING**: query submitted by user _(guard: RULE_01)_
-- PARSING → **FETCHING**: city and terms extracted from query _(guard: RULE_06)_
-- FETCHING → **EXTRACTING**: Reddit posts retrieved and food-filtered successfully _(guard: RULE_02)_
-- FETCHING → **FALLBACK**: Reddit search returns zero food-relevant posts
-- FALLBACK → **EXTRACTING**: LLM fallback returns restaurant list
-- FALLBACK → **FAILED**: LLM fallback returns empty list
-- EXTRACTING → **VALIDATING**: restaurant names extracted _(guard: RULE_03)_
-- EXTRACTING → **FAILED**: extraction yields no results after filtering
-- VALIDATING → **ENRICHING**: one or more names confirmed as food venues by Google Places
-- VALIDATING → **FAILED**: all extracted names rejected by Google Places type filter
-- ENRICHING → **COMPLETE**: restaurants and community recommendations upserted to database
-- ENRICHING → **FAILED**: enrichment raises an unrecoverable exception
-- FAILED → **PENDING**: retry requested by user
-
-## Actors
-
-- **SystemPipeline** — writes: restaurants, community_recommendations
-- **PublicAPI** — writes: restaurant_votes, votes
-
-## Setup
-
-Required environment variables:
-
-- `GOOGLE_PLACES_API_KEY`
-- `DEFAULT_CITY`
+Once those are in place, install the dependencies and start the app according to your platform's usual setup steps.

@@ -1,0 +1,141 @@
+{
+  "batch": "type_safety",
+  "batch_index": 20,
+  "assessments": {
+    "type_safety": 65.0
+  },
+  "dimension_notes": {
+    "type_safety": {
+      "evidence": [
+        "lib/validate.ts: all validators accept `Record<string, unknown>` rather than the typed interfaces that exist in the same codebase (ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails). Each call site casts with `as unknown as Record<string, unknown>`. The typed interfaces exist but are bypassed at the validation boundary.",
+        "app/api/scrape/route.ts line 173: `validateRestaurantInput({...} as unknown as Record<string, unknown>)` — the restaurant data is assembled as a typed object and then immediately cast away from its type for validation. The double-cast (through unknown) is the standard TypeScript escape hatch used to suppress type checking.",
+        "lib/reddit.ts lines 131-135: `.filter((r: unknown) => r && typeof (r as Record<string, unknown>).name === 'string' && ...)` — the parsed API response is typed as unknown and then manually narrowed inline. This is correct at the API boundary but could benefit from a typed guard function.",
+        "lib/google-places.ts: `buildPlaceDetails(place: Record<string, unknown>, apiKey: string)` — the place parameter accepts any Record shape. Google Places API responses are cast to Record<string, unknown> throughout. Given the external API shape cannot be statically typed without a generated client, this is acceptable at the boundary.",
+        "components/LoadMoreButton.tsx: `const newGroups = groupByName(data.results as RawRestaurant[], seenNames)` — the fetch response is cast to `RawRestaurant[]` without runtime shape validation. If the API response shape changes, the cast will silently pass while runtime behavior breaks.",
+        "components/TrendingSection.tsx: `TrendingRestaurant` interface is defined locally in the component. The API response is cast via `.then((d) => { setCity(d.city); setResults(d.results ?? []) })` — `d` is typed as `any` (implicit from fetch().json()). The results array is assigned to `TrendingRestaurant[]` state without a runtime check.",
+        "lib/search.ts: `RestaurantWithRecommendations` interface correctly mirrors the Prisma return type. The `total_net_votes` field is a computed field added via `.map()` — this pattern is sound.",
+        "app/restaurant/[id]/page.tsx: `groupRestaurantsByName(cityRestaurants.map((r) => ({ ...r, total_net_votes: r.upvotes - r.downvotes })))` — the spread preserves all Prisma fields but the explicit `total_net_votes` addition is untyped relative to RestaurantWithRecommendations. TypeScript infers the correct type via structural inference here.",
+        "lib/hours.ts: `isOpenNow(hours: string): boolean | null` — the return type honestly documents the null case. All three values (true, false, null) are reachable via different code paths. Type is accurate.",
+        "lib/fingerprint.ts: `computeFingerprint(request: NextRequest): string` — always returns a hex string. Type is accurate.",
+        "lib/state-machine.ts: All types are exact literal union types. `VALID_TRANSITIONS` is typed as `Record<ScrapeState, ScrapeState[]>` which guarantees exhaustive coverage of all states.",
+        "lib/openrouter.ts: `parseQueryWithLLM` returns `Promise<{ city: string | null; terms: string }>`. The type is honest — city can be null on all code paths (fallback, API failure, explicit null parse).",
+        "lib/reddit.ts: The `cachedToken` module variable is typed as `{ token: string; expiresAt: number } | null` — accurate. The token field is correctly narrowed before use.",
+        "components/RestaurantCard.tsx: The `Restaurant` interface has `status: string` rather than the `RestaurantStatus` enum from Prisma. The `STATUS_LABELS` Record uses string keys, so string comparisons are used throughout instead of the enum — an enum bypass pattern.",
+        "components/TrendingSection.tsx: Same pattern — `status: string` in `TrendingRestaurant` instead of `RestaurantStatus` enum.",
+        "app/restaurant/[id]/page.tsx: `STATUS_INFO: Record<string, {...}>` with string keys 'VERIFIED', 'UNREVIEWED', 'INCOMPLETE' — raw string literal comparisons instead of the RestaurantStatus enum from @prisma/client.",
+        "app/api/scrape/route.ts: body typed as `{ city?: string; query?: string }` — both fields are optional, which correctly reflects the JSON parsing uncertainty. Narrowing is done with explicit checks before use.",
+        "lib/validate.ts: `as unknown as Record<string, unknown>` double-cast is used 8+ times across the codebase. This is a systemic pattern that erases type information at every validation call site. The validators were designed for Record<string, unknown> inputs but are called with fully-typed objects, creating a mismatch between the codebase's type-richness and the validation layer's type-blindness."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "type_safety": {
+      "dimension_character": "The codebase has a structural type safety gap: well-typed interfaces exist throughout (ParsedQuery, RestaurantWithRecommendations, PlaceDetails, RedditPost) but the validation layer accepts Record<string, unknown>, forcing every call site to double-cast through unknown. Additionally, the RestaurantStatus Prisma enum is bypassed with raw string literals in all three component status badge lookups (RestaurantCard, TrendingSection, restaurant page), meaning the type system cannot catch typos or missing cases. Fetch response casting without runtime validation in LoadMoreButton and TrendingSection creates silent failure modes if API shapes drift.",
+      "score_rationale": "Score of 65 reflects a codebase that uses TypeScript intentionally and has good type coverage in the lib layer, but has two systemic weaknesses: the validate.ts type-erasure pattern (8+ double-casts in production code) and the enum bypass pattern in component status lookups. These are not trivial style issues — they are gaps where the type system cannot catch real classes of bugs. The fetch response casts without runtime guards in components add additional exposure at API boundaries."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "type_safety",
+      "identifier": "validate_type_erasure",
+      "summary": "All validators accept Record<string, unknown>, forcing double-cast through unknown at every call site",
+      "related_files": [
+        "lib/validate.ts",
+        "app/api/scrape/route.ts",
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts",
+        "lib/reddit.ts",
+        "lib/google-places.ts",
+        "lib/search.ts"
+      ],
+      "evidence": [
+        "lib/validate.ts: validateParsedQuery(obj: Record<string, unknown>), validateRedditPost(obj: Record<string, unknown>), validatePlaceDetails(obj: Record<string, unknown>) — all validators erase the caller's type context.",
+        "app/api/scrape/route.ts line 173: `validateRestaurantInput({...} as unknown as Record<string, unknown>)` — typed object cast away for validation.",
+        "lib/reddit.ts line 141: `validateRedditPost(redditPost as unknown as Record<string, unknown>)` — same pattern.",
+        "The ParsedQuery, RedditPost, PlaceDetails TypeScript interfaces exist in the codebase but are not used as the validator parameter types."
+      ],
+      "suggestion": "Update validator signatures to accept their corresponding typed interfaces: `validateParsedQuery(obj: ParsedQuery): void`, `validateRedditPost(obj: RedditPost): void`, etc. The internal field access can remain as `obj.field` since the interface guarantees the shape. This eliminates all double-casts and allows the type system to catch mismatches at validation call sites.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "status_enum_bypass",
+      "summary": "RestaurantStatus Prisma enum bypassed with raw string literals in component status lookups",
+      "related_files": [
+        "components/RestaurantCard.tsx",
+        "components/TrendingSection.tsx",
+        "app/restaurant/[id]/page.tsx"
+      ],
+      "evidence": [
+        "RestaurantCard.tsx line 40: `status: string` in the Restaurant interface instead of `RestaurantStatus`.",
+        "RestaurantCard.tsx line 51: `const STATUS_LABELS: Record<string, {...}>` — string keys 'VERIFIED', 'UNREVIEWED', 'INCOMPLETE'. The type system cannot catch if a new status is added to the Prisma enum.",
+        "TrendingSection.tsx line 6: `status: string` in TrendingRestaurant interface.",
+        "app/restaurant/[id]/page.tsx line 13: `const STATUS_INFO: Record<string, {...}>` with string keys.",
+        "If the Prisma enum adds or renames a status value, TypeScript will not flag the outdated component lookups."
+      ],
+      "suggestion": "Import RestaurantStatus from '@prisma/client' in the component interfaces and Record types. Change `status: string` to `status: RestaurantStatus` and `Record<string, {...}>` to `Record<RestaurantStatus, {...}>`. The type system will then flag exhaustiveness gaps when the enum changes.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "fetch_response_cast_without_guard",
+      "summary": "LoadMoreButton casts fetch response to RawRestaurant[] without runtime shape validation",
+      "related_files": ["components/LoadMoreButton.tsx"],
+      "evidence": [
+        "LoadMoreButton.tsx line 172: `const newGroups = groupByName(data.results as RawRestaurant[], seenNames)` — `data` is `any` from `res.json()`, cast directly to `RawRestaurant[]`.",
+        "If /api/search-more returns an error object or changes its shape, the cast silently succeeds and the subsequent code receives malformed data.",
+        "TrendingSection.tsx has the same pattern: `setResults(d.results ?? [])` where `d` is untyped from fetch().json()."
+      ],
+      "suggestion": "Add a type guard or Zod schema for the search-more API response. At minimum, check `Array.isArray(data.results)` before casting. Alternatively, define a shared response type for /api/search-more that is used in both the route handler and the client component.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "validate.ts was designed as a runtime validation layer independent of TypeScript types, likely before the typed interfaces were fully established — the two layers never converged",
+      "Prisma enum types are not imported into client components because they cross the server/client boundary; string literals were used as a shortcut rather than defining a client-side type alias",
+      "Fetch response types are not validated at component boundaries — a common pattern in Next.js apps without a type-safe fetch wrapper"
+    ],
+    "likely_symptoms": ["validate_type_erasure", "status_enum_bypass"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "type_safety": {
+      "add": [
+        {
+          "header": "lib layer interfaces are well-typed but don't flow into validators",
+          "description": "ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails, and RestaurantWithRecommendations are all well-defined typed interfaces. The type safety gap is specifically at the validation boundary where these types are erased to Record<string, unknown>.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "RestaurantStatus enum bypassed with string literals in components",
+          "description": "All three status display components use string-keyed Records rather than the Prisma RestaurantStatus enum. This is likely because Prisma types are considered server-only, but the enum values are needed on the client. A client-safe type alias or Zod schema would solve this without importing Prisma client-side.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "lib/state-machine.ts uses exhaustive literal union types",
+          "description": "ScrapeState is a literal union type and VALID_TRANSITIONS is typed as Record<ScrapeState, ScrapeState[]>, ensuring all states are covered. This is a positive pattern for type-safe state machines.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "External API response types handled correctly at boundaries",
+          "description": "lib/google-places.ts and lib/openrouter.ts correctly type external API responses as unknown/Record<string, unknown> and narrow explicitly before use. The boundary handling is sound even without generated client types.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

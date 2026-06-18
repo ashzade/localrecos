@@ -1,0 +1,412 @@
+{
+  "session": {"id": "ext_20260402_142847_81867bed", "token": "1d40e292d3ef85287875eed2673fe9e7"},
+  "assessments": {
+    "initialization_coupling": 74.0,
+    "design_coherence": 62.0,
+    "contract_coherence": 65.0,
+    "logic_clarity": 70.0,
+    "type_safety": 60.0
+  },
+  "dimension_notes": {
+    "initialization_coupling": {
+      "evidence": [
+        "lib/reddit.ts lines 54-56: USER_AGENT, CLIENT_ID, CLIENT_SECRET all read from process.env at module scope — stale snapshots if env vars set after import in tests",
+        "lib/reddit.ts line 58: 'let cachedToken: { token: string; expiresAt: number } | null = null' — module-level mutable singleton accumulates state across test runs when module is cached",
+        "lib/db.ts: PrismaClient instantiated at module scope using globalForPrisma singleton pattern — this is the canonical Next.js hot-reload fix, not a coupling defect",
+        "lib/openrouter.ts: OPENROUTER_API_KEY read inside functions, not at module scope — correct pattern",
+        "lib/google-places.ts: GOOGLE_PLACES_API_KEY read inside function — correct",
+        "app/api/scrape/route.ts: INTERNAL_API_TOKEN read inside POST handler — correct",
+        "No circular init dependencies detected",
+        "No module-level constants computed alongside getter functions where stale snapshot/getter divergence is possible"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high"
+    },
+    "design_coherence": {
+      "evidence": [
+        "app/api/scrape/route.ts: 225 LOC with 4 distinct functions (POST handler, fetchWithFallback, enrichAndUpsert, upsertRestaurant); the three helper functions form a coherent pipeline — the orchestration is dense but focused on a single pipeline responsibility",
+        "app/api/scrape/route.ts is flagged orphaned by static analysis but is a Next.js HTTP entry point, not a dead file",
+        "components/TrendingSection.tsx: geolocation + IP fallback branching creates nested callbacks inside useEffect — complexity is inherent to the async branching required, not structural slop",
+        "components/RestaurantCard.tsx: Google Maps URL constructed twice with the same template string at lines 74 and 137 — a named helper or constant would eliminate duplication within the file",
+        "Systemic high_cyclomatic_complexity across 9 files: most are API routes with necessary input-validation branching, not a shared design problem requiring systemic intervention",
+        "lib/state-machine.ts: isValidTransition and validNextStates are defined but not exported and have no callers — dead code accumulating in the file",
+        "lib/validate.ts: 186 LOC, 8 public validators following a consistent pattern — not a design coherence issue despite volume"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high"
+    },
+    "contract_coherence": {
+      "evidence": [
+        "lib/state-machine.ts: isValidTransition (line 46) and validNextStates (line 51) are private functions with no callers — dead code",
+        "app/api/vote/route.ts and app/api/restaurant-vote/route.ts: tryTransitionToVerified now wrapped in try-catch with logging — previously flagged issue is FIXED",
+        "app/api/vote/route.ts line 27-30: direction already validated as 'up'|'down' before validateVoteInput call at line 58 — the validate call is redundant but not a contract lie",
+        "lib/validate.ts interfaces declare all fields as optional (?) but validators throw if fields are absent — the TypeScript type says 'any of these may be absent' but the runtime contract says 'these are required'; callers can pass {} and the compiler will not warn",
+        "lib/search.ts groupRestaurantsByName return type is ReturnType<typeof _groupRestaurantsByName> — honest, not a lie",
+        "lib/geo.ts extractIp return type string is accurate (always returns a string, falling back to 'unknown')",
+        "validateParsedQuery does not validate city field, but city is marked optional in ParsedQuery interface — consistent"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high"
+    },
+    "logic_clarity": {
+      "evidence": [
+        "lib/search.ts countSearchResults: declared async but doesn't await — returns Promise<number> from prisma.restaurant.count() directly. The async keyword is redundant but not broken; any thrown rejection propagates correctly via the returned promise",
+        "app/api/scrape/route.ts fetchWithFallback: receives 'state: ScrapeState' parameter at line 22 but never reads it — the advance callback closes over the outer state variable in POST scope. The returned 'state' field always equals the initial 'PENDING' value passed by the caller",
+        "lib/reddit.ts scrapeRedditForRestaurants: results array is written inside a Promise.all with concurrent subreddit processing using push() — safe in Node.js single-threaded event loop but non-obvious",
+        "components/TrendingSection.tsx: .catch(() => undefined) silently swallows all fetch errors — intentional UI resilience but hides errors from observability",
+        "lib/validate.ts: requireString checks null/undefined then empty-string separately — clear and intentional, not redundant",
+        "No identical if/else branches found",
+        "No always-true/always-false conditions detected in reviewed files",
+        "No dead code after unconditional returns detected"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "high"
+    },
+    "type_safety": {
+      "evidence": [
+        "lib/validate.ts: All 8 validator interfaces declare every field as optional (e.g. 'name?: string | null') but the validators throw if fields are absent. TypeScript allows callers to pass {} without compiler error even though runtime will throw — the type contract is weaker than the runtime contract",
+        "lib/search.ts line 61: 'restaurants as unknown as GroupableRestaurant[]' double-cast — RestaurantWithRecommendations.status is typed as RestaurantStatus (Prisma enum) while GroupableRestaurant.status is string; the cast hides a real structural divergence",
+        "app/api/search-more/route.ts line 25: 'page as unknown as GroupableRestaurant[]' — same double-cast pattern for the same structural mismatch",
+        "lib/db.ts line 3: 'globalThis as unknown as { prisma: PrismaClient | undefined }' — canonical Next.js singleton pattern, not a defect",
+        "lib/geo.ts line 29: 'return data.city as string' after truthy check — cast is harmless but unnecessary",
+        "lib/openrouter.ts: untyped JSON responses cast implicitly — managed via runtime checks before use, acceptable at external API boundaries",
+        "No Type:ignore comments found",
+        "No Literal aliases duplicating enum values detected",
+        "No missing annotations on public API functions"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "initialization_coupling": {
+      "dimension_character": "The codebase is largely clean on initialization coupling — env var reads are deferred to call time in most modules. The one real concern is lib/reddit.ts, which reads OAuth credentials (CLIENT_ID, CLIENT_SECRET) at module scope and caches a token in a module-level mutable variable, creating test-isolation fragility and a boot-order dependency on env vars being set before the module is first imported.",
+      "score_rationale": "One clearly identified defect (module-level env reads + mutable cachedToken in lib/reddit.ts) with test-isolation impact. All other modules follow the correct deferred-read pattern. The db.ts singleton is framework-canonical. Score reflects a single contained issue rather than systemic coupling."
+    },
+    "design_coherence": {
+      "dimension_character": "Most files have coherent single responsibilities. The main issues are: dead private functions in lib/state-machine.ts with no callers, a within-file URL construction duplication in RestaurantCard.tsx, and app/api/scrape/route.ts that is densely structured but internally coherent. The systemic high_cyclomatic_complexity across 9 files reflects necessary input-validation branching in API routes rather than design failure.",
+      "score_rationale": "Design is mostly sound with no god-object or wildly mixed-responsibility files. Dead code in state-machine.ts and intra-file URL duplication in RestaurantCard.tsx are real but local issues. Score is below average because scrape/route.ts mixes HTTP handler concerns with pipeline orchestration logic (enrichAndUpsert, upsertRestaurant) that would be better placed in lib/ for testability."
+    },
+    "contract_coherence": {
+      "dimension_character": "The previously open tryTransitionToVerified issue is fixed — both vote routes now wrap the call in try-catch. The remaining open concern is structural: lib/validate.ts declares all input fields optional in its interfaces, but the runtime validators unconditionally throw if those fields are absent, creating a weaker TypeScript contract than the runtime enforcement. Dead private functions in state-machine.ts represent a minor contract-surface accumulation.",
+      "score_rationale": "One confirmed resolution (vote try-catch wrap), one new defect (validate interface vs. runtime contract mismatch), dead code in state-machine.ts. No return-type lies, docstring divergences, or getX-mutates-state patterns. Score reflects the interface/runtime mismatch as a meaningful but bounded issue."
+    },
+    "logic_clarity": {
+      "dimension_character": "Logic is generally clear and direct. The main clarity issues are: (1) an unused state parameter in fetchWithFallback that suggests stale refactoring — the returned state field is always 'PENDING', (2) async declared on countSearchResults without an await — the async keyword is redundant. No dead code after unconditional returns, no always-true conditions, no identical branches.",
+      "score_rationale": "Two minor logic-clarity issues (dead parameter with misleading return value, redundant async) with no functional consequence. No severe flow defects. Score is above average, held back by the dead parameter in a complex orchestration function which increases cognitive load for future maintainers."
+    },
+    "type_safety": {
+      "dimension_character": "The most significant type safety issue is that lib/validate.ts declares validator input interfaces with all fields optional, but the validators enforce required-field contracts at runtime. This means TypeScript allows callers to pass empty objects without warning, undermining the pre-write guards on all 5 entity types. The double as-unknown-as casts in lib/search.ts and app/api/search-more/route.ts paper over a real structural divergence between RestaurantStatus (enum) and string in sibling types.",
+      "score_rationale": "Two classes of type safety defects: (1) interface/runtime contract mismatch in validate.ts affecting 8 validators and multiple callers — a subsystem-level issue, and (2) double casts in two files masking a structural type divergence between RestaurantWithRecommendations and GroupableRestaurant. Neither causes runtime failures today, but both remove compiler protection on critical pre-write paths. Score reflects meaningful but not catastrophic weakening of the type contract."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_module_scope_env_reads",
+      "summary": "lib/reddit.ts reads OAuth credentials from process.env at module scope, making them stale if env vars are set after import",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "Line 54: const USER_AGENT = process.env.REDDIT_USER_AGENT || 'LocalRecos/1.0'",
+        "Line 55: const CLIENT_ID = process.env.REDDIT_CLIENT_ID",
+        "Line 56: const CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET",
+        "Tests that set process.env.REDDIT_CLIENT_ID after require/import will see undefined in CLIENT_ID"
+      ],
+      "suggestion": "Move CLIENT_ID, CLIENT_SECRET reads inside getAccessToken() so they reflect the current env at call time. USER_AGENT can stay as a module constant since it has a safe default.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "reddit_mutable_token_cache",
+      "summary": "lib/reddit.ts cachedToken is a module-level mutable singleton that persists across test runs when the module is cached",
+      "related_files": ["lib/reddit.ts"],
+      "evidence": [
+        "Line 58: let cachedToken: { token: string; expiresAt: number } | null = null",
+        "cachedToken is written by getAccessToken() and read on subsequent calls — module cache means tests sharing the same process will see a stale token from a previous test"
+      ],
+      "suggestion": "This is an acceptable production pattern but tests need isolation. Exporting a resetTokenCacheForTest() function or moving the cache into a closure returned by a factory would allow test isolation without changing the production pattern.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "state_machine_dead_private_functions",
+      "summary": "lib/state-machine.ts defines isValidTransition and validNextStates as private functions with no callers",
+      "related_files": ["lib/state-machine.ts"],
+      "evidence": [
+        "Line 46: function isValidTransition(from: ScrapeState, to: ScrapeState): boolean — not exported, no callers in codebase",
+        "Line 51: function validNextStates(from: ScrapeState): ScrapeState[] — not exported, no callers in codebase",
+        "assertValidTransition (line 39) is the only exported function and the only one used in production"
+      ],
+      "suggestion": "Delete isValidTransition and validNextStates. They are not referenced anywhere and add dead weight to the file. Re-add with export if they become needed.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "restaurant_card_duplicated_maps_url",
+      "summary": "components/RestaurantCard.tsx constructs the same Google Maps URL template string twice within the file",
+      "related_files": ["components/RestaurantCard.tsx"],
+      "evidence": [
+        "Line 73-75: mapsUrl computed from primaryLocation.address using Google Maps search URL template",
+        "Line 137: locMapsUrl computed from loc.address using the same Google Maps search URL template",
+        "The string 'https://www.google.com/maps/search/?api=1&query=' appears twice with only the address argument differing"
+      ],
+      "suggestion": "Extract a buildMapsUrl(address: string): string helper at module level and call it in both places. Single-file extraction, no new shared module needed.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "33516a752f2e856d"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "trending_section_complexity_inherent",
+      "summary": "TrendingSection.tsx geolocation branching has high cyclomatic complexity but it is inherent to the async feature",
+      "related_files": ["components/TrendingSection.tsx"],
+      "evidence": [
+        "useEffect branches across: geolocation available + success, geolocation available + error (IP fallback), geolocation unavailable (IP fallback), then fetchTrending with/without city",
+        "The nesting reflects the async branching required by the geolocation API — not an extractable design flaw",
+        "fetchIpFallback helper already reduces one level of nesting"
+      ],
+      "suggestion": "No change required. The branching is inherent to async geolocation with IP fallback.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "5a6bab2a47d60169",
+      "reasoning": "High cyclomatic complexity is driven by async geolocation branching that cannot be simplified without removing feature behavior. The existing fetchIpFallback extraction already addresses the most extractable part."
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "scrape_route_orphaned_assessment",
+      "summary": "app/api/scrape/route.ts is a live Next.js HTTP entry point, not a dead orphan — static analysis misclassifies it",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "Static analysis reports: zero importers, 222 LOC",
+        "File exports POST handler — called via HTTP by triggerScrape() in app/api/search/route.ts and by SearchPoller component",
+        "Next.js API routes are discovered via filesystem routing, not import graph"
+      ],
+      "suggestion": "The file is not dead. The design concern about three non-handler functions (fetchWithFallback, enrichAndUpsert, upsertRestaurant) living in a route file rather than lib/ is valid as a pre-existing tracked issue.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "ddf8529afa7d4684",
+      "reasoning": "File is a live Next.js API route entry point discovered via filesystem routing. Zero importers is expected. The design concern about logic in route.ts rather than lib/ is a pre-existing tracked open issue."
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "systemic_cyclomatic_complexity",
+      "summary": "High cyclomatic complexity in 9 files is driven by independent input-validation branching, not a shared design pattern requiring systemic fix",
+      "related_files": ["app/api/geo/route.ts", "app/api/restaurant-vote/route.ts", "app/api/scrape/route.ts", "app/api/vote/route.ts", "components/TrendingSection.tsx", "lib/google-places.ts", "lib/hours.ts", "lib/reddit.ts", "lib/validate.ts"],
+      "evidence": [
+        "API routes: branches are input validation guards (required fields, enum values, auth token) — each branch is distinct and necessary",
+        "lib/hours.ts: parsing complex time format strings requires many branches — inherent to the domain",
+        "lib/validate.ts: multiple validators in one file naturally accumulate branches",
+        "No shared conditional pattern extractable to a single shared utility across these 9 files"
+      ],
+      "suggestion": "No systemic intervention required. Address complexity file-by-file where it has concrete impact on readability or correctness.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit",
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "975a48fc7b86f11b",
+      "reasoning": "The high_cyclomatic_complexity pattern across 9 files reflects independent, necessary branching. There is no shared abstraction that would reduce complexity across all 9 files simultaneously. A lint rule raising the threshold would suppress symptoms without improving design."
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "validate_interfaces_weaker_than_runtime",
+      "summary": "lib/validate.ts interfaces declare all fields as optional but validators throw if fields are absent — TypeScript type is weaker than the runtime contract",
+      "related_files": ["lib/validate.ts"],
+      "evidence": [
+        "interface RestaurantInput { name?: string | null; city?: string | null; ... } — all fields optional",
+        "validateRestaurantInput calls requireString(o, 'name', 'Restaurant') which throws if name is null/undefined/empty",
+        "Caller can pass {} without TypeScript error, but runtime throws ValidationError",
+        "Same pattern across all 8 validator functions and their interfaces"
+      ],
+      "suggestion": "For fields that validateX enforces as required, remove the '?' optional marker and remove '| null' where null is invalid. Fields that are genuinely optional in the domain should remain optional. This aligns the TypeScript type with the runtime enforcement.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "validate_direction_redundant_call",
+      "summary": "Vote routes call validateVoteInput after already enforcing direction values — validation is redundant after explicit guard",
+      "related_files": ["app/api/vote/route.ts", "app/api/restaurant-vote/route.ts"],
+      "evidence": [
+        "app/api/vote/route.ts line 27: if (direction !== 'up' && direction !== 'down') return 400",
+        "app/api/vote/route.ts line 58: validateVoteInput({ recommendation_id, fingerprint, direction }) — direction already guaranteed to be 'up'|'down' at this point",
+        "requirePresent(o, 'direction') in validateVoteInput will never throw because direction is already validated"
+      ],
+      "suggestion": "Either remove the explicit guard and let validateVoteInput enforce it, or remove the validateVoteInput call and rely on the explicit guard. The explicit guard produces a cleaner error message and is the preferred approach.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "fetch_with_fallback_dead_state_param",
+      "summary": "fetchWithFallback in app/api/scrape/route.ts receives a 'state' parameter that is never read and returns a stale value",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "Line 22: async function fetchWithFallback(city, query, state: ScrapeState, advance) — state parameter declared",
+        "Inside the function, 'state' is never read — all state transitions go through advance() callback which closes over the outer state variable in POST scope",
+        "Line 46: return { results, state, empty: false, terms } — returns the parameter value unchanged, which is always 'PENDING' because it was captured by value at call time",
+        "The advance() callbacks inside the function mutate the outer scope's state, not this parameter"
+      ],
+      "suggestion": "Remove the state parameter from fetchWithFallback. Remove 'state' from its return type. The caller already owns the authoritative state variable via the advance closure.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "count_search_results_redundant_async",
+      "summary": "lib/search.ts countSearchResults is declared async but never uses await — the async keyword is redundant",
+      "related_files": ["lib/search.ts"],
+      "evidence": [
+        "Line 154: export async function countSearchResults(city: string, terms: string): Promise<number>",
+        "Line 157: return prisma.restaurant.count({ where: buildWhereCondition(normalizedCity, words) }) — returns Promise directly without await",
+        "The async keyword adds an implicit promise wrapper around an already-promise-returning expression"
+      ],
+      "suggestion": "Remove the async keyword: 'export function countSearchResults(city: string, terms: string): Promise<number>'. This makes the intent explicit — the function returns a Promise from Prisma directly.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "validate_interfaces_optionality_mismatch",
+      "summary": "lib/validate.ts validator input interfaces declare required fields as optional, undermining TypeScript enforcement on pre-write guards",
+      "related_files": ["lib/validate.ts", "app/api/scrape/route.ts", "app/api/vote/route.ts", "app/api/restaurant-vote/route.ts"],
+      "evidence": [
+        "interface RestaurantInput { name?: string | null; city?: string | null; status?: string | null; upvotes?: number | null; downvotes?: number | null; ... } — all optional",
+        "validateRestaurantInput enforces name, city, status, upvotes, downvotes as required via requireString/requirePresent — but TypeScript does not enforce this",
+        "A caller can pass validateRestaurantInput({}) and TypeScript will compile without error, only failing at runtime",
+        "Same mismatch in 7 other interfaces: ParsedQuery, RedditPost, ExtractedRestaurant, PlaceDetails, CommunityRecommendationInput, RestaurantVoteInput, VoteInput"
+      ],
+      "suggestion": "For fields that validateX enforces as required, remove the '?' optional marker and remove '| null' from the type where null is not a valid value. Fields that are genuinely optional in the data model should remain optional.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "validate_interface_type_gap"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "restaurant_status_type_divergence",
+      "summary": "RestaurantWithRecommendations.status typed as RestaurantStatus enum but GroupableRestaurant.status typed as string — double cast required at every boundary",
+      "related_files": ["lib/search.ts", "app/api/search-more/route.ts", "lib/restaurant-grouping.ts"],
+      "evidence": [
+        "lib/search.ts line 39: status: RestaurantStatus in RestaurantWithRecommendations",
+        "lib/restaurant-grouping.ts line 46: status: string in GroupableRestaurant",
+        "lib/search.ts line 61: restaurants as unknown as GroupableRestaurant[] — double cast to cross the type boundary",
+        "app/api/search-more/route.ts line 25: page as unknown as GroupableRestaurant[] — same double cast",
+        "Both casts will silently break if the enum-to-string mismatch ever causes runtime shape differences"
+      ],
+      "suggestion": "Change GroupableRestaurant.status from string to RestaurantStatus (importing the enum from @prisma/client). The grouping module has no server-only imports per its file comment and can safely import from @prisma/client. Alternatively change RestaurantWithRecommendations.status to string if the domain logic never needs to discriminate by enum value. Either eliminates both double casts.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "restaurant_status_type_divergence"
+    }
+  ],
+  "context_updates": {
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "Reddit module reads OAuth credentials at module scope",
+          "description": "lib/reddit.ts captures REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET at import time into module-level constants, and caches an OAuth token in a mutable module-level variable. Both patterns create test-isolation fragility — env vars set after import are invisible, and the token cache persists across test runs in the same process.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "All other env reads correctly deferred to call time",
+          "description": "OPENROUTER_API_KEY, GOOGLE_PLACES_API_KEY, INTERNAL_API_TOKEN, and DEFAULT_CITY are all read inside functions rather than at module scope. This is the correct pattern and is consistently applied across lib/openrouter.ts, lib/google-places.ts, and all route handlers.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    },
+    "design_coherence": {
+      "add": [
+        {
+          "header": "Dead private functions in state-machine.ts",
+          "description": "isValidTransition and validNextStates are defined as private (unexported) functions in lib/state-machine.ts with no callers anywhere in the codebase. They are dead code and should be deleted.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Systemic cyclomatic complexity is independent, not design-level",
+          "description": "High cyclomatic complexity appears in 9 files but each instance reflects necessary input-validation or domain-logic branching. There is no shared extractable abstraction that would address all instances simultaneously. Not a systemic design failure.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Orphaned file detection misclassifies Next.js API routes",
+          "description": "Static orphan analysis flags all Next.js API route files as having zero importers. These are live HTTP entry points discovered via filesystem routing. The classification is a false positive for this framework.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "contract_coherence": {
+      "add": [
+        {
+          "header": "tryTransitionToVerified try-catch fix confirmed in both vote routes",
+          "description": "Both app/api/vote/route.ts and app/api/restaurant-vote/route.ts now wrap the tryTransitionToVerified call in try-catch with error logging, preventing a 500 on a committed vote. The previously open issue is resolved.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Validate interface optionality does not match runtime requirements",
+          "description": "All validator input interfaces in lib/validate.ts mark required fields as optional (?) which allows TypeScript callers to omit them without compiler errors. The runtime validators will throw ValidationError on absent required fields. This is a contract coherence gap — the type says optional, the function enforces required.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "logic_clarity": {
+      "add": [
+        {
+          "header": "fetchWithFallback state parameter is dead — always returns PENDING",
+          "description": "The state parameter in fetchWithFallback is passed by value and never read inside the function. The returned state field always equals 'PENDING' (the caller's initial value). State transitions go through the advance callback which closes over the outer scope. This is a stale artifact from a prior refactoring.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "countSearchResults redundant async declaration",
+          "description": "lib/search.ts countSearchResults is declared async but immediately returns a Prisma promise without awaiting it. The async keyword is redundant and obscures the fact that the function returns Prisma's own Promise directly.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "type_safety": {
+      "add": [
+        {
+          "header": "Validate interfaces weakly typed — all fields optional despite runtime requirements",
+          "description": "lib/validate.ts defines 8 input interfaces with all fields marked optional (?), but the corresponding validators throw if required fields are absent. TypeScript provides no call-site protection. This undermines compile-time safety on pre-write guards for all 5 entity types.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "RestaurantStatus enum vs string divergence causes double casts",
+          "description": "RestaurantWithRecommendations uses the Prisma RestaurantStatus enum for status, while GroupableRestaurant uses plain string. Two files require 'as unknown as GroupableRestaurant[]' double casts to bridge the gap. The structural types are compatible at runtime but the divergence removes compiler protection.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

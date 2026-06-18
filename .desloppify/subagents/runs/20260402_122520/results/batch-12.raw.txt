@@ -1,0 +1,105 @@
+{
+  "batch": "authorization_consistency",
+  "batch_index": 12,
+  "assessments": {
+    "authorization_consistency": 55.0
+  },
+  "dimension_notes": {
+    "authorization_consistency": {
+      "evidence": [
+        "All 7 API routes (geo, restaurant-vote, scrape, search-more, search, trending, vote) have 0 auth checks — every handler is with_auth: 0 per scan evidence",
+        "app/api/vote/route.ts and app/api/restaurant-vote/route.ts accept POST requests and write votes to the database with no authentication — any anonymous client can vote",
+        "app/api/scrape/route.ts accepts POST and triggers expensive external API calls (Google Places, Reddit OAuth, LLM) with no authentication or rate limiting — full scrape pipeline is publicly accessible",
+        "Vote deduplication relies solely on a SHA-256 fingerprint of IP+User-Agent (lib/fingerprint.ts) — this is not authentication, just a best-effort spam guard that provides no real access control",
+        "lib/rules.ts checkRule03 and checkRule05 enforce no-duplicate-vote rules, but these are integrity rules, not auth — they allow the first unauthenticated vote from any client freely",
+        "app/api/scrape/route.ts checks for GOOGLE_PLACES_API_KEY presence (line 74) and DEFAULT_CITY env presence (line 57) but not caller identity — the check is a config guard, not an auth guard",
+        "No shared auth middleware, no useAuth/getServerSession pattern, no JWT/session validation in any route — the absence is total and uniform",
+        "The geo endpoint (/api/geo) is a legitimate unauthenticated endpoint (IP lookup service), and trending could be argued public — but vote and scrape endpoints clearly accept state-mutating actions without any caller identity verification"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "architectural_change",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "authorization_consistency": {
+      "dimension_character": "The codebase has no authentication layer at all — every API route is fully open, including state-mutating endpoints that write votes to the database and trigger expensive third-party API calls. The vote routes use a fingerprint-based deduplication heuristic (IP+UA hash) as a spam guard, but this is explicitly not authentication and provides no identity verification or access control. The absence of auth is total and uniform, which makes it internally consistent but architecturally absent.",
+      "score_rationale": "A score of 55 reflects that the auth posture is not inconsistently applied — it is uniformly absent. For read-only public endpoints (geo, trending, search) the absence may be intentional, but for write endpoints (vote, restaurant-vote) and the expensive scrape endpoint, the lack of any auth boundary is a real security gap. The dimension anchor for 60 is 'auth posture is inconsistent; a developer reviewing security cannot trust that coverage is complete' — here coverage is uniformly zero for mutations, which is arguably worse than inconsistency. The fingerprint guard adds minimal friction but does not constitute authorization."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "authorization_consistency",
+      "identifier": "unauthenticated_vote_endpoints",
+      "summary": "Vote endpoints accept write operations from any anonymous client with no auth check",
+      "related_files": [
+        "app/api/vote/route.ts",
+        "app/api/restaurant-vote/route.ts",
+        "lib/fingerprint.ts",
+        "lib/rules.ts"
+      ],
+      "evidence": [
+        "app/api/vote/route.ts POST handler has no auth check before writing to the database",
+        "app/api/restaurant-vote/route.ts POST handler has no auth check before writing to the database",
+        "lib/fingerprint.ts computes an IP+UA hash — this is a spam guard, not authentication",
+        "checkRule03/checkRule05 enforce no-duplicate semantics but allow the first unauthenticated vote from any client"
+      ],
+      "suggestion": "Add an authentication boundary to vote endpoints. At minimum, validate a client-side session token or use Next.js middleware to restrict these routes. If the product is intentionally anonymous, document that decision explicitly and consider adding rate limiting at the network layer (e.g. Vercel rate limiting or a middleware counter) to prevent bulk manipulation.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "authorization_consistency",
+      "identifier": "unauthenticated_scrape_endpoint",
+      "summary": "POST /api/scrape triggers expensive external API calls (Google Places, Reddit, LLM) with no authentication",
+      "related_files": [
+        "app/api/scrape/route.ts"
+      ],
+      "evidence": [
+        "app/api/scrape/route.ts has no caller auth check — any client can POST to trigger the full scrape pipeline",
+        "The handler calls searchGooglePlaces (Google Places API), scrapeRedditForRestaurants (Reddit OAuth), and getRedditRecommendations (LLM via OpenRouter) in sequence",
+        "Only config guard present: checks for GOOGLE_PLACES_API_KEY and DEFAULT_CITY env vars, not caller identity"
+      ],
+      "suggestion": "Protect /api/scrape with a shared secret header (e.g. X-Internal-Token checked against an env variable) or move the trigger to a server-side only internal call that cannot be reached via public HTTP. This endpoint should not be callable by external clients — it is already invoked internally by /api/search/route.ts via triggerScrape().",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The application appears to be a public-facing anonymous recommendation tool where auth was deferred or not planned — but write endpoints were not given even minimal protection",
+      "The scrape endpoint was likely designed as an internal trigger (fired by /api/search) but was left publicly accessible"
+    ],
+    "likely_symptoms": [
+      "unauthenticated_vote_endpoints",
+      "unauthenticated_scrape_endpoint"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "authorization_consistency": {
+      "add": [
+        {
+          "header": "No authentication layer exists in any route",
+          "description": "All seven API routes have zero auth checks. The product appears to be an anonymous-first experience, but write endpoints and expensive backend triggers are fully open to any caller.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Fingerprint-based vote deduplication is not auth",
+          "description": "lib/fingerprint.ts and lib/rules.ts implement IP+UA hashing and duplicate-vote checks as integrity guards, not authentication. These reduce spam but do not establish identity or restrict access.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Scrape endpoint is internally triggered but publicly reachable",
+          "description": "app/api/scrape/route.ts is invoked internally via triggerScrape() in /api/search, but is also reachable as a public HTTP endpoint, enabling any client to trigger full Google Places + Reddit + LLM pipeline at no cost to them.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

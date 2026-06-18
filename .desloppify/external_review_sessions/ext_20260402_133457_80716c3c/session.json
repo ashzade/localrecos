@@ -1,0 +1,20 @@
+{
+  "session_id": "ext_20260402_133457_80716c3c",
+  "status": "submitted",
+  "runner": "claude",
+  "created_at": "2026-04-02T13:34:57+00:00",
+  "expires_at": "2026-04-03T13:34:57+00:00",
+  "ttl_hours": 24,
+  "token": "2dc52241fd43d61ad6329fe4591124a3",
+  "attest": "I validated this review was completed without awareness of overall score and is unbiased.",
+  "packet_path": "/Users/ashzade/claude/localrecos/.desloppify/review_packets/holistic_packet_20260402_133457.json",
+  "blind_packet_path": "/Users/ashzade/claude/localrecos/.desloppify/review_packet_blind.json",
+  "packet_sha256": "f86db3352a605360f37998647aee2941006e74cd475c5c7985d77d5d490f3a0a",
+  "template_path": "/Users/ashzade/claude/localrecos/.desloppify/external_review_sessions/ext_20260402_133457_80716c3c/review_result.template.json",
+  "launch_prompt_path": "/Users/ashzade/claude/localrecos/.desloppify/external_review_sessions/ext_20260402_133457_80716c3c/claude_launch_prompt.md",
+  "instructions_path": "/Users/ashzade/claude/localrecos/.desloppify/external_review_sessions/ext_20260402_133457_80716c3c/reviewer_instructions.md",
+  "expected_output_path": "/Users/ashzade/claude/localrecos/.desloppify/external_review_sessions/ext_20260402_133457_80716c3c/review_result.json",
+  "submitted_at": "2026-04-02T13:46:54+00:00",
+  "submitted_input_file": "/Users/ashzade/claude/localrecos/.desloppify/external_review_sessions/ext_20260402_133457_80716c3c/review_result.json",
+  "submitted_canonical_file": "/Users/ashzade/claude/localrecos/.desloppify/external_review_sessions/ext_20260402_133457_80716c3c/canonical_import_20260402_134652.json"
+}

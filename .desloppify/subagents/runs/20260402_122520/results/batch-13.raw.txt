@@ -1,0 +1,130 @@
+{
+  "batch": "ai_generated_debt",
+  "batch_index": 13,
+  "assessments": {
+    "ai_generated_debt": 76.0
+  },
+  "dimension_notes": {
+    "ai_generated_debt": {
+      "evidence": [
+        "lib/reddit.ts line 101: `function foodQuery(query: string): string { return query; }` — pass-through function with no logic, called at line 108 as `foodQuery(query)`. The function adds zero value; it is either scaffolding that was never completed or AI-generated placeholder.",
+        "app/api/scrape/route.ts: multiple console.log calls that are clearly debug-style entry/exit logging: line 82 `console.log('[scrape] city=...')`, line 92 `console.log('[scrape] terms=...')`, line 100 `console.log('[scrape] reddit posts=...')`, line 107 `console.log('[scrape] no reddit results...')`, line 182 `console.log('[scrape] community picks for...')`, line 155 `console.log('[scrape] skipping...')` — 6 tagged debug logs in one function",
+        "lib/google-places.ts: console.log/warn on lines 108, 126, 133, 141, 167 — entry log on every API call path and warnings on filtered results",
+        "lib/openrouter.ts line 57: `console.log('[openrouter] parsed query=...')` inside a production function — entry/exit debug logging",
+        "lib/validate.ts: boilerplate null/undefined/empty checks repeated verbatim for every field across 8 validator functions. Each check is a 4-line pattern (null check, then empty string check) duplicated ~30 times across the file. This is not defensive API boundary code — the callers already have typed values before casting to Record<string,unknown>.",
+        "app/api/vote/route.ts and app/api/restaurant-vote/route.ts: validateVoteInput and validateRestaurantVoteInput are called after the values have already been validated manually (direction !== 'up' && direction !== 'down' check, recommendation/restaurant existence check) — the validate calls are redundant post-manual-guard calls",
+        "app/restaurant/[id]/page.tsx line 75: `const totalNetVotes = (restaurant.upvotes ?? 0) - (restaurant.downvotes ?? 0)` — the ?? 0 fallbacks are defensive on non-nullable Prisma Int fields (upvotes and downvotes are required DB fields with defaults)",
+        "components/RestaurantFeedbackButton.tsx line 21: `const [upvotes, setUpvotes] = useState(initialUpvotes ?? 0)` — same pattern, initialUpvotes is typed as number (not number | null) so ?? 0 is defensive on a non-nullable",
+        "lib/search.ts and components/LoadMoreButton.tsx contain near-identical restaurant grouping logic (shouldMergeGroups / shouldMerge, normalizeWebsite, the merge loop pattern) — this is the most significant duplication: the same algorithmic logic is copy-pasted between the server-side lib and the client-side component"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "ai_generated_debt": {
+      "dimension_character": "The codebase shows two distinct debt patterns: scattered debug logging left in production paths (scrape, google-places, openrouter modules each have console.log/warn calls that read as development traces), and copy-pasted algorithmic logic between lib/search.ts and components/LoadMoreButton.tsx. A standalone pass-through no-op function (foodQuery) is a clear AI-scaffolding artifact. The validate.ts file, while systematic, applies redundant double-validation where callers have already done manual checks. The issues are real but not pervasive — most of the codebase is purposeful.",
+      "score_rationale": "At 76, the codebase is generally purposeful but a developer would wade through debug logging in the scrape flow and encounter the notable duplication of restaurant-grouping logic. The foodQuery no-op is a clear artifact that should be excised. These are enough recurring patterns to be noticeable drag without being pervasive — placing this between the 70 (mixed) and 80 (solid but uneven) anchors."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "foodquery_noop_wrapper",
+      "summary": "foodQuery() in lib/reddit.ts is a pass-through function with no logic — pure scaffolding artifact",
+      "related_files": [
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "lib/reddit.ts lines 100-102: `function foodQuery(query: string): string { return query; }` — returns its argument unchanged",
+        "Called at line 108: `const encodedQuery = encodeURIComponent(foodQuery(query));` — foodQuery adds zero transformation"
+      ],
+      "suggestion": "Delete foodQuery entirely and inline the query directly: `const encodedQuery = encodeURIComponent(query);`. If the intent was to filter/transform the query for food searches, implement that logic or leave a comment explaining why no transformation is currently needed.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "debug_logs_in_scrape_flow",
+      "summary": "Six debug console.log calls left in production scrape pipeline",
+      "related_files": [
+        "app/api/scrape/route.ts",
+        "lib/google-places.ts",
+        "lib/openrouter.ts"
+      ],
+      "evidence": [
+        "app/api/scrape/route.ts: 6 console.log calls tracing state machine transitions and result counts (lines 82, 92, 100, 107, 155, 182)",
+        "lib/google-places.ts line 108: `console.log('[google-places] textQuery=...')` on every search invocation",
+        "lib/openrouter.ts line 57: `console.log('[openrouter] parsed query=...')` on every successful parse"
+      ],
+      "suggestion": "Remove the trace logs from lib/google-places.ts and lib/openrouter.ts entirely — they add noise on every request. In app/api/scrape/route.ts, keep only the error-level logs (console.error) and the skipping warning; remove the entry/progress logs unless a debug flag is set (e.g. `if (process.env.SCRAPE_DEBUG) console.log(...)`).",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "duplicated_grouping_logic",
+      "summary": "Restaurant grouping algorithm duplicated verbatim between lib/search.ts and LoadMoreButton.tsx",
+      "related_files": [
+        "lib/search.ts",
+        "components/LoadMoreButton.tsx"
+      ],
+      "evidence": [
+        "lib/search.ts exports normalizeWebsite(), shouldMergeGroups(), buildGroup(), groupRestaurantsByName() — full grouping pipeline",
+        "components/LoadMoreButton.tsx re-implements normalizeWebsite(), shouldMerge(), and an inline groupByName() with the same merge-loop logic",
+        "The merge algorithm (O(n^2) while loop with used Set) and website normalization regex are identical in both files"
+      ],
+      "suggestion": "The client-side component cannot import lib/search.ts directly (server-only Prisma types), but the grouping logic itself has no server dependencies. Extract normalizeWebsite, shouldMerge, and the groupByName core into a shared pure utility file (e.g. lib/group-restaurants.ts) that has no Prisma imports, then import it from both lib/search.ts and LoadMoreButton.tsx.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "grouping_logic_duplication"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The scrape flow was likely developed iteratively with debug logging added during development and never cleaned up before production",
+      "The client-side LoadMoreButton needed the same grouping logic as the server but the server module has Prisma imports, leading to copy-paste instead of extraction",
+      "foodQuery appears to be an AI-scaffolded placeholder for a transformation that was never needed or never implemented"
+    ],
+    "likely_symptoms": [
+      "foodquery_noop_wrapper",
+      "debug_logs_in_scrape_flow",
+      "duplicated_grouping_logic"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "ai_generated_debt": {
+      "add": [
+        {
+          "header": "No restating comments in lib modules",
+          "description": "The lib/ directory has minimal commenting — comments that exist explain WHY (business rules, spec references, edge cases) not WHAT the code does. The comment-to-code ratio of 0.049 reflects deliberate sparseness rather than bloat.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "foodQuery no-op scaffolding artifact",
+          "description": "lib/reddit.ts contains a zero-logic pass-through function foodQuery() that is called in production but does nothing — a clear AI-generated placeholder that was never implemented or removed.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Debug trace logs left in scrape production path",
+          "description": "app/api/scrape/route.ts, lib/google-places.ts, and lib/openrouter.ts each contain console.log calls that trace execution flow, adding noise on every production request.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Restaurant grouping algorithm duplicated across server and client",
+          "description": "The shouldMerge/normalizeWebsite/groupByName logic is duplicated between lib/search.ts (server) and LoadMoreButton.tsx (client) because the server module contains Prisma imports that prevent direct client-side use.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

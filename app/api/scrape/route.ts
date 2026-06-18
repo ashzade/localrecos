@@ -17,9 +17,8 @@ export const dynamic = 'force-dynamic';
 async function fetchWithFallback(
   city: string,
   query: string,
-  state: ScrapeState,
   advance: (s: ScrapeState) => void,
-): Promise<{ results: ExtractedRestaurant[]; state: ScrapeState; empty: boolean; terms: string }> {
+): Promise<{ results: ExtractedRestaurant[]; empty: boolean; terms: string }> {
   advance('PARSING');
   const terms = (await parseQuery(query)).terms;
 
@@ -31,7 +30,7 @@ async function fetchWithFallback(
     const llmRecs = await getRedditRecommendations(query, city, terms);
     if (llmRecs.length === 0) {
       advance('FAILED');
-      return { results: [], state: 'FAILED', empty: true, terms };
+      return { results: [], empty: true, terms };
     }
     results = llmRecs.map((r) => ({
       name: r.name,
@@ -43,7 +42,7 @@ async function fetchWithFallback(
   }
 
   advance('EXTRACTING');
-  return { results, state, empty: false, terms };
+  return { results, empty: false, terms };
 }
 
 /**
@@ -190,7 +189,7 @@ export async function POST(request: NextRequest) {
       state = next;
     };
 
-    const { results: redditResults, empty, terms } = await fetchWithFallback(city, query, state, advance);
+    const { results: redditResults, empty, terms } = await fetchWithFallback(city, query, advance);
     if (empty) return NextResponse.json({ success: true, created: 0, skipped: 0 });
 
     // Enrich with Google Places in parallel (EXTRACTING → VALIDATING)

@@ -1,0 +1,115 @@
+{
+  "batch": "api_surface_coherence",
+  "batch_index": 11,
+  "assessments": {
+    "api_surface_coherence": 68.0
+  },
+  "dimension_notes": {
+    "api_surface_coherence": {
+      "evidence": [
+        "lib/geo.ts exports `detect_city` (snake_case) and `detectCityFromIp` (camelCase alias) — two names for the same function on the same public surface",
+        "app/api/trending/route.ts calls `detect_city(ip)` while app/api/search/route.ts calls `detect_city(ip)` via the same import — but app/api/geo/route.ts uses `detectCityFromIp`, the alias name, showing split usage across sibling routes",
+        "lib/search.ts exports both async functions (searchRestaurants, parseQuery, countSearchResults) and pure sync functions (groupRestaurantsByName, normalizeWebsite helper) — the module's public API mixes sync and async without separation",
+        "lib/geo.ts exports async detect_city and sync extractIp together — mixed sync/async in one module's public surface",
+        "lib/reddit.ts exports async functions (scrapeRedditForRestaurants, fetchCommunityPicksForRestaurant) and sync utility (extractRestaurantName) — same mixed-surface pattern",
+        "searchRestaurants(city, terms, limit, offset) vs countSearchResults(city, terms) — sibling functions with related purposes but structurally inconsistent: one has 4 params with optional pagination, the other has 2 — no pagination variant on count",
+        "validate.ts exposes validateParsedQuery, validateRedditPost, validateExtractedRestaurant, validatePlaceDetails, validateRestaurantInput, validateCommunityRecommendationInput, validateRestaurantVoteInput, validateVoteInput — eight public functions all follow a consistent (obj: Record<string, unknown>) => void shape, which is coherent but uses a broad untyped interface",
+        "scrape/route.ts POST body `{ city?, query? }` vs search/route.ts GET `?q=...` vs search-more/route.ts GET `?city=&terms=&offset=&limit=` — sibling routes use different parameter names for the same concept: `q` in /search vs `query` in /scrape vs `terms` in /search-more"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "api_surface_coherence": {
+      "dimension_character": "The codebase has a moderate coherence problem across two fronts: parameter naming is inconsistent for the same concept across sibling API routes (q vs query vs terms for the user's search input), and lib modules mix sync and async functions in their public surfaces without separation. The dual-name export on geo.ts (detect_city / detectCityFromIp) additionally creates confusion about which name callers should use, which is confirmed by actual split usage across sibling routes.",
+      "score_rationale": "The parameter naming inconsistency across API routes is a real developer friction point — a developer integrating a new route would not know whether to call their param `q`, `query`, or `terms`, and would have to look at existing routes individually. The sync/async mixing in lib modules is a lesser issue (each function is individually clear), but together these patterns put this at the 68 range: solid in many places but with recurring API surface irregularities a developer would hit."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "api_param_naming_inconsistency",
+      "summary": "Search concept named 'q', 'query', and 'terms' across sibling API routes",
+      "related_files": [
+        "app/api/search/route.ts",
+        "app/api/scrape/route.ts",
+        "app/api/search-more/route.ts"
+      ],
+      "evidence": [
+        "GET /api/search uses `?q=` as the user's search string",
+        "POST /api/scrape body uses `{ query }` for the same concept",
+        "GET /api/search-more uses `?terms=` for the post-parse search terms and `?city=` separately"
+      ],
+      "suggestion": "Standardize on `q` as the user-facing raw query parameter across all API routes. `terms` is acceptable for the post-parse internal representation, but the entry point for user input should be consistent. Update /api/scrape body to accept `q` and rename internally, or document the distinction clearly.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "api_naming_drift"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "geo_dual_name_export",
+      "summary": "lib/geo.ts exports detect_city and detectCityFromIp as two names for the same function, causing split usage",
+      "related_files": [
+        "lib/geo.ts",
+        "app/api/trending/route.ts",
+        "app/api/geo/route.ts",
+        "app/api/search/route.ts"
+      ],
+      "evidence": [
+        "lib/geo.ts line 40: `export const detectCityFromIp = detect_city;` — explicit alias",
+        "app/api/geo/route.ts imports and calls `detectCityFromIp`",
+        "app/api/trending/route.ts and app/api/search/route.ts import and call `detect_city` directly",
+        "Comment says 'Alias for backward compatibility' but both names are used in current production code"
+      ],
+      "suggestion": "Pick one canonical name — prefer camelCase `detectCityFromIp` to match TypeScript conventions — and update all callers to use it. Remove the snake_case `detect_city` export. The alias is not serving external consumers, only creating internal split usage.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "api_naming_drift"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "API routes were likely added incrementally without a shared naming convention document — each route inventor named their input param differently",
+      "The detect_city alias was added for a migration that was never completed — the old name was not retired"
+    ],
+    "likely_symptoms": [
+      "api_param_naming_inconsistency",
+      "geo_dual_name_export"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "api_surface_coherence": {
+      "add": [
+        {
+          "header": "Validate.ts public API is shape-coherent",
+          "description": "All eight public validate functions follow an identical (obj: Record<string, unknown>) => void signature and throw ValidationError, making the validation module's API surface internally consistent even if the untyped parameter is a compromise.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Vote route pair is structurally consistent",
+          "description": "app/api/vote/route.ts and app/api/restaurant-vote/route.ts follow an identical POST body pattern, validation sequence, and response shape — the two parallel vote endpoints are coherent siblings.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Search param naming drift across API routes",
+          "description": "The user's raw search input is called 'q' in /api/search, 'query' in /api/scrape, and is absent (pre-split into 'terms') in /api/search-more — a developer adding a new route cannot infer the right parameter name from prior examples.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Snake case / camelCase dual export on geo.ts",
+          "description": "detect_city (snake_case) and detectCityFromIp (camelCase) coexist as two live exports for the same function, with sibling routes each using a different name.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

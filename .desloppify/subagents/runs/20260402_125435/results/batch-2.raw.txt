@@ -1,0 +1,107 @@
+{
+  "batch": "high_level_elegance",
+  "batch_index": 2,
+  "assessments": {
+    "high_level_elegance": 70.0
+  },
+  "dimension_notes": {
+    "high_level_elegance": {
+      "evidence": [
+        "Top-level directory layout (lib/, components/, app/api/, app/search/, app/restaurant/) maps cleanly to domain roles: pure logic, UI primitives, HTTP boundary, and page-level routing. A new engineer can orient quickly.",
+        "lib/ files are coherently named by domain concern: geo.ts, reddit.ts, hours.ts, rules.ts, state-machine.ts, restaurant-grouping.ts. Each file has a focused stated responsibility.",
+        "OPEN ISSUE CONFIRMED: app/api/scrape/route.ts contains fetchWithFallback(), enrichAndUpsert(), and upsertRestaurant() — three domain functions that orchestrate the scrape pipeline. These belong in lib/ (perhaps lib/scrape.ts or lib/pipeline.ts). Their placement in the route file makes the HTTP handler a 225-LOC orchestration module, blurring the boundary between HTTP transport and pipeline logic.",
+        "OPEN ISSUE CONFIRMED: STATUS_LABELS/STATUS_BADGE/STATUS_INFO maps are defined independently in RestaurantCard.tsx, TrendingSection.tsx, and app/restaurant/[id]/page.tsx. Each has a slightly different shape: RestaurantCard has {label, className}, TrendingSection has {label, className} (same shape but defined separately), restaurant page STATUS_INFO adds a `description` field. This is the 'restaurant status badge map duplicated across three files' issue.",
+        "lib/search.ts mixes two distinct responsibilities: (1) query parsing/database search operations, and (2) a wrapper around restaurant-grouping. A new engineer would not expect groupRestaurantsByName to live in search.ts.",
+        "components/ is a flat directory of 10 files. Some are pure display (RecommendationCard, RestaurantCard), some are stateful interactive (LoadMoreButton, SearchPoller, RestaurantFeedbackButton), and some are layout utilities (PersistCity, SearchBar). The mix is manageable at current size but ownership could be clearer.",
+        "The codebase has no README or architecture document visible at root — only requirements.md and manifest.json. The manifest.json appears to document the data model and state machine, which is a positive signal that contracts are tracked.",
+        "lib/rules.ts cleanly encodes business rules (RULE_01, RULE_03, RULE_05) as named functions, making the ownership of vote/verification logic predictable.",
+        "SearchPoller.tsx duplicates the scrape trigger: it calls /api/scrape directly from the client, while app/api/search/route.ts already calls triggerScrape() server-side when results < 3. Both paths fire independently, meaning a single search request may trigger two scrape calls."
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "high_level_elegance": {
+      "dimension_character": "The codebase has a coherent top-level structure with clearly named lib/ modules and a proper separation of HTTP from logic at most boundaries. However, two persistent issues degrade decomposition quality: the scrape route doubles as a pipeline orchestrator (keeping 225 LOC of domain logic in the HTTP layer), and the restaurant status badge map is duplicated across three files with inconsistent shapes, indicating a missing shared constant.",
+      "score_rationale": "The score sits at 70: the directory layout and file naming are genuinely good (positive signal for a new engineer), but the scrape-route-as-orchestrator pattern is a concrete decomposition failure that a developer would have to work around when extending pipeline logic, and the status badge duplication creates silent divergence risk. A clean decomposition at this scale would score 80+; these two recurring issues keep it lower."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "hle_scrape_route_orchestrator",
+      "summary": "Scrape route acts as both HTTP handler and pipeline orchestrator; orchestration logic belongs in lib/",
+      "related_files": ["app/api/scrape/route.ts"],
+      "evidence": [
+        "app/api/scrape/route.ts defines fetchWithFallback() (~30 lines), enrichAndUpsert() (~50 lines), and upsertRestaurant() (~30 lines) as module-level functions alongside the POST handler",
+        "These functions contain domain pipeline logic (state machine advancement, Reddit fallback, Google Places enrichment, DB upsert) — not HTTP concerns",
+        "At 225 LOC the file is the largest API route; the POST handler itself is ~50 lines but depends on 175 lines of co-located domain logic"
+      ],
+      "suggestion": "Extract fetchWithFallback, enrichAndUpsert, and upsertRestaurant into lib/scrape.ts (or lib/pipeline.ts). The POST handler in app/api/scrape/route.ts should only handle HTTP parsing, call the pipeline function, and format the JSON response.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "orchestration_in_http_layer"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "hle_status_badge_duplication",
+      "summary": "Restaurant status badge map duplicated across three files with inconsistent shapes",
+      "related_files": ["components/RestaurantCard.tsx", "components/TrendingSection.tsx", "app/restaurant/[id]/page.tsx"],
+      "evidence": [
+        "RestaurantCard.tsx STATUS_LABELS: { VERIFIED: {label, className}, UNREVIEWED: {label, className}, INCOMPLETE: {label, className} }",
+        "TrendingSection.tsx STATUS_BADGE: same three keys, same {label, className} shape — independently defined",
+        "app/restaurant/[id]/page.tsx STATUS_INFO: same three keys but shape is {label, className, description} — extended independently",
+        "If a new status is added (e.g. FLAGGED), all three files must be updated separately"
+      ],
+      "suggestion": "Define the base status badge map (label + className) in lib/status.ts or a shared constants file. The detail page can extend it locally with `description` if needed. Import from the shared source in all three consumers.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "duplicated_ui_constants"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "hle_double_scrape_trigger",
+      "summary": "Scrape is triggered both server-side in api/search and client-side in SearchPoller, creating duplicate pipeline invocations",
+      "related_files": ["app/api/search/route.ts", "components/SearchPoller.tsx"],
+      "evidence": [
+        "app/api/search/route.ts: `if (grouped.length < 3) { triggerScrape(...) }` — fires a fire-and-forget scrape from the server when results are sparse",
+        "components/SearchPoller.tsx: unconditionally calls `fetch('/api/scrape', { method: 'POST', ... })` on mount for every search, regardless of existing result count",
+        "Both triggers use the same /api/scrape endpoint with the same city and query parameters — two scrape jobs will run concurrently for every search with fewer than 3 results"
+      ],
+      "suggestion": "Remove the triggerScrape() call from app/api/search/route.ts and let SearchPoller be the single authority for initiating scrapes. Alternatively, remove the client-side scrape from SearchPoller and rely entirely on the server-side trigger — but the server trigger is fire-and-forget and cannot update the client, so SearchPoller's polling model is the better owner.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Pipeline logic grew in the scrape route file incrementally without a lib/ extraction step",
+      "UI status constants were defined locally in each component as they were needed rather than being shared from the start"
+    ],
+    "likely_symptoms": ["hle_scrape_route_orchestrator", "hle_status_badge_duplication"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "high_level_elegance": {
+      "add": [
+        {
+          "header": "Double scrape trigger between server and client",
+          "description": "app/api/search/route.ts fires a server-side scrape when results < 3, while SearchPoller.tsx unconditionally fires a client-side scrape on every search mount. Both call the same /api/scrape endpoint, creating duplicate concurrent pipeline runs per search.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "lib/ file naming clearly maps to domain concerns",
+          "description": "Each lib/ file name communicates its purpose (geo, rules, hours, reddit, state-machine). A new engineer can navigate the logic layer without needing documentation.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

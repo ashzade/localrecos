@@ -1,0 +1,159 @@
+{
+  "batch": "test_strategy",
+  "batch_index": 10,
+  "assessments": {
+    "test_strategy": 62.0
+  },
+  "dimension_notes": {
+    "test_strategy": {
+      "evidence": [
+        "8 test files covering: field-validation (T01-T57, pure unit), rule-violations (T58-T67, unit+env), state-machine (T68-T132, unit), api-search, api-search-more, api-trending, api-votes, api-geo — all API routes for the read/vote flows have test coverage",
+        "Critical untested: lib/hours.ts (127 LOC, 4 importers) — isOpenNow is a complex pure function with 4 time-format branches, wrap-around midnight logic, and a compact-hours sub-parser; the absence of tests here is the highest-risk gap given its complexity and import count",
+        "Critical untested: lib/geo.ts (51 LOC, 3 importers) — detect_city has private-IP detection logic and extractIp parses header chains; these are tested only indirectly through mocks in api-search and api-trending tests",
+        "Critical untested: lib/rules.ts (72 LOC, 3 importers) — checkRule01, checkRule03, checkRule05, tryTransitionToVerified are tested only through mocked boundaries in the API tests, not directly",
+        "Untested components: all 11 components in components/ — SearchPoller (87 LOC), LoadMoreButton (213 LOC), RestaurantCard (238 LOC), TrendingSection (146 LOC), RestaurantFeedbackButton (108 LOC), SearchBar (94 LOC) have zero tests",
+        "Untested lib: lib/reddit.ts (436 LOC, 1 importer) — scrapeRedditForRestaurants, fetchCommunityPicksForRestaurant, extractRestaurantName (pure function amenable to unit tests) are all untested",
+        "Untested lib: lib/openrouter.ts (151 LOC, 2 importers) — parseQueryWithLLM, getRedditRecommendations untested; regexFallback is a pure function that could be tested independently",
+        "Untested lib: lib/google-places.ts (not read in full but flagged in scan with 4 issue signals) — searchGooglePlaces untested except for the API-key-missing behavior in rule-violation tests",
+        "state-machine.test.ts: 78 test functions but only 12 assertions (scan finding: 'shallow tests') — most test functions call expectReject/expectAllow which each make 2-3 assertions, so the actual assertion count is higher than 12; the 12-assertion figure may be a scan artifact. The tests exhaustively cover all state transitions.",
+        "Test style: heavy use of vi.mock() to isolate units — tests are well-isolated and won't break on implementation details of mocked collaborators",
+        "No snapshot tests present — snapshot overuse is not a concern",
+        "No timing or ordering dependencies observed in existing tests — no fragility patterns",
+        "The existing tests focus on the HTTP boundary (route handlers) and pure validation functions — correct priorities for the tested surfaces",
+        "Missing integration tests: no test exercises the full search-scrape-store-return cycle end-to-end with a real (or in-process) DB"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "test_strategy": {
+      "dimension_character": "The test suite is strong where it exists: the field-validation, state-machine, and API route tests are well-designed, well-isolated, and cover the intended behaviors systematically. The strategic gap is broad coverage of the lib/ layer and the entire components/ layer. lib/hours.ts is the most acute risk — a 127-LOC parser with complex branching logic, 4 importers, and zero tests. lib/reddit.ts and lib/openrouter.ts represent another 587 LOC of network-interaction and text-processing logic with no tests. The component layer is entirely untested, which is less critical for business logic but means visual regressions and interaction bugs in SearchPoller, LoadMoreButton, and RestaurantFeedbackButton go undetected.",
+      "score_rationale": "The existing test infrastructure is well-designed and not fragile — this is a genuine positive that sets a floor well above 40. However, the 62 score reflects that a developer making changes to lib/hours.ts, lib/reddit.ts, lib/openrouter.ts, or any component has no test safety net. The tested surfaces (validators, state machine, vote/search routes) are the right surfaces to test, but they cover roughly 30% of production LOC. The global anchor for 60 ('meaningful risk goes unvalidated') applies: changes to the complex parser, the Reddit scraping logic, or the hours-display behavior carry real regression risk with no tests to catch it."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "test_strategy",
+      "identifier": "hours_parser_untested",
+      "summary": "lib/hours.ts isOpenNow is a complex pure function (4 format branches, midnight wrap-around) with 4 importers and zero tests",
+      "related_files": [
+        "lib/hours.ts",
+        "components/RestaurantCard.tsx"
+      ],
+      "evidence": [
+        "lib/hours.ts: 127 LOC handling 4 distinct hours formats (compact range, pipe-separated 12h, pipe-separated 24h, 24-hours/Closed literals) with midnight wrap-around logic in each branch",
+        "Scan confirmed: 'Untested module (127 LOC, 4 importers)'",
+        "isOpenNow is a pure function (takes a string, returns boolean|null) with no side effects — it is directly unit-testable without mocking",
+        "RestaurantCard.tsx calls isOpenNow at render time; bugs in the parser surface as incorrect 'Open now' / 'Closed' labels in the UI"
+      ],
+      "suggestion": "Add `__tests__/hours.test.ts` with unit tests covering: (1) standard 12h pipe format ('Monday: 9:00 AM – 10:00 PM'), (2) 24h pipe format, (3) compact range format ('Mon-Sun 11am–10pm'), (4) 'Closed' literal, (5) '24 hours' literal, (6) midnight wrap-around (open 10pm–2am), (7) null/unparseable input. These are all pure function calls with no mocking required.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "reddit_extractor_untested",
+      "summary": "lib/reddit.ts extractRestaurantName (pure function) and the filtering/relevance logic are untested despite being the core extraction heuristic in the scrape pipeline",
+      "related_files": [
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "Scan: 'Untested module (436 LOC, 1 importers)'",
+        "extractRestaurantName is a pure function (takes a title string, returns string|null) with 3 extraction strategies and a skipWords set — directly unit-testable",
+        "isPostRelevantToQuery and isValidRestaurantName are pure filtering functions — also directly testable",
+        "These heuristics determine which restaurants get scraped and stored; false positives/negatives here directly affect product quality with no regression safety net"
+      ],
+      "suggestion": "Add `__tests__/reddit-extraction.test.ts` with unit tests for `extractRestaurantName` (quoted text, common patterns, capitalized-word fallback, skipWords filter) and `isValidRestaurantName` (too many words, no leading capital, invalid starts). These require no mocking of Reddit APIs.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "openrouter_regex_fallback_untested",
+      "summary": "The regexFallback function in lib/openrouter.ts is the query-parsing safety net when the LLM is unavailable, but it is untested",
+      "related_files": [
+        "lib/openrouter.ts"
+      ],
+      "evidence": [
+        "lib/openrouter.ts lines 142-151: `regexFallback(query)` is the critical code path when OPENROUTER_API_KEY is absent or the API fails — this is the path taken in all non-production environments",
+        "The regex `\\b(?:in|near)\\s+([A-Z][a-zA-Z\\s]+?)(?:\\s*$|\\s+(?:area|canada|usa|us|uk))` has edge cases (multi-word cities, trailing words) that are not covered by the LLM path tests",
+        "Scan: 'No direct tests (151 LOC, 2 importers) — covered only via imports from tested modules'"
+      ],
+      "suggestion": "Add `__tests__/openrouter-fallback.test.ts` testing `regexFallback` via `parseQueryWithLLM` with `OPENROUTER_API_KEY` unset (or by exporting `regexFallback` for direct testing). Cover: query with city ('best sushi in Ottawa'), query without city ('best ramen'), multi-word city ('best pizza in New York'), query with trailing area marker ('ramen in Toronto area').",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "rules_untested_directly",
+      "summary": "lib/rules.ts (checkRule01, checkRule03, checkRule05, tryTransitionToVerified) is only tested through mocked API route boundaries — the actual DB query logic is never exercised",
+      "related_files": [
+        "lib/rules.ts",
+        "__tests__/api-votes.test.ts"
+      ],
+      "evidence": [
+        "Scan: 'Untested module (72 LOC, 2 importers)'",
+        "api-votes.test.ts mocks `@/lib/rules` entirely — `checkRule03` and `checkRule05` are replaced with `vi.fn()`, so the actual Prisma query in rules.ts is never exercised by any test",
+        "tryTransitionToVerified performs a conditional state transition with a RULE_01 guard — this multi-step logic (fetch restaurant, check status, check recommendation count, update) is not tested in isolation"
+      ],
+      "suggestion": "Add `__tests__/rules.test.ts` with Prisma mock (using `vi.mock('@/lib/db')`) that exercises: (1) checkRule03 returns true when no existing vote, false when vote exists; (2) checkRule05 analogously; (3) tryTransitionToVerified transitions UNREVIEWED→VERIFIED when recommendations exist; (4) tryTransitionToVerified is a no-op for non-UNREVIEWED restaurants.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The test suite was built bottom-up starting from validators and state machines (the purest, easiest-to-test units), then expanded to API routes — the pure-function lib/ utilities (hours, reddit extraction) were left for later and not yet reached",
+      "Component tests were likely deprioritized as the app is primarily server-rendered with thin client components"
+    ],
+    "likely_symptoms": [
+      "hours_parser_untested — a daylight-saving or locale change could silently break open-hours detection with no test to catch it",
+      "reddit_extractor_untested — heuristic changes to extractRestaurantName can silently change which restaurants are scraped across all cities"
+    ],
+    "possible_false_positives": [
+      "state-machine.test.ts shallow-tests scan finding — the 12-assertion count appears to be a scan artifact; the 78 test functions each call expectReject/expectAllow which internally make 2-3 assertions, giving the full file ~200+ effective assertions"
+    ]
+  },
+  "context_updates": {
+    "test_strategy": {
+      "add": [
+        {
+          "header": "API route tests are well-designed and well-isolated",
+          "description": "All 5 API route test files use vi.mock() to isolate the route handler from lib collaborators, test the full HTTP contract (status codes, response shapes, error conditions), and cover the key branching paths. No fragility patterns observed.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "State-machine and field-validation tests are exhaustive",
+          "description": "state-machine.test.ts covers every valid and invalid transition pair (T68-T132). field-validation.test.ts covers all required-field constraints for all 7 entity types (T01-T57). These are the kind of adversarial tests that catch contract changes immediately.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No snapshot tests — snapshot overuse is not a concern",
+          "description": "The test suite uses behavioral assertions throughout. No snapshot tests are present, so test fragility from snapshot churn is not a risk.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Large lib/ surface untested: hours, reddit, openrouter",
+          "description": "lib/hours.ts (127 LOC), lib/reddit.ts (436 LOC), and lib/openrouter.ts regexFallback are untested pure-function surfaces. Together they represent ~600 LOC of domain logic with no regression safety net.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "lib/rules.ts tested only through mocked boundaries",
+          "description": "The DB query logic in checkRule01/03/05 and the multi-step tryTransitionToVerified are never directly exercised by any test — they are always replaced by vi.fn() mocks in API tests.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

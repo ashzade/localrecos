@@ -1,0 +1,102 @@
+{
+  "batch": "api_surface_coherence",
+  "batch_index": 11,
+  "assessments": {
+    "api_surface_coherence": 78.0
+  },
+  "dimension_notes": {
+    "api_surface_coherence": {
+      "evidence": [
+        "lib/geo.ts exports detectCityFromIp (async) and extractIp (sync) — mixed sync/async in the same module's public API, flagged in holistic_context.api_surface.sync_async_mix",
+        "lib/search.ts exports parseQuery (async), searchRestaurants (async), countSearchResults (async), findRestaurantGroup (async), and groupRestaurantsByName (sync) — one sync function mixed into an otherwise fully async public API",
+        "lib/reddit.ts exports scrapeRedditForRestaurants (async), fetchCommunityPicksForRestaurant (async), and extractRestaurantName (sync) — extractRestaurantName has a different character (pure, sync) from the rest of the module's I/O-bound API",
+        "searchRestaurants(city, terms, limit = 10, offset = 0) and countSearchResults(city, terms) are sibling functions over the same domain but have different signatures — countSearchResults does not accept limit/offset, which is fine for a count, but the parameter shape divergence is worth noting",
+        "fetchWithFallback in app/api/scrape/route.ts takes (city, query, state, advance) — 4 params where advance is a callback side-effecting the caller's local variable; this is an unusual contract not consistent with the rest of the lib API surface",
+        "Public route handlers are all async (Next.js GET/POST) — no sync/async issue at route level",
+        "All vote endpoints (vote, restaurant-vote) have consistent shapes: POST with JSON body, return {success, upvotes, downvotes, net_votes}",
+        "search returns {city, terms, results, count}; search-more returns {results, hasMore} — sibling search routes have different response envelopes; search-more drops city/terms from the response"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "confidence": "medium",
+      "issues_preventing_higher_score": "Mixed sync/async in lib/geo.ts, lib/search.ts, and lib/reddit.ts public APIs; search vs search-more response envelope inconsistency"
+    }
+  },
+  "dimension_judgment": {
+    "api_surface_coherence": {
+      "dimension_character": "The public APIs within lib modules are generally coherent — similar functions use consistent naming prefixes and parameter shapes. The main friction is structural: three modules (geo, search, reddit) mix sync and async exports in their public surfaces, which means callers have to check each function individually rather than relying on a predictable contract. The route-level APIs are mostly consistent, though the search/search-more pair uses different response envelopes.",
+      "score_rationale": "At the 80-range anchor, a developer 'would mostly be well-served but would hit recurring friction'. The sync/async mixing across three modules and the search envelope inconsistency are exactly that kind of recurring friction — not blocking, but noticeable pattern breaks. The vote endpoints and validate functions are strongly consistent. The score lands just below 80 because the mixing pattern spans three separate modules, making it a codebase-level regularity rather than an isolated incident."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "sync_async_mixed_lib_modules",
+      "summary": "lib/geo.ts, lib/search.ts, and lib/reddit.ts mix sync and async exports in their public API surfaces",
+      "related_files": [
+        "lib/geo.ts",
+        "lib/search.ts",
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "lib/geo.ts: detectCityFromIp is async, extractIp is sync — both are public exports used together by callers",
+        "lib/search.ts: groupRestaurantsByName is sync while parseQuery, searchRestaurants, countSearchResults, findRestaurantGroup are all async",
+        "lib/reddit.ts: extractRestaurantName is sync and exported; scrapeRedditForRestaurants and fetchCommunityPicksForRestaurant are async — the sync export has a completely different character from the I/O-bound async exports"
+      ],
+      "suggestion": "Move sync utility functions that are used outside their home module into a more appropriate home. extractRestaurantName in lib/reddit.ts could move to lib/restaurant-grouping.ts or be unexported if only used internally. groupRestaurantsByName in lib/search.ts is already re-exported from lib/restaurant-grouping.ts — callers should import from there directly, removing it from lib/search.ts's public API. extractIp in lib/geo.ts is legitimately paired with detectCityFromIp since callers always need both; document this pairing in a module comment rather than splitting.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "search_vs_search_more_envelope_mismatch",
+      "summary": "GET /api/search and GET /api/search-more return different response envelope shapes for the same result type",
+      "related_files": [
+        "app/api/search/route.ts",
+        "app/api/search-more/route.ts"
+      ],
+      "evidence": [
+        "/api/search returns {city, terms, results, count} — includes city and terms resolved from the query",
+        "/api/search-more returns {results, hasMore} — omits city and terms; the client already has them from the first call so this is intentional, but the result objects themselves are shaped differently (search returns grouped RestaurantGroup[], search-more returns raw RestaurantWithRecommendations[] that the client groups locally)"
+      ],
+      "suggestion": "Make the envelope fields explicit in shared TypeScript types so callers can't mix them up. Alternatively, add a brief comment at the top of each route explaining the intentional envelope difference and why search-more returns ungrouped rows (client-side grouping via excludeNames). This turns an implicit inconsistency into a documented contract.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Utility functions that are pure/sync were added to modules defined primarily around async I/O, creating mixed public surfaces without a deliberate design decision"
+    ],
+    "likely_symptoms": [
+      "sync_async_mixed_lib_modules"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "api_surface_coherence": {
+      "add": [
+        {
+          "header": "Vote endpoints use consistent response envelope",
+          "description": "Both /api/vote and /api/restaurant-vote return {success, upvotes, downvotes, net_votes} with identical structure, and both validate direction as 'up'|'down' before acting. This makes them predictable to call in tandem.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No public functions with excessive parameter counts",
+          "description": "All public lib functions have 4 or fewer parameters; the widest is searchRestaurants(city, terms, limit, offset). No cases of parameter-object smell in public APIs.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Sync utilities mixed into async module surfaces",
+          "description": "Three lib modules export both sync and async functions at the same level, requiring callers to check each export's async character rather than relying on a uniform contract.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

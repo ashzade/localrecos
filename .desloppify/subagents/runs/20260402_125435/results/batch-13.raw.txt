@@ -1,0 +1,105 @@
+{
+  "batch": "ai_generated_debt",
+  "batch_index": 13,
+  "assessments": {
+    "ai_generated_debt": 84.0
+  },
+  "dimension_notes": {
+    "ai_generated_debt": {
+      "evidence": [
+        "Previously resolved: foodQuery() pass-through function removed; 8 debug console.log calls removed from scrape pipeline.",
+        "lib/validate.ts: each validate function follows the same repetitive pattern — check === null || === undefined, check === '', throw ValidationError. This is not AI debt per se but a mechanical pattern that could be a data-driven loop; however, the field names and messages are domain-specific and non-trivial to data-drive without obscuring intent.",
+        "lib/validate.ts: the local interface re-declarations (ParsedQuery, ExtractedRestaurant, PlaceDetails etc.) are deliberate — the header comment explains they avoid circular imports. This is a documented architectural decision, not boilerplate.",
+        "lib/reddit.ts: two identical console.warn calls with slightly different messages ('Reddit post is missing required fields...' and 'Extracted restaurant must have a name and city to proceed with enrichment.') are in catch blocks. These are legitimate boundary-warning logs at parse/validate boundaries, not debug noise.",
+        "lib/google-places.ts: console.warn('Google Places returned a non-food venue for this name; skipping.') and console.error calls — all within error paths or filter warnings. Not debug logging; appropriate operational visibility.",
+        "lib/openrouter.ts: console.error('[openrouter] request failed', ...) and '[openrouter] parseQuery threw' — error path logging with bracket-prefixed tags. This is structured operational logging, not AI-generated noise.",
+        "Comment quality: code comments throughout explain WHY (e.g., '// RULE_04: reject if no city can be resolved', '// Cache for 1 hour', '// Skip for localhost / private addresses', '// Advance the state machine through PARSING...'). No restating comments found.",
+        "scrape/route.ts: fetchWithFallback and enrichAndUpsert are well-named and domain-specific. No generic 'handleData' or 'processItem' names found.",
+        "lib/reddit.ts: STOP_WORDS defined twice — once in lib/search.ts (for DB query filtering) and once in lib/reddit.ts (for query word extraction). Different contexts but same name and similar content — minor duplication, not AI debt.",
+        "lib/validate.ts is 274 lines of highly repetitive null/empty checks. Each check is two lines. This passes the 'defensive checks at genuine API boundaries' skip rule — validators are at DB write boundaries. However the mechanical repetition with identical structure across 9 validator functions creates visual noise.",
+        "No pass-through wrappers found (the previously-flagged foodQuery was fixed). lib/search.ts's groupRestaurantsByName re-exports from lib/restaurant-grouping.ts with a type cast — this is a minimal adapter, not a pass-through.",
+        "Overall comment ratio is 0.049 (from ai_debt_signals) — minimal comments, which is appropriate given code speaks for itself."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "confidence": "medium",
+      "issues_preventing_higher_score": "lib/validate.ts has 9 validator functions following a mechanical identical pattern — the repetition creates noise though each is at a real boundary. STOP_WORDS duplicated across lib/search.ts and lib/reddit.ts."
+    }
+  },
+  "dimension_judgment": {
+    "ai_generated_debt": {
+      "dimension_character": "The codebase has been actively cleaned of the main AI debt patterns identified in earlier reviews: debug logging and pass-through wrappers are gone. The remaining code is domain-specific, well-named, and comments explain business rules rather than restating code. The main residual pattern is the mechanically repetitive validator functions in lib/validate.ts — structurally identical null/empty checks across 9 validator functions — which creates visual noise but is at genuine API boundaries.",
+      "score_rationale": "At the 84 range, the codebase is solidly clean: no restating comments, no debug logging, no pass-through wrappers, no generic names in domain code. The validation repetition in validate.ts and the STOP_WORDS duplication are the clearest remaining artifacts. These are minor and isolated, keeping the score in the low 80s rather than the 90s where there would be no noticeable noise patterns."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "validate_ts_mechanical_repetition",
+      "summary": "lib/validate.ts repeats identical null/empty check pattern across 9 validator functions without abstraction",
+      "related_files": [
+        "lib/validate.ts"
+      ],
+      "evidence": [
+        "Each string field check follows the exact same 4-line pattern: check === null || === undefined, throw; check === '', throw. This pattern is repeated ~25 times across validateParsedQuery, validateRedditPost, validateExtractedRestaurant, validatePlaceDetails, validateRestaurantInput, validateCommunityRecommendationInput, validateRestaurantVoteInput, validateVoteInput.",
+        "validateRedditPost uses a field list loop (REDDIT_POST_STRING_FIELDS) for string fields — demonstrating awareness of the pattern — but the other 7 validators duplicate the pattern inline."
+      ],
+      "suggestion": "Extend the field-loop pattern used in validateRedditPost to a shared helper: `function requireString(obj: Record<string, unknown>, field: string, context: string): void`. Each validator can then call requireString(obj, 'name', 'Restaurant') instead of repeating the two-branch check inline. This reduces the 274-line file by roughly 40% while keeping each validator's intent clear. The helper stays private within validate.ts.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "stop_words_duplicated",
+      "summary": "STOP_WORDS constant defined independently in lib/search.ts and lib/reddit.ts with overlapping content",
+      "related_files": [
+        "lib/search.ts",
+        "lib/reddit.ts"
+      ],
+      "evidence": [
+        "lib/search.ts line 87-91: STOP_WORDS Set with 17 food/query-related words used in parseWords() for DB search filtering",
+        "lib/reddit.ts line 162-166: STOP_WORDS Set with 22 words used in isPostRelevantToQuery() for Reddit post relevance checking",
+        "The sets overlap but serve different filtering purposes — search.ts filters DB query terms, reddit.ts filters relevance words. The name collision without shared definition is the issue."
+      ],
+      "suggestion": "Rename one or both to reflect their distinct purposes: SEARCH_STOP_WORDS in lib/search.ts and RELEVANCE_STOP_WORDS in lib/reddit.ts. This removes the false impression of shared logic and makes each set's purpose explicit without requiring any extraction or coupling between modules.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Mechanical pattern repetition in validators — likely written function-by-function without refactoring back to the loop pattern used in validateRedditPost"
+    ],
+    "likely_symptoms": [
+      "validate_ts_mechanical_repetition",
+      "stop_words_duplicated"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "ai_generated_debt": {
+      "add": [
+        {
+          "header": "Comments explain business rules, not code",
+          "description": "Throughout the codebase, inline comments reference RULE_01/RULE_03/RULE_04/RULE_05/RULE_06 constraints, explain caching decisions, and describe non-obvious fallback logic. No restating comments found.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Domain-specific naming with no generic handler names",
+          "description": "Functions throughout the scrape, search, and vote pipeline use domain vocabulary: fetchWithFallback, enrichAndUpsert, upsertRestaurant, tryTransitionToVerified, computeFingerprint. No handleData or processItem patterns.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Validator repetition at DB write boundaries",
+          "description": "lib/validate.ts has 9 structurally identical validator functions. The repetition is at genuine API boundaries (pre-DB-write guards) so it passes the skip rule, but the mechanical nature creates visual noise that a loop pattern could eliminate.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}
